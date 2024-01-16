@@ -8,7 +8,7 @@ import torch
 
 class _distribution():
 	def __init__(self):
-		pass
+		raise NotImplementedError
 
 	def _sample_single(self):
 		raise NotImplementedError
@@ -97,9 +97,7 @@ class categorical(_distribution):
 		moment2 = sum([int(name) ** 2 * self._categories[name] for name in self._categories]) / self._weight_total
 		return moment2 - E ** 2 # population variance
 
-class uniform(_distribution):
-	"""A discrete uniform distribution."""
-
+class uniform_discrete(_distribution):
 	def __init__(self, low, high):
 		self.low = low
 		self.high = high
@@ -123,10 +121,15 @@ class uniform(_distribution):
 def bernoulli(p):
 	return categorical({0: 1 - p, 1: p})
 
-def infer(_sample_single):
-	d = _distribution()
-	d._sample_single = types.MethodType(lambda self: _sample_single(), d)
-	return d
+def infer(sample_single):
+	class inferred(_distribution):
+		def __init__(self):
+			pass
+
+		def _sample_single(self):
+			return sample_single()
+
+	return inferred()
 
 import unittest
 
@@ -151,12 +154,12 @@ class TestDistributions(unittest.TestCase):
 		self.assertAlmostEqual(c.E(), 10 / 7, places=5)
 
 	def test_uniform(self):
-		die = uniform(1, 6)
+		die = uniform_discrete(1, 6)
 		self.assertEqual(tuple(die.median()), (3, 4))
 		self.assertEqual(die.E(), 3.5)
 		self.assertAlmostEqual(die.var(), 2.916667, places=5)
 
-		die7 = uniform(1, 7)
+		die7 = uniform_discrete(1, 7)
 		self.assertEqual(tuple(die7.median()), (4,))
 		self.assertEqual(die7.E(), 4)
 
