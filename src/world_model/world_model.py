@@ -87,6 +87,14 @@ class WorldModel(Env):
         self.history = [result]
         return result, info
     
+    def possible_actions(self, history):
+        """Return the list of all actions possible after the given history.
+        
+        This default implementation assumes that the action space is of type gymnasium.spaces.Discrete,
+        representing a range of integers."""
+        space = self.action_space
+        return range(space.start, space.start + space.n)
+    
     def step(self, action):
         """Perform the given action and return a tuple 
         (observation, reward, terminated, False, {"probability": probability, "exact": exact}, terminated)."""
