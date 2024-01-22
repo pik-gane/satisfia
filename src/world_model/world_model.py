@@ -55,6 +55,12 @@ class WorldModel(Env):
                        for (result, (probability, _)) in self.transition_distribution(history, action, n_samples = 
                        None)])
     
+    def expectation(self, history, f, action, additional_args = None, n_samples = None):
+        """Return the expected value of f(step(action), *additional_args) after the giving history."""
+        return np.sum([probability * f(result, *additional_args)
+                       for (result, (probability, _)) in self.transition_distribution(history, action, n_samples = 
+                       None)])
+    
     # Our default implementation of standard gymnasium.Env methods uses ampling from the above distribution:
 
     def _sample(self, action = None):
