@@ -60,7 +60,14 @@ class WorldModel(Env):
         return np.sum([probability * f(result, *additional_args)
                        for (result, (probability, _)) in self.transition_distribution(history, action, n_samples = 
                        None)])
-    
+
+    def expectation_of_fct_of_probability(self, history, action, f, additional_args = None, n_samples = None):
+        """Return the expected value of f(res, p, *additional_args) after the giving history,
+        where res is a possible outcome of step(action) and p its probability."""
+        return np.sum([probability * f(result, probability, *additional_args)
+                       for (result, (probability, _)) in self.transition_distribution(history, action, n_samples = 
+                       None)])
+
     # Our default implementation of standard gymnasium.Env methods uses ampling from the above distribution:
 
     def _sample(self, action = None):
