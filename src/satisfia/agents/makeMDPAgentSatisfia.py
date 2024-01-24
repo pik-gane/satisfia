@@ -150,7 +150,7 @@ class AgentMDP():
 			q = Edel
 		else:
 			# Bellman equation
-			q = distribution.infer(lambda: self.maxAdmissibleV(self.world.transition(state, action))).E() # recursion
+			q = Edel + self.world.expectation(state, action, self.maxAdmissibleV) # recursion
 
 		if verbose or debug:
 			print("maxAdmissibleQ, state", state, "action", action, ":", q)
@@ -223,25 +223,21 @@ class AgentMDP():
 	# over trajectories any agent could produce from here (see overleaf for details)):
 	@lru_cache(maxsize=None)
 	def messingPotential_action(self, state, action): # recursive
-		def sample():
+		def sample(nextState, probability):
 			if state.terminateAfterAction:
 				return 0
 			else:
-				# TODO understand these two lines
-				nextState = self.world.transition(state, action)
-				nextStateScore = self.transitionDistribution(state, action).score(nextState)
-
 				nextMP = self.messingPotential_state(nextState) # recursion
-				priorScore = self["uninformedStatePriorScore"](state) if self["uninformedStatePriorScore"] else 0
+				priorScore = self["uninformedStatePriorScore"](nextState) if self["uninformedStatePriorScore"] else 0
 				internalEntropy = self["internalTransitionEntropy"](state, action, nextState) if self["internalTransitionEntropy"] else 0
-				return nextMP + priorScore - nextStateScore + internalEntropy;
+				return nextMP + priorScore - np.log(probability) + internalEntropy
 
 		# Note for ANN approximation: messingPotential_action can be positive or negative. 
-		return distribution.infer(sample).E()
+		return self.world.expectation_of_fct_of_probability([state], action, sample)
 
 	@lru_cache(maxsize=None)
 	def messingPotential_state(self, state): # recursive
-		actions = self.world.stateToActions(state)
+		actions = self.world.possible_actions(state)
 		maxMPpolicyWeights = [math.exp(self.messingPotential_action(state, a)) for a in actions]
 		return math.log(sum(maxMPpolicyWeights))
 

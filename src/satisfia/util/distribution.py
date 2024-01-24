@@ -6,6 +6,8 @@ import types
 
 import torch
 
+"""Each distribution derives from the base class _distribution. The base class implements all necessary methods except for the constructor and a method for sampling an element from the distribution (_sample_single). At minimum, the derived class must implement those. The derived class can override additional methods to get more accurate and faster implementations for the specific distribution in question (e.g. exact expected value instead of estimation from sampling; population variance instead of sample variance)."""
+
 class _distribution():
 	def __init__(self):
 		raise NotImplementedError
@@ -90,11 +92,11 @@ class categorical(_distribution):
 		return [self._select(self._weight_total / 2.0)]
 
 	def E(self):
-		return sum([int(name) * self._categories[name] for name in self._categories]) / self._weight_total
+		return sum([float(name) * self._categories[name] for name in self._categories]) / self._weight_total
 
 	def var(self):
 		E = self.E()
-		moment2 = sum([int(name) ** 2 * self._categories[name] for name in self._categories]) / self._weight_total
+		moment2 = sum([float(name) ** 2 * self._categories[name] for name in self._categories]) / self._weight_total
 		return moment2 - E ** 2 # population variance
 
 class uniform_discrete(_distribution):
@@ -170,4 +172,4 @@ class TestDistributions(unittest.TestCase):
 			self.assertIn(s, values)
 
 if __name__ == '__main__':
-	 unittest.main()
+	unittest.main()
