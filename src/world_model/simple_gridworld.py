@@ -12,32 +12,47 @@ from gymnasium import spaces
 class SimpleGridworld(MDPWorldModel):
     """A world model of a simple MDP-type Gridworld environment.
     
-    A state here is a pair (num_state, str_state), where both entries contain the following data consecutively,
-    once as a tuple of integers (convenient for reinforcement learning with PyTorch)
-    and once as a string (convenient as a key for dictionaries):
-    - the current position x,y of the agent
-    - the previous position x,y of the agent
-    - for each immovable object with variable state, its state
-    - for each movable object without a variable state, its position x,y 
-    - for each movable object with a variable state, its state and its position x,y
-    An object's position can also be -1,-1 if the object is not present, or -2,-2 if it is in the agent's inventory
-    Objects are ordered by their initial position in the ascii-art grid representation in row-major order.
+    A *state* here is a pair (num_state, str_state), where both entries contain the same data,
+    once as a tuple of integers (which is convenient for reinforcement learning with PyTorch)
+    and once as a string (which is more performant when used as a key for dictionaries).
+    The data encoded in both versions of the state is following sequence of items,
+    each one encoded as one or two integers (in num_state) and one or two characters (in str_state):
 
-    The grid and the agent's and all objects' initial positions are given as an array of strings,
+    - positions 1+2: the current position x,y of the agent
+    - positions 3+4: the previous position x,y of the agent
+    - positions 5...4+k: for each of k immovable objects with variable state, its state
+    - positions 5+k..4+k+2*l: for each of l movable objects without a variable state, its position x,y 
+    - positions 5+k+2*l...4+k+2*l+3*m: for each of m movable objects with a variable state, 
+                                       its state and its position x,y
+
+    A *coordinate* in a position is encoded in num_state as a number from 1...26 
+    and in str_state as a letter from 'A'...'Z'. 
+    An object's position can also be (-1,-1) or ('?','?') if the object is not present, 
+    or (0,0) or ('@','@') if it is in the agent's inventory.
+    This way the numerical representation always equals the ASCII code of the character representation minus 64.
+
+    Objects are *ordered* by their initial position in the ascii-art grid representation in row-major order.
+
+    The *grid* and the agent's and all objects' *initial positions* are given as an array of strings,
     each string representing one row of the grid, each character representing one cell of the grid,
     with the following character meanings: 
-    ... (TODO: take from gdoc and extend)
+    
+    - '#' (hash): wall
+    - ' ' (blank): empty space
+    - '@': agent's initial position
+    - ... (TODO: take from gdoc, compare with pycolab asciiart conventions, 
+          try to harmonize them, and add things that are missing)
 
-    Deltas (rewards) can accrue from the following events:
+    *Deltas* (rewards) can accrue from the following events:
     - Time passing. This is specified by time_delta or a list time_deltas of length max_episode_length.
     - The agent stepping onto a certain object. This is specified by a list object_deltas
       ordered by the objects' initial positions in the ascii-art grid representation in row-major order.
     - The agent entering a certain position. This is specified by 
-        - a dictionary cell_code2delta
-        - another array of strings of the same size as the grid, cell_codes
-      with the following character meanings:
-        - ' ' (space): no Delta
-        - '<letter>': Delta as specified by cell_code2delta['<letter>']
+        - another array of strings of the same size as the grid, 
+          containing cell_codes with the following character meanings:
+            - ' ' (space): no Delta
+            - '<character>': Delta as specified by cell_code2delta['<character>']
+        - a dictionary cell_code2delta listing the actual Delta values for each cell_code in that grid
     """
 
     max_episode_length = None

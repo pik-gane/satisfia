@@ -14,7 +14,7 @@ class MDPWorldModel(WorldModel, MDP):
         """Return a dictionary mapping results of calling step(action) after the given history 
         to tuples of the form (probability: float, exact: boolean).
         
-        If not overridden, will sample n_samples times and return the empirical distribution."""
+        If not overridden, this will sample n_samples times and return the empirical distribution."""
         old_state = self.state()
         state = history[0]
         frequencies = {}

@@ -17,8 +17,11 @@ class WorldModel(Env):
 
     In all additional methods:
 
-    - history is a list of the form [observation, action, result, action, ..., result], the first being the observation returned by reset(), the other results being the main parts of the return values of consecutively calling step(action) after the given history up to that point.
     - result is a tuple (observation, reward, terminated) that could be returned by step().
+    - history is a list of the form [observation, action, result, action, ..., result] (a full history) 
+      or of the form [result, action, result, action, ..., result] (a truncated history), where:
+        - observation is the observation returned by reset(),
+        - the other results are the main parts of the return values of consecutively calling step(action) after the given history up to that point.
     - n_samples is the number of samples to use for estimating the probability if no exact computation is possible.
     """
 
@@ -27,6 +30,8 @@ class WorldModel(Env):
 
     def __init__(self):
         super().__init__()
+
+    # methods for enquiring transition probabilities:
 
     def possible_results(self, history, action, n_samples = None):
         """Return a list of possible results of calling step(action) after the given history,
@@ -46,8 +51,10 @@ class WorldModel(Env):
         return {result: self.transition_probability(history, action, result, n_samples) 
                 for result in self.possible_results(history, action, n_samples)}
     
+    # methods for enquiring expected values:
+
     def _result2reward(self, result):
-        return result[1]
+        return result[1]  # since result is a tuple (observation, reward, terminated)
     
     def expected_reward(self, history, action, n_samples = None):
         """Return the expected reward of the given result of calling step(action) after the given history."""
@@ -68,9 +75,10 @@ class WorldModel(Env):
                        for (result, (probability, _)) in self.transition_distribution(history, action, n_samples = 
                        None)])
 
-    # Our default implementation of standard gymnasium.Env methods uses ampling from the above distribution:
+    # Our default implementation of standard gymnasium.Env methods uses sampling from the above distribution:
 
     def _sample(self, action = None):
+        """Auxiliary method for sampling from the transition distribution."""
         transition_distribution = self.transition_distribution(None if action is None else self.history, action)
         results = list(transition_distribution.keys())
         values = list(transition_distribution.values())
