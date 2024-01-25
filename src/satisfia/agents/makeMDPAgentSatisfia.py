@@ -248,7 +248,7 @@ class AgentMDP():
 	# which is a mapping taking a state and an aspiration interval as input and returning
 	# a categorical distribution over (action, aleph4action) pairs.
 
-	def localPolicy(state, aleph): # recursive
+	def localPolicy(self, state, aleph): # recursive
 		"""return a categorical distribution over (action, aleph4action) pairs"""
 
 		d = localPolicyData(state, aleph)
@@ -261,12 +261,12 @@ class AgentMDP():
 		return distribution.categorical(support, ps)
 
 	@lru_cache(maxsize=None)
-	def localPolicyData(state, aleph):
+	def localPolicyData(self, state, aleph):
 		if verbose or debug:
 			print(pad(state), "| localPolicy, state",prettyState(state),"aleph",aleph,"...")
 		
 		# Clip aspiration interval to admissibility interval of state:
-		aalephLo, alephHi = leph4state = aspiration4state(state, aleph)
+		alephLo, alephHi = aleph4state = aspiration4state(state, aleph)
 
 		# Estimate aspiration intervals for all possible actions in a way 
 		# independent from the local policy that we are about to construct,
@@ -293,7 +293,8 @@ class AgentMDP():
 		def sample():
 			# Draw a first action a1 using the calculated softmin propensities,
 			# and get its admissibility interval:
-			i1 = distribution.ategorical(indices, propensities).sample()
+			####### TODO needs changes
+			i1 = distribution.categorical(indices, propensities).sample()
 			a1 = actions[i1]
 			adm1Lo, adm1Hi = adm1 = admissibility4action(state, a1)
 
@@ -324,6 +325,7 @@ class AgentMDP():
 
 				# Like for a1, we now draw a2 using a softmin mixture of these actions, based on the new propentities,
 				# and get its admissibility interval:
+				####### TODO needs changes
 				i2 = distribution.categorical(indices2, propensities2).sample()
 				a2 = actions[i2]
 				adm2Lo, adm2Hi = adm2 = admissibility4action(state, a2)
@@ -363,6 +365,7 @@ class AgentMDP():
 				# TODO: understand why in GW3 we go right with 50% probability rather than always going left.
 
 			# TODO: there is an optimization but it doesn't work yet
+
 		locPol = distribution.infer(sample)
 
 		support = locPol.support()
@@ -372,5 +375,297 @@ class AgentMDP():
 			print(pad(state),"| localPolicy, state",prettyState(state),"aleph",aleph,":");
 			_W.printPolicy(pad(state), support, ps)
 		return [support, ps]
+
+	# Propagate aspiration from state-action to successor state, potentially taking into account received expected delta:
+
+	# caching this easy to compute function would only clutter the cache due to its many arguments
+	def propagateAspiration(state, action, aleph4action, Edel, nextState):
+		if debug:
+			print(pad(state),"| | | propagateAspiration, state",prettyState(state),"action",action,"aleph4action",aleph4action,"Edel",Edel,"nextState",prettyState(nextState),"...")
+
+		# compute the relative position of aleph4action in the expectation that we had of 
+		#	delta + next admissibility interval 
+		# before we knew which state we would land in:
+		lam = relativePosition(minAdmissibleQ(state, action), aleph4action, maxAdmissibleQ(state, action));
+		# (this is two numbers between 0 and 1.)
+		# use it to rescale aleph4action to the admissibility interval of the state that we landed in:
+		rescaledAleph4nextState = interpolate(minAdmissibleV(nextState), lam, maxAdmissibleV(nextState))
+		# (only this part preserves aspiration in expectation)
+		res = rescaledAleph4nextState # WAS: interpolate(steadfastAleph4nextState, rescaling4Successors, rescaledAleph4nextState)
+		if verbose or debug:
+			print(pad(state),"| | | propagateAspiration, state",prettyState(state),"action",action,"aleph4action",aleph4action,"Edel",Edel,"nextState",prettyState(nextState),":",res)
+		return res
+
+		""" Note on influence of Edel: 
+		It might seem that the (expected) delta received when taking action a in state s should occur
+		explicitly in some form in this formula, similar to how it occurred in the steadfast formula above.
+		This is not so, however. The expected delta is taken account of *implicitly* in the rescaling formula
+		via the use of min/maxAdmissibleQ(s,a) to compute lam but using min/maxAdmissibleV(s') in interpolating.
+		More precisely, one can prove that aspirations are kept in expectation. We want
+
+			aleph(s,a) = E(delta(s,a)) + E(aleph(s') | s'~(s,a)).
+
+		This can be shown to be true as follows:
+
+			min/maxAdmissibleQ(s,a) = E(delta(s,a)) + E(min/maxAdmissibleV(s') | s'~(s,a)),
+
+			lamdba = (aleph(s,a) - minAdmissibleQ(s,a)) / (maxAdmissibleQ(s,a) - minAdmissibleQ(s,a)),
+
+			rescaledAleph(s') = minAdmissibleV(s') + lambda * (maxAdmissibleV(s') - minAdmissibleV(s')),
+
+			E(delta(s,a)) + E(rescaledAleph(s') | s'~(s,a)) 
+			= E(delta(s,a)) + E(minAdmissibleV(s') | s'~(s,a)) 
+			  + lambda * (E(maxAdmissibleV(s') | s'~(s,a)) - E(minAdmissibleV(s') | s'~(s,a)))
+			= minAdmissibleQ(s,a) + lambda * (maxAdmissibleQ(s,a) - minAdmissibleQ(s,a))
+			= minAdmissibleQ(s,a) + (aleph(s,a) - minAdmissibleQ(s,a))
+			= aleph(s,a).
+
+		So the above rescaling formula is correctly taking account of received delta even without explicitly
+		including Edel in the formula.
+		"""
+
+	# Based on the policy, we can compute many resulting quantities of interest useful in assessing safety
+	# better than with the above myopic safety metrics. All of them satisfy Bellman-style equations:
+
+	# Actual Q and V functions of resulting policy (always returning scalars):
+	@lru_cache(maxsize=None)
+	def Q(self, state, action, aleph4action): # recursive
+		if debug:
+			print("| Q", prettyState(state), action, aleph4action)
+
+		def sample():
+			Edel = expectedDelta(state, action)
+			if state.terminateAfterAction:
+				return Edel;
+			else:
+				nextState = transition(state, action)
+				nextAleph4state = propagateAspiration(state, action, aleph4action, Edel, nextState)
+				return Edel + V(nextState, nextAleph4state) # recursion
+		q = distribution.infer(sample).E()
+
+		if debug:
+			print("| Q", prettyState(state), action, aleph4action, q)
+		return q
+
+	@lru_cache(maxsize=None)
+	def V(self, state, aleph4state): # recursive
+		if debug:
+			print("| V", prettyState(state), aleph4state)
+
+		locPol = localPolicy(state, aleph4state)
+		def sample():
+			actionAndAleph = locPol.sample() # recursion
+			return Q(state, actionAndAleph[0], actionAndAleph[1]) # recursion
+		v = distribution.infer(sample).E()
+
+		if debug:
+			print("| V", prettyState(state), aleph4state, ":", v)
+		return v;
+
+	# Raw moments of delta: 
+	@lru_cache(maxsize=None)
+	def expectedDeltaSquared(self, state, action):
+		Edel = expectedDelta(state, action)
+		return varianceOfDelta(state, action) + squared(Edel)
+	@lru_cache(maxsize=None)
+	def expectedDeltaCubed(self, state, action):
+		Edel = expectedDelta(state, action)
+		varDel = varianceOfDelta(state, action)
+		return (varDel ** 1.5)*skewnessOfDelta(state, action) \
+			+ 3*Edel*varDel \
+			+ (Edel ** 3)
+	@lru_cache(maxsize=None)
+	def expectedDeltaFourth(self, s, a):
+		Edel = expectedDelta(s, a)
+		return squared(varianceOfDelta(s, a)) * (3 + excessKurtosisOfDelta(s, a)) \
+			+ 4*expectedDeltaCubed(s, a)*Edel \
+			- 6*expectedDeltaSquared(s, a)*squared(Edel) \
+			+ 3*(Edel ** 4)
+	@lru_cache(maxsize=None)
+	def expectedDeltaFifth(self, s, a):
+		Edel = expectedDelta(s, a)
+		return fifthMomentOfDelta(s, a) \
+			+ 5*expectedDeltaFourth(s, a)*Edel \
+			- 10*expectedDeltaCubed(s, a)*squared(Edel) \
+			+ 10*expectedDeltaSquared(s, a)*cubed(Edel) \
+			- 4*(Edel ** 5)
+	@lru_cache(maxsize=None)
+	def expectedDeltaSixth(self, s, a):
+		Edel = expectedDelta(s, a)
+		return sixthMomentOfDelta(s, a) \
+			+ 6*expectedDeltaFifth(s, a)*Edel \
+			- 15*expectedDeltaFourth(s, a)*squared(Edel) \
+			+ 20*expectedDeltaCubed(s, a)*cubed(Edel) \
+			- 15*expectedDeltaSquared(s, a)*(Edel ** 4) \
+			+ 5*(Edel ** 6)
+
+	# Expected squared total, for computing the variance of total:
+	@lru_cache(maxsize=None)
+	def Q2(self, state, action, aleph4action): # recursive
+		def sample():
+			Edel = expectedDelta(state, action)
+			Edel2 = expectedDeltaSquared(state, action)
+			if state.terminateAfterAction:
+				return Edel2;
+			else:
+				nextState = transition(state, action)
+				nextAleph4state = propagateAspiration(state, action, aleph4action, Edel, nextState)
+				# TODO: verify formula:
+				return Edel2 \
+					+ 2*Edel*V(nextState, nextAleph4state) \
+					+ V2(nextState, nextAleph4state) # recursion
+
+		q2 = distribution.infer(sample).E()
+		if debug:
+			print("| Q2", prettyState(state), action, aleph4action, q2)
+		return q2
+	@lru_cache(maxsize=None)
+	def V2(self, state, aleph4state): # recursive
+		locPol = localPolicy(state, aleph4state)
+		def sample():
+			actionAndAleph = locPol.sample() # recursion
+			return Q2(state, actionAndAleph[0], actionAndAleph[1]) # recursion
+		v2 = distribution.infer(sample).E()
+		if debug:
+			print("| V2", prettyState(state), aleph4state, v2)
+		return v2
+
+	# Similarly: Expected third and fourth powers of total, for computing the 3rd and 4th centralized moment of total:
+	@lru_cache(maxsize=None)
+	def Q3(self, state, action, aleph4action): # recursive
+		def sample():
+			Edel = expectedDelta(state, action)
+			Edel2 = expectedDeltaSquared(state, action)
+			Edel3 = expectedDeltaCubed(state, action)
+			if state.terminateAfterAction:
+				return Edel3
+			else:
+				nextState = transition(state, action),
+				nextAleph4state = propagateAspiration(state, action, aleph4action, Edel, nextState)
+				# TODO: verify formula:
+				return Edel3 \
+					+ 3*Edel2*V(nextState, nextAleph4state) \
+					+ 3*Edel*V2(nextState, nextAleph4state) \
+					+ V3(nextState, nextAleph4state) # recursion
+		q3 = distribution.infer(sample).E()
+		if debug:
+			print("| Q3", prettyState(state), action, aleph4action, q3)
+		return q3
+	@lru_cache(maxsize=None)
+	def V3(self, state, aleph4state): # recursive
+		locPol = localPolicy(state, aleph4state)
+		def sample():
+			actionAndAleph = locPol.sample() # recursion
+			return Q3(state, actionAndAleph[0], actionAndAleph[1]) # recursion
+		v3 = distribution.infer(sample).E()
+		if debug:
+			print("| V3", prettyState(state), aleph4state, v3)
+		return v3
+
+	# Expected fourth power of total, for computing the expected fourth power of deviation of total from expected total (= fourth centralized moment of total):
+	@lru_cache(maxsize=None)
+	def Q4(self, state, action, aleph4action): # recursive
+		def sample():
+			Edel = expectedDelta(state, action),
+			Edel2 = expectedDeltaSquared(state, action)
+			Edel3 = expectedDeltaCubed(state, action)
+			Edel4 = expectedDeltaFourth(state, action)
+			if state.terminateAfterAction:
+				return Edel4;
+			else:
+				nextState = transition(state, action),
+				nextAleph4state = propagateAspiration(state, action, aleph4action, Edel, nextState)
+				# TODO: verify formula:
+				return Edel4 \
+					+ 4*Edel3*V(nextState, nextAleph4state) \
+					+ 6*Edel2*V2(nextState, nextAleph4state) \
+					+ 4*Edel*V3(nextState, nextAleph4state) \
+					+ V4(nextState, nextAleph4state) # recursion
+		q4 = distribution.infer(sample).E()
+		if debug:
+			print("| Q4", prettyState(state), action, aleph4action, q4)
+		return q4
+	def V4(self, state, aleph4state): # recursive
+		locPol = localPolicy(state, aleph4state)
+		def sample():
+			actionAndAleph = locPol.sample() # recursion
+			return Q4(state, actionAndAleph[0], actionAndAleph[1]) # recursion
+		v4 = distribution.infer(sample).E()
+		if debug:
+			print("| V4", prettyState(state), aleph4state, v4)
+		return v4
+
+	# Expected fifth power of total, for computing the bed-and-banks loss component based on a 6th order polynomial potential of this shape: https://www.wolframalpha.com/input?i=plot+%28x%2B1%29%C2%B3%28x-1%29%C2%B3+ :
+	def Q5(self, state, action, aleph4action): # recursive
+		def sample():
+			Edel = expectedDelta(state, action)
+			Edel2 = expectedDeltaSquared(state, action)
+			Edel3 = expectedDeltaCubed(state, action)
+			Edel4 = expectedDeltaFourth(state, action)
+			Edel5 = expectedDeltaFifth(state, action)
+			if state.terminateAfterAction:
+				return Edel5;
+			else:
+				nextState = transition(state, action)
+				nextAleph4state = propagateAspiration(state, action, aleph4action, Edel, nextState)
+				# TODO: verify formula:
+				return Edel5 \
+					+ 5*Edel4*V(nextState, nextAleph4state) \
+					+ 10*Edel3*V2(nextState, nextAleph4state) \
+					+ 10*Edel2*V3(nextState, nextAleph4state) \
+					+ 5*Edel*V4(nextState, nextAleph4state) \
+					+ V5(nextState, nextAleph4state) # recursion
+		q5 = distribution.infer(sample).E()
+		if debug:
+			print("| Q5", prettyState(state), action, aleph4action, q5)
+		return q5
+	@lru_cache(maxsize=None)
+	def V5(self, state, aleph4state): # recursive
+		locPol = localPolicy(state, aleph4state)
+		def sample():
+			actionAndAleph = locPol.sample() # recursion
+			return Q5(state, actionAndAleph[0], actionAndAleph[1]) # recursion
+		v5 = distribution.infer(sample).E()
+		if debug:
+			print("| V5", prettyState(state), aleph4state, v5)
+		return v5
+
+	# Expected sixth power of total, for computing the bed-and-banks loss component based on a 6th order polynomial potential of this shape: https://www.wolframalpha.com/input?i=plot+%28x%2B1%29%C2%B3%28x-1%29%C2%B3+ :
+	@lru_cache(maxsize=None)
+	def Q6(self, state, action, aleph4action): # recursive
+		def sample():
+			Edel = expectedDelta(state, action)
+			Edel2 = expectedDeltaSquared(state, action)
+			Edel3 = expectedDeltaCubed(state, action)
+			Edel4 = expectedDeltaFourth(state, action)
+			Edel5 = expectedDeltaFifth(state, action)
+			Edel6 = expectedDeltaSixth(state, action)
+			if state.terminateAfterAction:
+				return Edel6;
+			else:
+				nextState = transition(state, action)
+				nextAleph4state = propagateAspiration(state, action, aleph4action, Edel, nextState)
+				# TODO: verify formula:
+				return Edel6 \
+					+ 6*Edel5*V(nextState, nextAleph4state) \
+					+ 15*Edel4*V2(nextState, nextAleph4state) \
+					+ 20*Edel3*V3(nextState, nextAleph4state) \
+					+ 15*Edel2*V4(nextState, nextAleph4state) \
+					+ 6*Edel*V5(nextState, nextAleph4state) \
+					+ V6(nextState, nextAleph4state) # recursion
+		q6 = distribution.infer(sample).E()
+		if debug:
+			print("| Q6", prettyState(state), action, aleph4action, q6)
+		return q6
+	@lru_cache(maxsize=None)
+	def V6(self, state, aleph4state): # recursive
+		locPol = localPolicy(state, aleph4state)
+		def sample():
+			actionAndAleph = locPol.sample() # recursion
+			return Q6(state, actionAndAleph[0], actionAndAleph[1]) # recursion
+		v6 = distribution.infer(sample).E()
+		if debug:
+			print("| V6", prettyState(state), aleph4state, v6)
+		return v6
 
 
