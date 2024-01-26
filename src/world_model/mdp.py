@@ -10,10 +10,10 @@ class MDP(Env):
     def __init__(self):
         super().__init__()
 
-    def reset(self, state = None):
+    def reset(self, seed=None, state = None):
         """Reset the environment to the given state, or to the default initial state if None."""
         if state is None:
-            super().reset()
+            super().reset(seed=seed)
         else:
             raise NotImplementedError()
         

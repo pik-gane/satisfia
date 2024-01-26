@@ -46,7 +46,7 @@ class WorldModel(Env):
     
     def transition_distribution(self, history, action, n_samples = None):
         """Return a dictionary mapping results of calling step(action) after the given history,
-        or, if history and action are None, of calling reset(),
+        or, if action is None, of calling reset(history[0] or None),
         to tuples of the form (probability: float, exact: boolean)."""
         return {result: self.transition_probability(history, action, result, n_samples) 
                 for result in self.possible_results(history, action, n_samples)}
