@@ -23,3 +23,7 @@ def between(item, a, b):
 
 def midpoint(interval):
 	return (interval[0] + interval[1]) / 2
+
+def isSubsetOf(interval1, interval2):
+	# is interval1 a subset of interval2?
+	return (interval2[0] <= interval1[0]) and (interval2[1] >= interval1[1])
