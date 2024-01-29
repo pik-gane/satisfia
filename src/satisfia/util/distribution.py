@@ -110,6 +110,10 @@ class categorical(_distribution):
 	def score(self, name):
 		return math.log(self._categories[name] / self._weight_total)
 
+	def categories(self):
+		for category in self._categories:
+			yield (category, self._categories[name] / self._weight_total)
+
 class uniform_discrete(_distribution):
 	def __init__(self, low, high):
 		self.low = low
