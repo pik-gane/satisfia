@@ -41,7 +41,12 @@ class _distribution():
 		return torch.sqrt(self.var(precision))
 
 class categorical(_distribution):
-	def __init__(self, categories):
+	def __init__(self, a, b=None):
+		"""If both a and b are specified, they are lists with category names and weights respectively.
+		If only a is specified, it's a dictionary of {category name: weight}."""
+
+		categories = a if (b == None) else {name: weight for name, weight in zip(a, b)}
+
 		self._categories = categories.copy()
 
 		self._weight_total = sum([categories[name] for name in categories])
@@ -99,6 +104,16 @@ class categorical(_distribution):
 		moment2 = sum([float(name) ** 2 * self._categories[name] for name in self._categories]) / self._weight_total
 		return moment2 - E ** 2 # population variance
 
+	def support(self):
+		return self._categories.keys()
+
+	def score(self, name):
+		return math.log(self._categories[name] / self._weight_total)
+
+	def categories(self):
+		for category in self._categories:
+			yield (category, self._categories[name] / self._weight_total)
+
 class uniform_discrete(_distribution):
 	def __init__(self, low, high):
 		self.low = low
@@ -119,6 +134,12 @@ class uniform_discrete(_distribution):
 
 	def var(self):
 		return (self._count ** 2 - 1) / 12
+
+	def support(self):
+		return list(range(self.low, self.high + 1))
+
+	def score(self, _):
+		return math.log(1 / self._count)
 
 def bernoulli(p):
 	return categorical({0: 1 - p, 1: p})
