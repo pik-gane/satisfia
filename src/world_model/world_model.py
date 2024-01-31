@@ -28,9 +28,6 @@ class WorldModel(Env):
     history = None
     """The history of the current episode."""
 
-    def __init__(self):
-        super().__init__()
-
     # methods for enquiring transition probabilities:
 
     def possible_results(self, history, action, n_samples = None):

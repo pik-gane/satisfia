@@ -1,14 +1,11 @@
 from gymnasium import Env
-from . import WorldModel, MDP
+from . import WorldModel, MDPEnv
 
-class MDPWorldModel(WorldModel, MDP):
+class MDPWorldModel(WorldModel, MDPEnv):
     """A WorldModel of a (fully observed) MDP environment.
     
     In all methods, history is now a single-element list [state].
     """
-
-    def __init__(self):
-        super().__init__()
 
     def transition_distribution(self, action, history, n_samples = None):
         """Return a dictionary mapping results of calling step(action) after the given history 
