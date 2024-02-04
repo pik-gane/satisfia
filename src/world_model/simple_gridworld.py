@@ -244,7 +244,7 @@ class SimpleGridworld(MDPWorldModel):
          ) # TODO: extract object states and/or object locations
 
     def _set_state(self, state):
-        """Set the current state to the last state encoded in the given result."""
+        """Set the current state to the provided one."""
         self._state = state
         self.t, loc, prev_loc, imm_states = self._extract_state_attributes(state)
         self._agent_location = loc

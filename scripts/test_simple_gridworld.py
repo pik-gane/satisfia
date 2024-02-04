@@ -20,7 +20,7 @@ def move_randomly(env):
             print("Goal reached!")
             break
 
-# test creation of a simple gridworld:
+print("\nRUNNING AROUND GW5:")
 env, aleph0 = make_simple_gridworld(gw = "GW5") #, render_mode = "human")
 env.reset()
 move_randomly(env)
@@ -28,7 +28,7 @@ env.render()
 #time.sleep(5)
 env.close()
 
-# run around a random grid until the agent reaches the goal:
+print("\nRUNNING AROUND A RANDOM GRID:")
 grid = [
     [   
         random.choice([' ', ' ', ' ', '#', '#', ',', '^', '~'])
