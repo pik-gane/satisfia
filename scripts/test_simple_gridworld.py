@@ -1,9 +1,20 @@
 import sys
 sys.path.insert(0,'./src/')
 
+import time
 from numpy import random
+
 from world_model import SimpleGridworld
+from environments.very_simple_gridworlds import make_simple_gridworld
 import pylab as plt
+
+# test creation of a simple gridworld:
+env, aleph0 = make_simple_gridworld(gw = "GW6", render_mode = "human")
+env.reset()
+# TODO: let our agent navigate the gridworld
+env.render()
+time.sleep(5)
+env.close()
 
 # run around a random grid until the agent reaches the goal:
 grid = [
@@ -17,7 +28,7 @@ grid[2][2] = "A"
 grid[8][8] = "G"
 delta_grid = [
     [
-        random.choice([' ','M','P'], p=[0.4,0.3,0.3])
+        ' ' if grid[y][x] == '#' else random.choice([' ','M','P'], p=[0.4,0.3,0.3])
         for x in range(11)
     ]
     for y in range(11)

@@ -28,7 +28,7 @@ class SimpleGridworld(MDPWorldModel):
     A *coordinate* in a position is encoded in as an integer, where:
     - -2 means the object is not present
     - -1 means the object is in the agent's inventory
-    - >= 0 is a coordinate in the grid
+    - >= 0 is a coordinate in the grid, counted from top-left to bottom-right
 
     Objects are *ordered* by their initial position in the ascii-art grid representation in row-major order.
 
@@ -122,13 +122,14 @@ class SimpleGridworld(MDPWorldModel):
                  cell_code2delta = {'1': 1},
                  max_episode_length = 1e10,
                  time_deltas = [0],):
-        self.window_size = 512  # The size of the PyGame window # TODO: understand
 
-        self.xygrid = xygrid = np.flip(grid,axis=0).T
-        self.delta_xygrid = delta_xygrid = np.flip(delta_grid,axis=0).T
+        self.xygrid = xygrid = np.array(grid).T
+        self.delta_xygrid = delta_xygrid = np.array(delta_grid).T
         self.cell_code2delta = cell_code2delta
         self.max_episode_length = max_episode_length
         self.time_deltas = np.array(time_deltas).flatten()
+
+        self._window_shape = 800 * np.array(xygrid.shape) / np.max(xygrid.shape)  # The size of the PyGame window in pixels
 
         # the initial agent location is the first occurrence of 'A' in the grid:
         wh = np.where(xygrid == 'A')
@@ -284,16 +285,14 @@ class SimpleGridworld(MDPWorldModel):
             pygame.init()
             pygame.display.init()
             self._window = pygame.display.set_mode(
-                (self.window_size, self.window_size)
+                self._window_shape
             )
         if self.clock is None and self.render_mode == "human":
             self.clock = pygame.time.Clock()
 
-        canvas = pygame.Surface((self.window_size, self.window_size))
+        canvas = pygame.Surface(self._window_shape)
         canvas.fill((255, 255, 255))
-        pix_square_size = (
-            self.window_size / np.max(self.xygrid.shape)
-        )  # The size of a single grid square in pixels
+        pix_square_size = self._window_shape[0] / self.xygrid.shape[0]  # The size of a single grid square in pixels
 
         # Draw grid contents:
         for x in range(self.xygrid.shape[0]):
@@ -302,7 +301,7 @@ class SimpleGridworld(MDPWorldModel):
                 if cell_type == "#":
                     pygame.draw.rect(
                         canvas,
-                        (0, 0, 0),
+                        (64, 64, 64),
                         (x * pix_square_size, y * pix_square_size, pix_square_size, pix_square_size),
                     )
                 elif cell_type == "G":
@@ -311,8 +310,9 @@ class SimpleGridworld(MDPWorldModel):
                         (0, 255, 0),
                         (x * pix_square_size, y * pix_square_size, pix_square_size, pix_square_size),
                     )
-                if self.delta_xygrid[x, y] in self.cell_code2delta:
-                    canvas.blit(self._font.render(self.delta_xygrid[x, y], True, (0, 0, 0)),
+                cell_code = self.delta_xygrid[x, y]
+                if cell_code in self.cell_code2delta:
+                    canvas.blit(self._font.render(cell_code + f" {self.cell_code2delta[cell_code]}", True, (0, 0, 0)),
                                       ((x+.1) * pix_square_size, (y+.1) * pix_square_size))
 
         # Now we draw the agent
@@ -329,7 +329,7 @@ class SimpleGridworld(MDPWorldModel):
                 canvas,
                 0,
                 (pix_square_size * x, 0),
-                (pix_square_size * x, self.window_size),
+                (pix_square_size * x, self._window_shape[1]),
                 width=3,
             )
         for y in range(self.xygrid.shape[1] + 1):
@@ -337,7 +337,7 @@ class SimpleGridworld(MDPWorldModel):
                 canvas,
                 0,
                 (0, pix_square_size * y),
-                (self.window_size, pix_square_size * y),
+                (self._window_shape[0], pix_square_size * y),
                 width=3,
             )
 
