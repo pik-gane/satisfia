@@ -3,6 +3,7 @@ from . import MDPWorldModel
 # based in large part on https://gymnasium.farama.org/tutorials/gymnasium_basics/environment_creation/
 
 import numpy as np
+from numpy import random
 import pygame
 
 import gymnasium as gym
@@ -38,6 +39,10 @@ class SimpleGridworld(MDPWorldModel):
     - already implemented:   
         - '#' (hash): wall
         - ' ' (blank): empty space
+        - '~': Uneven ground (Agents/boxes might fall off to any side except to where agent came from, 
+               with equal probability)
+        - '^': Pinnacle (Climbing on it will result in falling off to any side except to where agent came from, 
+               with equal probability)
         - 'A': agent's initial position 
 
     - not yet implemented, but are planned to be implemented in the future:
@@ -45,10 +50,6 @@ class SimpleGridworld(MDPWorldModel):
         - '-': Slippery ground (Agents and boxes might slide along in a straight line; after sliding by one tile, 
                a coin is tossed to decide whether we slide another tile, and this is repeated 
                until the coin shows heads or we hit an obstacle. All this motion takes place within a single time step.)
-        - '~': Uneven ground (Agents/boxes might fall off to any side except to where agent came from, 
-               with equal probability)
-        - '^': Pinnacle (Climbing on it will result in falling off to any side except to where agent came from, 
-               with equal probability)
         - '%': Death trap (Episode ends when agent steps on it) 
         - 'B': Button (can be stepped on)
         - 'C': Collaborator (might move around)
@@ -114,20 +115,25 @@ class SimpleGridworld(MDPWorldModel):
 
     # TODO Jobst: adapt the following code to our needs:
 
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
+    metadata = {"render_modes": ["human", "rgb_array"]}
 
     def __init__(self, render_mode = None, 
                  grid = [['A','G']],
                  delta_grid = [[' ','1']],
                  cell_code2delta = {'1': 1},
                  max_episode_length = 1e10,
-                 time_deltas = [0],):
+                 time_deltas = [0],
+                 uneven_ground_prob = 0.25,
+                 fps = 4
+                 ):
 
         self.xygrid = xygrid = np.array(grid).T
         self.delta_xygrid = delta_xygrid = np.array(delta_grid).T
         self.cell_code2delta = cell_code2delta
         self.max_episode_length = max_episode_length
         self.time_deltas = np.array(time_deltas).flatten()
+        self.uneven_ground_prob = uneven_ground_prob
+        self._fps = fps
 
         self._window_shape = 800 * np.array(xygrid.shape) / np.max(xygrid.shape)  # The size of the PyGame window in pixels
 
@@ -199,7 +205,11 @@ class SimpleGridworld(MDPWorldModel):
             and 0 <= target_location[1] < self.xygrid.shape[1]
             and not self.xygrid[target_location] in unenterable_cell_types)
         # TODO: add other conditions for not being able to move, e.g. because of other objects
-    
+
+    def opposite_action(self, action):
+        """Return the opposite action to the given action."""
+        return (action + 2) % 4
+        
     def possible_actions(self, state):
         """Return a list of possible actions from the given state."""
         location = (state[1], state[2])
@@ -238,15 +248,44 @@ class SimpleGridworld(MDPWorldModel):
             successor = self._make_state(0, loc = self.initial_agent_location)
             return {successor: (1, True)}
         t, loc, prev_loc = self._extract_state_attributes(state)
-        at_goal = self.xygrid[loc] == 'G'
-        if not at_goal:
-            target_loc = self._get_target_location(loc, action)
-            new_loc = target_loc
-            # TODO: update object states and/or object locations, e.g. if the agent picks up an object or moves an object
+        cell_type = self.xygrid[loc]
+        at_goal = cell_type == 'G'
+        if at_goal:
+            successor = self._make_state(t + 1, loc, loc)
+            return {successor: (1, True)} # TODO: probabilistic transitions!
         else:
-            new_loc = loc
-        successor = self._make_state(t + 1, new_loc, loc)
-        return {successor: (1, True)} # TODO: probabilistic transitions!
+            if cell_type == ',':
+                # turn cell into a wall:
+                self.xygrid[loc] = '#'
+
+            target_loc = self._get_target_location(loc, action)
+            target_type = self.xygrid[target_loc]
+
+            if target_type in ['^', '~']:
+                # see what "falling-off" actions are possible:
+                simulated_actions = [a for a in range(4) 
+                      if a != self.opposite_action(action) # won't fall back to where we came from
+                         and self._can_move(target_loc, self._get_target_location(target_loc, a))]
+                if len(simulated_actions) > 0:
+                    p0 = 1 if target_type == '^' else self.uneven_ground_prob  # probability of falling off
+                    intermediate_state = self._make_state(t, target_loc, loc)
+                    trans_dist = {}
+                    # compose the transition distribution recursively:
+                    for simulate_action in simulated_actions:
+                        for (successor, (probability, _)) in self.transition_distribution(intermediate_state, simulate_action, n_samples).items():
+                            dp = p0 * probability / len(simulated_actions)
+                            if successor in trans_dist:
+                                trans_dist[successor] += dp
+                            else:
+                                trans_dist[successor] = dp
+                    if target_type == '~':
+                        trans_dist[intermediate_state] = 1 - p0
+                    return { successor: (probability, True) for (successor,probability) in trans_dist.items() }
+
+            # TODO: update object states and/or object locations, e.g. if the agent picks up an object or moves an object
+
+            successor = self._make_state(t + 1, target_loc, loc)
+            return {successor: (1, True)} 
 
     def observation_and_reward_distribution(self, state, action, successor, n_samples = None):
         if state is None and action is None:
@@ -278,7 +317,8 @@ class SimpleGridworld(MDPWorldModel):
     def _init_human_rendering(self):
         pygame.font.init() # you have to call this at the start, 
                    # if you want to use this module.
-        self._font = pygame.font.SysFont('Helvetica', 10)
+        self._cell_font = pygame.font.SysFont('Helvetica', 30)
+        self._delta_font = pygame.font.SysFont('Helvetica', 10)
 
     def _render_frame(self):
         if self._window is None and self.render_mode == "human":
@@ -310,12 +350,22 @@ class SimpleGridworld(MDPWorldModel):
                         (0, 255, 0),
                         (x * pix_square_size, y * pix_square_size, pix_square_size, pix_square_size),
                     )
+                elif cell_type != " ":
+                    canvas.blit(self._cell_font.render(cell_type, True, (0, 0, 0)),
+                                      ((x+.3) * pix_square_size, (y+.3) * pix_square_size))
                 cell_code = self.delta_xygrid[x, y]
                 if cell_code in self.cell_code2delta:
-                    canvas.blit(self._font.render(cell_code + f" {self.cell_code2delta[cell_code]}", True, (0, 0, 0)),
+                    canvas.blit(self._delta_font.render(cell_code + f" {self.cell_code2delta[cell_code]}", True, (0, 0, 0)),
                                       ((x+.1) * pix_square_size, (y+.1) * pix_square_size))
 
-        # Now we draw the agent
+        # Now we draw the agent and its previous location:
+        pygame.draw.circle(
+            canvas,
+            (0, 0, 255),
+            (np.array(self._previous_agent_location) + 0.5) * pix_square_size,
+            pix_square_size / 4,
+            width = 3,
+        )
         pygame.draw.circle(
             canvas,
             (0, 0, 255),
@@ -349,7 +399,7 @@ class SimpleGridworld(MDPWorldModel):
 
             # We need to ensure that human-rendering occurs at the predefined framerate.
             # The following line will automatically add a delay to keep the framerate stable.
-            self.clock.tick(self.metadata["render_fps"])
+            self.clock.tick(self._fps)
         else:  # rgb_array
             return np.transpose(
                 np.array(pygame.surfarray.pixels3d(canvas)), axes=(1, 0, 2)

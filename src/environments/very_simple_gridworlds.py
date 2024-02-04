@@ -1,6 +1,7 @@
 from world_model import SimpleGridworld
 
 def make_simple_gridworld(gw="GW1", time=None, render_mode=None):
+
     if gw == "GW1":
         grid = [
           ['#', '#', '#', '#', '#'],
@@ -17,6 +18,7 @@ def make_simple_gridworld(gw="GW1", time=None, render_mode=None):
         expectedDeltaTable = { 'G1': 1, 'G2': 2, 'G3': 3 }
         aleph0 = [1.9, 2.1]
         totalTime = time or 10
+
     elif gw == "GW2":
         grid = [
           ['#', '#', '#', '#', '#'],
@@ -33,6 +35,7 @@ def make_simple_gridworld(gw="GW1", time=None, render_mode=None):
         expectedDeltaTable = { 'Ga': 1, 'Gb': 3, 'Gc': 2 }
         aleph0 =  [1.9, 2.1]
         totalTime = time or 10
+
     elif gw == "GW3":
         grid = [
           ['#', '#', '#', '#', '#'],
@@ -44,13 +47,14 @@ def make_simple_gridworld(gw="GW1", time=None, render_mode=None):
         delta_grid = [
           [' ', ' ', ' ', ' ', ' '],
           [' ','Ga', ' ','Gc', ' '],
-          [' ',' ', ' ',' ', ' '],
+          [' ', ' ', ' ', ' ', ' '],
           [' ','Gb', ' ','Gd', ' '],
           [' ', ' ', ' ', ' ', ' ']
         ]
         expectedDeltaTable = { 'Ga': 0, 'Gb': 2, 'Gc': 1, 'Gd': 3 }
         aleph0 = [1.9, 2.1]
         totalTime = time or 10
+
     elif gw == "GW4":
         grid = [
           ['#', '#', '#', '#', '#', '#'],
@@ -67,6 +71,26 @@ def make_simple_gridworld(gw="GW1", time=None, render_mode=None):
         expectedDeltaTable = { 'Ga': 1, 'Gb': 3, 'Gc': 2, 'Gd': 0 }
         aleph0 = [1.4, 1.6]
         totalTime = time or 10
+
+    elif gw == "GW5":
+        grid = [
+          ['#', '#', '#', '#', '#'],
+          ['#', 'G', '#', 'G', '#'],
+          ['#', ' ', 'A', '^', '#'],
+          ['#', 'G', '#', 'G', '#'],
+          ['#', '#', '#', '#', '#']
+        ]
+        delta_grid = [
+          [' ', ' ', ' ', ' ', ' '],
+          [' ','G1', ' ','G1', ' '],
+          [' ', ' ', ' ', ' ', ' '],
+          [' ','G3', ' ','G3', ' '],
+          [' ', ' ', ' ', ' ', ' ']
+        ]
+        expectedDeltaTable = { 'G1': 1, 'G3': 3 }
+        aleph0 = [1.9, 2.1]
+        totalTime = time or 10
+
     elif gw == "GW6":
         grid = [
           ['#', '#', '#', '#', '#'],
