@@ -1,24 +1,27 @@
-from gymnasium import Env
-from . import WorldModel, MDPEnv
+from . import WorldModel
 
-class MDPWorldModel(WorldModel, MDPEnv):
-    """A WorldModel of a (fully observed) MDP environment.
-    
-    In all methods, history is now a single-element list [state].
+class MDPWorldModel(WorldModel):
+    """A WorldModel of a (fully observed) MDP environment, allowing the user to reset the environment to a given state.
     """
 
-    def transition_distribution(self, action, history, n_samples = None):
-        """Return a dictionary mapping results of calling step(action) after the given history 
-        or, if action is None, of calling reset(state),
+    def reset(self, *, seed = None, options = None):
+        """Reset the environment to the given state, or to the default initial state if options[state] is None."""
+        if options and "state" in options:
+            raise NotImplementedError()
+        else:
+            return super().reset(seed=seed, options=options)
+            
+    def transition_distribution(self, state, action, n_samples = None):
+        """Return a dictionary mapping possible successor states after performing action in state,
+        or, if state and action are None, of possible initial states,
         to tuples of the form (probability: float, exact: boolean).
         
         If not overridden, this will sample n_samples times and return the empirical distribution."""
-        old_state = self.state()
-        state = history[0]
+        old_state = self._state
         frequencies = {}
         for i in range(n_samples):
             if action is None:
-                result = self.reset(state)
+                result = self.reset(options={"state": state})
             else:
                 self.reset(state)
                 result = self.step(action)
@@ -26,7 +29,7 @@ class MDPWorldModel(WorldModel, MDPEnv):
                 frequencies[result] += 1
             except KeyError:
                 frequencies[result] = 1
-        self.reset(old_state)
+        self.reset(options={"state": old_state})
         return {result: (frequency / n_samples, False) 
                 for (result, frequency) in frequencies.items()}
-    
+

@@ -8,17 +8,14 @@ import pygame
 import gymnasium as gym
 from gymnasium import spaces
 
-CHAR_OFFSET = 63  # The ASCII code of '?' is 63
-N_VALUES = 256 - CHAR_OFFSET  # The number of possible values of a character
+unenterable_cell_types = ['#']
+max_n_object_states = 2
 
 class SimpleGridworld(MDPWorldModel):
     """A world model of a simple MDP-type Gridworld environment.
     
-    A *state* here is a pair (num_state, str_state), where both entries contain the same data,
-    once as a tuple of integers (which is convenient for reinforcement learning with PyTorch)
-    and once as a string (which is more performant when used as a key for dictionaries).
-    The data encoded in both versions of the state is following sequence of items,
-    each one encoded as one or two integers (in num_state) and one or two characters (in str_state):
+    A *state* here is a tuple of integers encoding the following sequence of items,
+    each one encoded as one or two integers:
 
     - position 0: the current time step
     - positions 1+2: the current position x,y of the agent
@@ -28,44 +25,66 @@ class SimpleGridworld(MDPWorldModel):
     - positions 5+k+2*l...4+k+2*l+3*m: for each of m movable objects with a variable state, 
                                        its state and its position x,y
 
-    A *coordinate* in a position is encoded in num_state as a number from 0...192 
-    and in str_state as a character from '@','A','B',... where:
-    - 0 or '?' means the object is not present
-    - 1 or '@' means the object is in the agent's inventory
-    - 2...192 or 'A','B',... is a coordinate in the grid
-    This way the numerical representation always equals the ASCII code of the character representation minus 64.
+    A *coordinate* in a position is encoded in as an integer, where:
+    - -2 means the object is not present
+    - -1 means the object is in the agent's inventory
+    - >= 0 is a coordinate in the grid
 
     Objects are *ordered* by their initial position in the ascii-art grid representation in row-major order.
 
     The *grid* and the agent's and all objects' *initial positions* are given as a 2d array of characters,
     each representing one cell of the grid, with the following character meanings: 
-    
-    - '#' (hash): wall
-    - ' ' (blank): empty space
-    - 'A': agent's initial position 
-    - ... (TODO: take from gdoc, compare with pycolab asciiart conventions, 
-          try to harmonize them, and add things that are missing)
 
-    Remark: Don't confuse letters 'A'...'Z' occurring in grid ascii-art with coordinates 'A'...'Z' in state.
+    - already implemented:   
+        - '#' (hash): wall
+        - ' ' (blank): empty space
+        - 'A': agent's initial position 
+
+    - not yet implemented, but are planned to be implemented in the future:
+        - ',': Empty tile that turns into a wall after leaving it (so that one cannot go back)
+        - '-': Slippery ground (Agents and boxes might slide along in a straight line; after sliding by one tile, 
+               a coin is tossed to decide whether we slide another tile, and this is repeated 
+               until the coin shows heads or we hit an obstacle. All this motion takes place within a single time step.)
+        - '~': Uneven ground (Agents/boxes might fall off to any side except to where agent came from, 
+               with equal probability)
+        - '^': Pinnacle (Climbing on it will result in falling off to any side except to where agent came from, 
+               with equal probability)
+        - '%': Death trap (Episode ends when agent steps on it) 
+        - 'B': Button (can be stepped on)
+        - 'C': Collaborator (might move around)
+        - 'D': Door (can only be entered after having collected a key)
+        - 'E': Enemy (might move around on its own)
+        - 'Δ': Delta (positive or negative, can be collected once, does not end the episode)
+        - 'G': Goal or exit door (acting while on it ends the episode)
+        - 'I': (Potential) interruption (agent might get stuck in forever)
+        - 'K': Key (must be collected to be able to pass a door)
+        - 'O': Ball (when pushed, will move straight until meeting an obstacle)
+        - 'S': Supervisor (might move around on their own)
+        - 'T': Teleporter (sends the agent to some destination t)
+        - 't': Destination of a teleporter (stepping on it does nothing)
+        - 'X': Box (can be pushed around but not pulled, can slide and fall off)
+    (TODO: compare with pycolab asciiart conventions, try to harmonize them, and add things that are missing)
 
     *Deltas* (rewards) can accrue from the following events:
     - Time passing. This is specified by time_delta or a list time_deltas of length max_episode_length.
     - The agent stepping onto a certain object. This is specified by a list object_deltas
       ordered by the objects' initial positions in the ascii-art grid representation in row-major order.
-    - The agent entering a certain position. This is specified by 
+    - The agent currently being in a certain position. This is specified by 
         - another 2d array of characters, delta_grid, of the same size as the grid, 
           containing cell_codes with the following character meanings:
             - ' ' (space): no Delta
             - '<character>': Delta as specified by cell_code2delta['<character>']
         - a dictionary cell_code2delta listing the actual Delta values for each cell_code in that grid
+      Note that the delta accrues at each time point when the agent is in a cell, 
+      not at the time point it steps onto it!
     """
 
 
     ## parameters:
-    grid = None
+    xygrid = None
     """(2d array of characters) The grid as an array of strings, each string representing one row of the grid,
     each character representing one cell of the grid"""
-    delta_grid = None
+    delta_xygrid = None
     """(2d array of characters) codes for deltas (rewards) for each cell of the grid"""
     cell_code2delta = None
     """(dictionary) maps cell codes to deltas (rewards)"""
@@ -84,8 +103,8 @@ class SimpleGridworld(MDPWorldModel):
     """(list of ints) The deltas (rewards) for each time step."""
 
     # additional attributes:
-    history = None
-    """(singleton list of state) The current state as a singleton list."""
+    _state = None
+    """(singleton list of state) The current state encoded as a tuple of ints."""
     t = None
     """The current time step."""
     _agent_location = None
@@ -101,30 +120,38 @@ class SimpleGridworld(MDPWorldModel):
                  grid = [['A','G']],
                  delta_grid = [[' ','1']],
                  cell_code2delta = {'1': 1},
-                 max_episode_length = 100,
+                 max_episode_length = 1e10,
                  time_deltas = [0],):
         self.window_size = 512  # The size of the PyGame window # TODO: understand
 
-        self.grid = grid = np.array(grid)
-        self.delta_grid = delta_grid = np.array(delta_grid)
+        self.xygrid = xygrid = np.flip(grid,axis=0).T
+        self.delta_xygrid = delta_xygrid = np.flip(delta_grid,axis=0).T
         self.cell_code2delta = cell_code2delta
         self.max_episode_length = max_episode_length
         self.time_deltas = np.array(time_deltas).flatten()
 
         # the initial agent location is the first occurrence of 'A' in the grid:
-        self.initial_agent_location = tuple(np.where(grid == 'A')[:,0])
+        wh = np.where(xygrid == 'A')
+        self.initial_agent_location = (wh[0][0], wh[1][0])
 
         self.n_immovable_objects = self.n_movable_constant_objects = self.n_movable_variable_objects = 0  # TODO: extract from grid
 
-        # The observation returned for reinforcement learning equals num_state, as described above.
-        n1, n2 = 2+grid.shape[0], 2+grid.shape[1]
+        # The observation returned for reinforcement learning equals state, as described above.
+        nx, ny = xygrid.shape[0], xygrid.shape[1]
         self.observation_space = spaces.MultiDiscrete(
             [max_episode_length,  # current time step
-             n1, n2,  # current position
-             n1, n2]  # previous position
-            + [N_VALUES] * self.n_immovable_objects 
-            + [n1, n2] * self.n_movable_constant_objects 
-            + [N_VALUES, n1, n2] * self.n_movable_variable_objects
+             nx, ny,  # current position
+             nx, ny]  # previous position
+            + [max_n_object_states] * self.n_immovable_objects 
+            + [nx, ny] * self.n_movable_constant_objects 
+            + [max_n_object_states, nx, ny] * self.n_movable_variable_objects
+            , start = 
+            [0,  # current time step
+             -2, -2,  # current position
+             -2, -2]  # previous position
+            + [0] * self.n_immovable_objects 
+            + [-2, -2] * self.n_movable_constant_objects 
+            + [0, -2, -2] * self.n_movable_variable_objects
             )
 
         # We have 4 actions, corresponding to "right", "up", "left", "down"
@@ -144,6 +171,8 @@ class SimpleGridworld(MDPWorldModel):
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
+        if render_mode == "human":
+            self._init_human_rendering()
 
         """
         If human-rendering is used, `self.window` will be a reference
@@ -152,80 +181,85 @@ class SimpleGridworld(MDPWorldModel):
         human-mode. They will remain `None` until human-mode is used for the
         first time.
         """
-        self.window = None
+        self._window = None
         self.clock = None
 
-
     def _get_target_location(self, location, action):
+        """Return the next location of the agent if it takes the given action from the given location."""
         direction = self._action_to_direction[action]
         return (
-            self._agent_location[0] + direction[0],
-            self._agent_location[1] + direction[1]
+            location[0] + direction[0],
+            location[1] + direction[1]
         )
 
     def _can_move(self, location, target_location):
-        return 0 <= target_location[0] < self.grid.shape[0] \
-            and 0 <= target_location[1] < self.grid.shape[1] \
-            and self.grid[target_location] != '#'
+        """Return True if the agent can move from the given location to the given target_location."""
+        return (0 <= target_location[0] < self.xygrid.shape[0]
+            and 0 <= target_location[1] < self.xygrid.shape[1]
+            and not self.xygrid[target_location] in unenterable_cell_types)
         # TODO: add other conditions for not being able to move, e.g. because of other objects
     
     def possible_actions(self, state):
-        location = (state[1]-2, state[2]-2)
+        """Return a list of possible actions from the given state."""
+        location = (state[1], state[2])
         return [action for action in range(4) 
                 if self._can_move(location, self._get_target_location(location, action))]
 
-    def _extract_state(self, history):
-        # history is either a singleton list [state] or ends in [state, delta, terminated]:
-        state = history[0] if len(history) == 1 else history[-3]
+    def _extract_state_attributes(self, state):
+        """Return the individual attributes of a state."""
         return (state[0],  # time step
-                state[1]-2, state[2]-2,  # current position
-                state[3]-2, state[4]-2  # previous position
+                (state[1], state[2]),  # current position
+                (state[3], state[4])  # previous position
          ) # TODO: extract object states and/or object locations
 
-    def _make_observation(self, t, loc, prev_loc):
+    def _set_state(self, state):
+        """Set the current state to the last state encoded in the given result."""
+        self._state = state
+        self.t, loc, prev_loc = self._extract_state_attributes(state)
+        self._agent_location = loc
+        self._previous_agent_location = prev_loc
+
+    def _make_state(self, t, loc = (-2,-2), prev_loc = (-2, -2)):  # default locations are "not present"
+        """Compile the given attributes into a state encoding that can be returned as an observation."""
         return (t, 
-                2+loc[0], 2+loc[1],
-                2+prev_loc[0], 2+prev_loc[1]
+                loc[0], loc[1],
+                prev_loc[0], prev_loc[1]
                 )
 
-    def transition_distribution(self, history, action, n_samples = None):
-        """Return a dictionary mapping results of calling step(action) after the given history,
-        or, if history and action are None, of calling reset(),
-        to tuples of the form (probability: float, exact: boolean)."""
+    def is_terminal(self, state):
+        """Return True if the given state is a terminal state."""
+        t, loc, prev_loc = self._extract_state_attributes(state)
+        was_at_goal = prev_loc[0] >= 0 and self.xygrid[prev_loc] == 'G'
+        return (t == self.max_episode_length) or was_at_goal
 
-        if history is None and action is None:
-            result = self._make_observation(0, self.initial_agent_location, (-2,-2)), 0, False
-            return {result: 1}
-
-        t, loc, prev_loc = self._extract_state(history)
-
-        # An episode is done iff the time is up or the agent is already (!) at a goal location:
-        at_goal = self.grid[loc] == 'G'
-        terminated = (t == self.max_episode_length) or at_goal
-
-        # earn delta:
-        delta = self.time_deltas[t % self.time_deltas.size]
-        if self.delta_grid[loc] in self.cell_code2delta:
-            delta += self.cell_code2delta[self.grid[loc]]
-        # TODO: add object deltas
-            
-        # move:
+    def transition_distribution(self, state, action, n_samples = None):
+        if state is None and action is None:
+            successor = self._make_state(0, loc = self.initial_agent_location)
+            return {successor: (1, True)}
+        t, loc, prev_loc = self._extract_state_attributes(state)
+        at_goal = self.xygrid[loc] == 'G'
         if not at_goal:
             target_loc = self._get_target_location(loc, action)
             new_loc = target_loc
             # TODO: update object states and/or object locations, e.g. if the agent picks up an object or moves an object
         else:
             new_loc = loc
+        successor = self._make_state(t + 1, new_loc, loc)
+        return {successor: (1, True)} # TODO: probabilistic transitions!
 
-        result = self._make_observation(t+1, new_loc, loc), delta, terminated
-
-        return {result: 1} # TODO: probabilistic transitions!
-
+    def observation_and_reward_distribution(self, state, action, successor, n_samples = None):
+        if state is None and action is None:
+            return {(self._make_state(0, loc = self.initial_agent_location), 0): (1, True)}
+        t, loc, prev_loc = self._extract_state_attributes(state)
+        delta = self.time_deltas[t % self.time_deltas.size]
+        if self.delta_xygrid[loc] in self.cell_code2delta:
+            delta += self.cell_code2delta[self.delta_xygrid[loc]]
+        return {(successor, delta): (1, True)}
 
     # reset() and step() are inherited from MDPWorldModel and use the above transition_distribution():
 
-    def reset(self, seed = None, state = None): 
-        ret = super().reset(seed = seed, state = state)
+    def reset(self, seed = None, options = None): 
+        ret = super().reset(seed = seed, options = options)
         if self.render_mode == "human":
             self._render_frame()
         return ret
@@ -240,11 +274,16 @@ class SimpleGridworld(MDPWorldModel):
         if self.render_mode == "rgb_array":
             return self._render_frame()
 
+    def _init_human_rendering(self):
+        pygame.font.init() # you have to call this at the start, 
+                   # if you want to use this module.
+        self._font = pygame.font.SysFont('Helvetica', 10)
+
     def _render_frame(self):
-        if self.window is None and self.render_mode == "human":
+        if self._window is None and self.render_mode == "human":
             pygame.init()
             pygame.display.init()
-            self.window = pygame.display.set_mode(
+            self._window = pygame.display.set_mode(
                 (self.window_size, self.window_size)
             )
         if self.clock is None and self.render_mode == "human":
@@ -253,35 +292,39 @@ class SimpleGridworld(MDPWorldModel):
         canvas = pygame.Surface((self.window_size, self.window_size))
         canvas.fill((255, 255, 255))
         pix_square_size = (
-            self.window_size / self.size
+            self.window_size / np.max(self.xygrid.shape)
         )  # The size of a single grid square in pixels
 
-        # First we draw the target
-        pygame.draw.rect(
-            canvas,
-            (255, 0, 0),
-            pygame.Rect(
-                pix_square_size * self._target_location,
-                (pix_square_size, pix_square_size),
-            ),
-        )
+        # Draw grid contents:
+        for x in range(self.xygrid.shape[0]):
+            for y in range(self.xygrid.shape[1]):
+                cell_type = self.xygrid[x, y]
+                if cell_type == "#":
+                    pygame.draw.rect(
+                        canvas,
+                        (0, 0, 0),
+                        (x * pix_square_size, y * pix_square_size, pix_square_size, pix_square_size),
+                    )
+                elif cell_type == "G":
+                    pygame.draw.rect(
+                        canvas,
+                        (0, 255, 0),
+                        (x * pix_square_size, y * pix_square_size, pix_square_size, pix_square_size),
+                    )
+                if self.delta_xygrid[x, y] in self.cell_code2delta:
+                    canvas.blit(self._font.render(self.delta_xygrid[x, y], True, (0, 0, 0)),
+                                      ((x+.1) * pix_square_size, (y+.1) * pix_square_size))
+
         # Now we draw the agent
         pygame.draw.circle(
             canvas,
             (0, 0, 255),
-            (self._agent_location + 0.5) * pix_square_size,
+            (np.array(self._agent_location) + 0.5) * pix_square_size,
             pix_square_size / 3,
         )
 
         # Finally, add some gridlines
-        for x in range(self.size + 1):
-            pygame.draw.line(
-                canvas,
-                0,
-                (0, pix_square_size * x),
-                (self.window_size, pix_square_size * x),
-                width=3,
-            )
+        for x in range(self.xygrid.shape[0] + 1):
             pygame.draw.line(
                 canvas,
                 0,
@@ -289,10 +332,18 @@ class SimpleGridworld(MDPWorldModel):
                 (pix_square_size * x, self.window_size),
                 width=3,
             )
+        for y in range(self.xygrid.shape[1] + 1):
+            pygame.draw.line(
+                canvas,
+                0,
+                (0, pix_square_size * y),
+                (self.window_size, pix_square_size * y),
+                width=3,
+            )
 
         if self.render_mode == "human":
             # The following line copies our drawings from `canvas` to the visible window
-            self.window.blit(canvas, canvas.get_rect())
+            self._window.blit(canvas, canvas.get_rect())
             pygame.event.pump()
             pygame.display.update()
 
@@ -305,6 +356,6 @@ class SimpleGridworld(MDPWorldModel):
             )
         
     def close(self):
-        if self.window is not None:
+        if self._window is not None:
             pygame.display.quit()
             pygame.quit()
