@@ -1,3 +1,5 @@
+from functools import cache, lru_cache
+
 from . import MDPWorldModel
 
 # based in large part on https://gymnasium.farama.org/tutorials/gymnasium_basics/environment_creation/
@@ -10,6 +12,7 @@ import gymnasium as gym
 from gymnasium import spaces
 
 unenterable_cell_types = ['#']
+immovable_object_types = [',']
 max_n_object_states = 2
 
 class SimpleGridworld(MDPWorldModel):
@@ -137,12 +140,23 @@ class SimpleGridworld(MDPWorldModel):
 
         self._window_shape = 800 * np.array(xygrid.shape) / np.max(xygrid.shape)  # The size of the PyGame window in pixels
 
-        # the initial agent location is the first occurrence of 'A' in the grid:
+        # The initial agent location is the first occurrence of 'A' in the grid:
         wh = np.where(xygrid == 'A')
         self.initial_agent_location = (wh[0][0], wh[1][0])
 
         self.n_immovable_objects = self.n_movable_constant_objects = self.n_movable_variable_objects = 0  # TODO: extract from grid
 
+        # Construct an auxiliary grid that contains a unique index of each immovable object 
+        # (cells of a type in immovable_object_types), or None if there is none:
+        self._immovable_object_indices = np.full(xygrid.shape, None)
+        for x in range(xygrid.shape[0]):
+            for y in range(xygrid.shape[1]):
+                if xygrid[x, y] in immovable_object_types:
+                    self._immovable_object_indices[x, y] = self.n_immovable_objects
+                    self.n_immovable_objects += 1
+        # Initialize all immovable object states to zero:
+        self._immovable_object_states = np.zeros(self.n_immovable_objects, dtype = int)
+    
         # The observation returned for reinforcement learning equals state, as described above.
         nx, ny = xygrid.shape[0], xygrid.shape[1]
         self.observation_space = spaces.MultiDiscrete(
@@ -201,15 +215,20 @@ class SimpleGridworld(MDPWorldModel):
 
     def _can_move(self, location, target_location):
         """Return True if the agent can move from the given location to the given target_location."""
-        return (0 <= target_location[0] < self.xygrid.shape[0]
-            and 0 <= target_location[1] < self.xygrid.shape[1]
-            and not self.xygrid[target_location] in unenterable_cell_types)
+        can = (0 <= target_location[0] < self.xygrid.shape[0]
+                and 0 <= target_location[1] < self.xygrid.shape[1]
+                and not self.xygrid[target_location] in unenterable_cell_types)
+        if can and self.xygrid[target_location] == ',':
+            # can only move there if it hasn't turned into a wall yet:
+            can = self._immovable_object_states[self._immovable_object_indices[target_location]] == 0
         # TODO: add other conditions for not being able to move, e.g. because of other objects
+        return can 
 
     def opposite_action(self, action):
         """Return the opposite action to the given action."""
         return (action + 2) % 4
         
+    @lru_cache(maxsize=None)
     def possible_actions(self, state):
         """Return a list of possible actions from the given state."""
         location = (state[1], state[2])
@@ -220,43 +239,52 @@ class SimpleGridworld(MDPWorldModel):
         """Return the individual attributes of a state."""
         return (state[0],  # time step
                 (state[1], state[2]),  # current position
-                (state[3], state[4])  # previous position
+                (state[3], state[4]),  # previous position
+                state[5:5+self.n_immovable_objects],  # immovable object states
          ) # TODO: extract object states and/or object locations
 
     def _set_state(self, state):
         """Set the current state to the last state encoded in the given result."""
         self._state = state
-        self.t, loc, prev_loc = self._extract_state_attributes(state)
+        self.t, loc, prev_loc, imm_states = self._extract_state_attributes(state)
         self._agent_location = loc
         self._previous_agent_location = prev_loc
+        self._immovable_object_states = imm_states
 
-    def _make_state(self, t, loc = (-2,-2), prev_loc = (-2, -2)):  # default locations are "not present"
+    def _make_state(self, t, loc = (-2,-2), prev_loc = (-2, -2), imm_states = None):  # default locations are "not present"
         """Compile the given attributes into a state encoding that can be returned as an observation."""
+        if imm_states is None:
+            imm_states = np.zeros(self.n_immovable_objects, dtype = int)
         return (t, 
                 loc[0], loc[1],
-                prev_loc[0], prev_loc[1]
+                prev_loc[0], prev_loc[1],
+                *imm_states
                 )
 
+    @lru_cache(maxsize=None)
     def is_terminal(self, state):
         """Return True if the given state is a terminal state."""
-        t, loc, prev_loc = self._extract_state_attributes(state)
+        t, loc, prev_loc, imm_states = self._extract_state_attributes(state)
         was_at_goal = prev_loc[0] >= 0 and self.xygrid[prev_loc] == 'G'
         return (t == self.max_episode_length) or was_at_goal
 
+    @lru_cache(maxsize=None)
     def transition_distribution(self, state, action, n_samples = None):
         if state is None and action is None:
-            successor = self._make_state(0, loc = self.initial_agent_location)
+            successor = self._make_state(0, self.initial_agent_location)
             return {successor: (1, True)}
-        t, loc, prev_loc = self._extract_state_attributes(state)
+        t, loc, prev_loc, imm_states = self._extract_state_attributes(state)
         cell_type = self.xygrid[loc]
         at_goal = cell_type == 'G'
         if at_goal:
-            successor = self._make_state(t + 1, loc, loc)
+            successor = self._make_state(t + 1, loc, loc, imm_states)
             return {successor: (1, True)} # TODO: probabilistic transitions!
         else:
             if cell_type == ',':
-                # turn cell into a wall:
-                self.xygrid[loc] = '#'
+                # update the immovable object's state:
+                l = list(imm_states)
+                l[self._immovable_object_indices[loc]] = 1 
+                imm_states = tuple(l)
 
             target_loc = self._get_target_location(loc, action)
             target_type = self.xygrid[target_loc]
@@ -268,7 +296,7 @@ class SimpleGridworld(MDPWorldModel):
                          and self._can_move(target_loc, self._get_target_location(target_loc, a))]
                 if len(simulated_actions) > 0:
                     p0 = 1 if target_type == '^' else self.uneven_ground_prob  # probability of falling off
-                    intermediate_state = self._make_state(t, target_loc, loc)
+                    intermediate_state = self._make_state(t, target_loc, loc, imm_states)
                     trans_dist = {}
                     # compose the transition distribution recursively:
                     for simulate_action in simulated_actions:
@@ -284,13 +312,14 @@ class SimpleGridworld(MDPWorldModel):
 
             # TODO: update object states and/or object locations, e.g. if the agent picks up an object or moves an object
 
-            successor = self._make_state(t + 1, target_loc, loc)
+            successor = self._make_state(t + 1, target_loc, loc, imm_states)
             return {successor: (1, True)} 
 
+    @lru_cache(maxsize=None)
     def observation_and_reward_distribution(self, state, action, successor, n_samples = None):
         if state is None and action is None:
             return {(self._make_state(0, loc = self.initial_agent_location), 0): (1, True)}
-        t, loc, prev_loc = self._extract_state_attributes(state)
+        t, loc, prev_loc, imm_states = self._extract_state_attributes(state)
         delta = self.time_deltas[t % self.time_deltas.size]
         if self.delta_xygrid[loc] in self.cell_code2delta:
             delta += self.cell_code2delta[self.delta_xygrid[loc]]
@@ -338,7 +367,7 @@ class SimpleGridworld(MDPWorldModel):
         for x in range(self.xygrid.shape[0]):
             for y in range(self.xygrid.shape[1]):
                 cell_type = self.xygrid[x, y]
-                if cell_type == "#":
+                if cell_type == "#" or (cell_type == "," and self._immovable_object_states[self._immovable_object_indices[x, y]] == 1):
                     pygame.draw.rect(
                         canvas,
                         (64, 64, 64),
