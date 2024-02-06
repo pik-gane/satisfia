@@ -31,7 +31,13 @@ def between(item, a, b):
 	return (a <= item <= b) or (b <= item <= a)
 
 class AgentMDP():
-	def __init__(self, params, world):
+	def __init__(self, params, world=None, maxAdmissibleQ=None, minAdmissibleQ=None, messingPotential_action=None):
+		"""
+		If world is provided, maxAdmissibleQ and minAdmissibleQ are not needed because they are computed from the world.
+		Otherwise, maxAdmissibleQ and minAdmissibleQ must be provided, e.g. as learned using some reinforcement learning algorithm.
+
+		messingPotential_action is only needed if lossCoeff4MP > 0 and no world model is provided.
+		"""
 		defaults = {
 			# admissibility parameters:
 			"maxLambda": 1, # upper bound on local relative aspiration in each step (must be minLambda...1)  # TODO: rename to lambdaHi
@@ -40,14 +46,23 @@ class AgentMDP():
 			"lossTemperature": 0.1, # temperature of softmin mixture of actions w.r.t. loss, must be > 0
 			# "rescaling4Actions": 0, # degree (0...1) of aspiration rescaling from state to action. (larger implies larger variance) # TODO: disable this because a value of >0 can't be taken into account in a consistent way easily
 			# "rescaling4Successors": 1, # degree (0...1) of aspiration rescaling from action to successor state. (expectation is only preserved if this is 1.0) # TODO: disable also this since a value <1 leads to violation of the expectation guarantee 
+
+			# THESE LOSS COMPONENTS DO NOT USE THE WORLD MODEL:
+
 			# coefficients for cheap to compute loss functions:
 			"lossCoeff4Random": 0, # weight of random tie breaker in loss function, must be >= 0
 			"lossCoeff4FeasibilityPower": 1, # weight of power of squared admissibility interval width in loss function, must be >= 0
-			"lossCoeff4MP": 1, # weight of messing potential in loss function, must be >= 0
 			"lossCoeff4LRA1": 1, # weight of current-state deviation of LRA from 0.5 in loss function, must be >= 0
 			"lossCoeff4Time1": 1, # weight of not terminating in loss function, must be >= 0
 			"lossCoeff4Entropy1": 1, # weight of current-state action entropy in loss function, must be >= 0
 			"lossCoeff4KLdiv1": 1, # weight of current-state KL divergence in loss function, must be >= 0
+
+			# THE FOLLOWING CAN IN PRINCIPLE ALSO COMPUTED OR LEARNED UPFRONT:
+
+			"lossCoeff4MP": 1, # weight of messing potential in loss function, must be >= 0
+
+			# THESE LOSS COMPONENTS USE THE WORLD MODEL BECAUSE THEY DEPEND ON THE TRANSITION FUNCTION AND THE POLICY:
+
 			# coefficients for expensive to compute loss functions (all zero by default except for variance):
 			"lossCoeff4Variance": 1, # weight of variance of total in loss function, must be >= 0
 			"lossCoeff4Fourth": 0, # weight of centralized fourth moment of total in loss function, must be >= 0
@@ -294,6 +309,9 @@ class AgentMDP():
 
 	# Some safety metrics do not depend on aspiration and can thus also be computed upfront,
 	# like min/maxAdmissibleQ, min/maxAdmissibleV:
+
+
+	# TODO: IMPLEMENT A LEARNING VERSION OF THIS FUNCTION:
 
 	# Messing potential (maximal entropy (relative to some uninformedStatePrior) 
 	# over trajectories any agent could produce from here (see overleaf for details)):
