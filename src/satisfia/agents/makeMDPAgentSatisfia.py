@@ -494,6 +494,9 @@ class AgentMDP():
 		including Edel in the formula.
 		"""
 
+
+	# TODO: IMPLEMENT A LEARNING VERSION OF THIS FUNCTION:
+
 	# Based on the policy, we can compute many resulting quantities of interest useful in assessing safety
 	# better than with the above myopic safety metrics. All of them satisfy Bellman-style equations:
 
