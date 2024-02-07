@@ -5,6 +5,8 @@ from gymnasium import Env #, ResetNeeded # TODO: replace ResetNeeded with a cust
 
 # TODO: add typing
 
+# TODO: define Exceptions for: action set empty, action not possible in state
+
 class WorldModel(Env):
     """An abstract base class for potentially probabilistic world models, 
     extending gymnasion.Env by providing methods for enquiring transition probabilities between 
@@ -71,12 +73,26 @@ class WorldModel(Env):
 
     # methods for enquiring expected values in states:
 
-    def expected_reward(self, state, action, n_samples = None):
-        """Return the expected reward of the given result of calling step(action) after the given history."""
-        return np.sum([successor_probability * reward_probability * reward
+    def expectation_of_fct_of_reward(self, state, action, f, additional_args = None, n_samples = None):
+        """Return the expected value of f(reward, *additional_args) after taking action in state."""
+        return np.sum([successor_probability * reward_probability * f(reward, *additional_args)
                        for (successor, (successor_probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()
                        for ((observation, reward), (reward_probability, _)) in self.observation_and_reward_distribution(state, action, successor, n_samples = n_samples).items()
                        ])
+    
+    expectation_of_fct_of_delta = expectation_of_fct_of_reward
+
+    def raw_moment_of_reward(self, state, action, degree, n_samples = None):
+        """Return a raw moment of reward after taking action in state."""
+        return self.expectation_of_fct_of_reward(state, action, lambda reward: reward**degree, n_samples = n_samples)
+    
+    raw_moment_of_reward_delta = raw_moment_of_reward
+
+    def expected_reward(self, state, action, n_samples = None):
+        """Return the expected reward after taking action in state."""
+        return self.raw_moment_of_reward(state, action, 1, n_samples = n_samples)
+    
+    expected_delta = expected_reward
     
     def expectation(self, state, action, f, additional_args = None, n_samples = None):
         """Return the expected value of f(successor, *additional_args) after taking action in state."""
@@ -114,12 +130,25 @@ class WorldModel(Env):
     def _result2reward(self, result):
         return result[1]  # since result is a tuple (observation, reward, terminated)
     
+    def expectation_of_fct_of_reward_after_history(self, history, action, f, additional_args = None, n_samples = None):
+        """Return the expected value of f(reward, *additional_args) when calling step(action) after the given history."""
+        return np.sum([probability * f(self._result2reward(result), *additional_args)
+                       for (result, (probability, _)) in self.result_distribution(history, action, n_samples = None)])
+    
+    expectation_of_fct_of_delta_after_history = expectation_of_fct_of_reward_after_history
+
+    def raw_moment_of_reward_after_history(self, history, action, degree, n_samples = None):
+        """Return a raw moment of the reward of the given result of calling step(action) after the given history."""
+        return self.expectation_of_fct_of_reward_after_history(history, action, lambda reward: reward**degree, n_samples = None)
+
+    raw_moment_of_delta_after_history = raw_moment_of_reward_after_history
+
     def expected_reward_after_history(self, history, action, n_samples = None):
         """Return the expected reward of the given result of calling step(action) after the given history."""
-        return np.sum([probability * self._result2reward(result)
-                       for (result, (probability, _)) in self.result_distribution(history, action, n_samples = 
-                       None)])
+        return self.raw_moment_of_reward_after_history(history, action, 1, n_samples = None)
     
+    expected_delta_after_history = expected_reward_after_history
+
     def expectation_after_history(self, history, action, f, additional_args = None, n_samples = None):
         """Return the expected value of f(step(action), *additional_args) after the giving history."""
         return np.sum([probability * f(result, *additional_args)

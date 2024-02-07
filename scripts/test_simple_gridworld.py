@@ -28,10 +28,19 @@ env.render()
 #time.sleep(5)
 env.close()
 
+print("\nRUNNING AROUND AISG2:")
+env, aleph0 = make_simple_gridworld(gw = "AISG2", render_mode = "human", fps = 1)
+env.reset()
+move_randomly(env)
+env.render()
+time.sleep(3)
+env.close()
+
+
 print("\nRUNNING AROUND A RANDOM GRID:")
 grid = [
     [   
-        random.choice([' ', ' ', ' ', '#', '#', ',', '^', '~'])
+        random.choice([' ', ' ', ' ', '#', '#', ',', '^', '~','X'])
         for x in range(11)
     ]
     for y in range(11)
@@ -47,6 +56,6 @@ delta_grid = [
 ]
 print(grid)
 print(delta_grid)
-env = SimpleGridworld(grid = grid, delta_grid = delta_grid, cell_code2delta = {'M':-1, 'P':1}, render_mode = "human", fps=1)
+env = SimpleGridworld(grid = grid, delta_grid = delta_grid, cell_code2delta = {'M':-1, 'P':1}, render_mode = "human", fps = 1)
 move_randomly(env)
 env.close()

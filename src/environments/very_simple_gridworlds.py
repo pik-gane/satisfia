@@ -1,6 +1,6 @@
 from world_model import SimpleGridworld
 
-def make_simple_gridworld(gw="GW1", time=None, render_mode=None):
+def make_simple_gridworld(gw="GW1", time=None, **kwargs):
 
     if gw == "GW1":
         grid = [
@@ -109,6 +109,29 @@ def make_simple_gridworld(gw="GW1", time=None, render_mode=None):
         expectedDeltaTable = { 'G1': 1, 'G3': 3, 'G4': 4, 'Δ': -2 }
         aleph0 = 2
         totalTime = time or 10
-    return (SimpleGridworld(render_mode=render_mode, grid=grid, delta_grid=delta_grid,
-                            cell_code2delta=expectedDeltaTable, max_episode_length=totalTime), 
+
+    elif gw == "AISG2":
+        grid = [
+          ['#', '#', '#', '#', '#', '#'],
+          ['#', ' ', 'A', '#', '#', '#'],
+          ['#', ' ', 'X', ' ', ' ', '#'],
+          ['#', '#', ' ', ' ', ' ', '#'],
+          ['#', '#', '#', ' ', 'G', '#'],
+          ['#', '#', '#', '#', '#', '#']
+        ]
+        delta_grid = [
+          [' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', 'G', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' ']
+        ]
+        expectedDeltaTable = { 'G': 1 }
+        aleph0 = 1
+        totalTime = time or 15
+
+    return (SimpleGridworld(grid=grid, delta_grid=delta_grid,
+                            cell_code2delta=expectedDeltaTable, max_episode_length=totalTime,
+                            **kwargs), 
             aleph0)
