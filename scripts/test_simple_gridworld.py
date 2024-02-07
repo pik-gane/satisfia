@@ -28,12 +28,21 @@ env.render()
 #time.sleep(5)
 env.close()
 
+print("\nPUSHING A BOX THROUGH A GOAL:")
+env, aleph0 = make_simple_gridworld(gw = "test_box", render_mode = "human", fps = 1)
+env.reset(seed=1)
+move_randomly(env)
+env.render()
+time.sleep(1)
+env.close()
+
+
 print("\nRUNNING AROUND AISG2:")
 env, aleph0 = make_simple_gridworld(gw = "AISG2", render_mode = "human", fps = 1)
 env.reset()
 move_randomly(env)
 env.render()
-time.sleep(3)
+time.sleep(1)
 env.close()
 
 

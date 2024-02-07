@@ -110,6 +110,17 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         aleph0 = 2
         totalTime = time or 10
 
+    elif gw == "test_box":
+        grid = [
+            [' ', 'X', 'A', 'X', 'G', ' ', ' ']
+        ]  
+        delta_grid = [
+            [' ', ' ', ' ', ' ', 'G', ' ', ' ']
+        ]
+        expectedDeltaTable = { 'G': 1 }
+        aleph0 = 1
+        totalTime = time or 10
+
     elif gw == "AISG2":
         grid = [
           ['#', '#', '#', '#', '#', '#'],
