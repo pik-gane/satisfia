@@ -86,7 +86,7 @@ class WorldModel(Env):
         """Return a raw moment of reward after taking action in state."""
         return self.expectation_of_fct_of_reward(state, action, lambda reward: reward**degree, n_samples = n_samples)
     
-    raw_moment_of_reward_delta = raw_moment_of_reward
+    raw_moment_of_delta = raw_moment_of_reward
 
     def expected_reward(self, state, action, n_samples = None):
         """Return the expected reward after taking action in state."""
