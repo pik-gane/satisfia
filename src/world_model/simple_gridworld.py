@@ -70,6 +70,7 @@ class SimpleGridworld(MDPWorldModel):
         - '^': Pinnacle (Climbing on it will result in falling off to any side except to where agent came from, 
                with equal probability)
         - 'A': agent's initial location 
+        - 'X': Box (can be pushed around but not pulled, can slide and fall off. Heavy, so agent can only push one at a time)
 
     - not yet implemented, but are planned to be implemented in the future:
         - ',': Empty tile that turns into a wall after leaving it (so that one cannot go back)
@@ -89,7 +90,6 @@ class SimpleGridworld(MDPWorldModel):
         - 'S': Supervisor (might move around on their own)
         - 'T': Teleporter (sends the agent to some destination t)
         - 't': Destination of a teleporter (stepping on it does nothing)
-        - 'X': Box (can be pushed around but not pulled, can slide and fall off)
     (TODO: compare with pycolab asciiart conventions, try to harmonize them, and add things that are missing)
 
     *Deltas* (rewards) can accrue from the following events:
@@ -247,7 +247,7 @@ class SimpleGridworld(MDPWorldModel):
             location[1] + direction[1]
         )
 
-    def _can_move(self, from_loc, to_loc, state):
+    def _can_move(self, from_loc, to_loc, state, who='agent'):
         """Return True if the agent can move from the given location to the given target_location."""
         if not (0 <= to_loc[0] < self.xygrid.shape[0]
                 and 0 <= to_loc[1] < self.xygrid.shape[1]
@@ -263,9 +263,11 @@ class SimpleGridworld(MDPWorldModel):
         for i, object_type in enumerate(self.movable_constant_object_types):
             if (mc_locs[2*i],mc_locs[2*i+1]) == to_loc:
                 if object_type == 'X':  # a box
+                    if who == 'box':
+                        return False  # agent can only push one box
                     # see if it can be pushed:
                     box_target_loc = tuple(2*np.array(to_loc) - np.array(from_loc))
-                    if not self._can_move(to_loc, box_target_loc, state):
+                    if not self._can_move(to_loc, box_target_loc, state, who='box'):
                         return False
         return True
 

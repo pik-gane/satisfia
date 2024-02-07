@@ -30,7 +30,7 @@ env.close()
 
 print("\nPUSHING A BOX THROUGH A GOAL:")
 env, aleph0 = make_simple_gridworld(gw = "test_box", render_mode = "human", fps = 1)
-env.reset(seed=1)
+env.reset()
 move_randomly(env)
 env.render()
 time.sleep(1)
