@@ -75,7 +75,7 @@ class AgentMDP():
 		assert self.params["lossCoeff4Entropy"] == 0 or lossCoeff4MP == 0 or ("uninformedPolicy" in self.params), "uninformedPolicy must be provided if lossCoeff4MP > 0 or lossCoeff4Entropy > 0"
 
 		if VERBOSE or DEBUG:
-			print("makeMDPAgentSatisfia with parameters", self.params);
+			print("makeMDPAgentSatisfia with parameters", self.params)
 
 	def __getitem__(self, name):
 		return self.params[name]
@@ -128,7 +128,7 @@ class AgentMDP():
 		# register (state, action) in global store (could be anywhere, but here is just as fine as anywhere else)
 		self.stateActionPairsSet.insert((state, action))
 
-		Edel = self.world.expected_delta([state], action)
+		Edel = self.world.expected_delta(state, action)
 		if state.terminateAfterAction:
 			q = Edel
 		else:
@@ -148,7 +148,7 @@ class AgentMDP():
 		# register (state, action) in global store (could be anywhere, but here is just as fine as anywhere else)
 		stateActionPairsSet.insert((state, action))
 
-		Edel = self.world.expected_delta([state], action)
+		Edel = self.world.expected_delta(state, action)
 		if state.terminateAfterAction:
 			q = Edel
 		else:
@@ -216,12 +216,12 @@ class AgentMDP():
 	@lru_cache(maxsize=None)
 	def estAspiration4action(self, state, action, aleph4state):
 		if DEBUG:
-			console.log("| | estAspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,"...");
-		phi = admissibility4action(state, action)
+			console.log("| | estAspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,"...")
+		phi = self.admissibility4action(state, action)
 		if isSubsetOf(phi, aleph4state):
 			if VERBOSE or DEBUG:
 				print(pad(state),"| | estAspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,":",phi,"(subset of aleph4state)")
-			return phi;
+			return phi
 		else:
 			""" DISBLED:
 				// if rescaling4Actions == 1, we use a completely rescaled version:
@@ -265,12 +265,6 @@ class AgentMDP():
 	# - If phiLo(a) < alephLo(s) and phiHi(a) < alephHi(s), then aleph(a) = phiHi(a) - [0, alephW(s)*min(1,phiW(a)/phiW(s))]
 	# - If phiHi(a) > alephHi(s) and phiLo(a) > alephLo(s), then aleph(a) = phiLo(a) + [0, alephW(s)*min(1,phiW(a)/phiW(s))]
 
-
-
-
-
-
-
 	# Some safety metrics do not depend on aspiration and can thus also be computed upfront,
 	# like min/maxAdmissibleQ, min/maxAdmissibleV:
 
@@ -288,7 +282,7 @@ class AgentMDP():
 				return nextMP + priorScore - np.log(probability) + internalEntropy
 
 		# Note for ANN approximation: messingPotential_action can be positive or negative. 
-		return self.world.expectation_of_fct_of_probability([state], action, sample)
+		return self.world.expectation_of_fct_of_probability(state, action, sample)
 
 	@lru_cache(maxsize=None)
 	def messingPotential_state(self, state): # recursive
@@ -303,7 +297,7 @@ class AgentMDP():
 	def localPolicy(self, state, aleph): # recursive
 		"""return a categorical distribution over (action, aleph4action) pairs"""
 
-		d = localPolicyData(state, aleph)
+		d = self.localPolicyData(state, aleph)
 		support = d[0]
 		ps = d[1]
 
@@ -323,7 +317,7 @@ class AgentMDP():
 		# Estimate aspiration intervals for all possible actions in a way 
 		# independent from the local policy that we are about to construct,
 		actions = stateToActions(state)
-		estAlephs1 = [estAspiration4action(state, action, aleph4state) for action in actions]
+		estAlephs1 = [self.estAspiration4action(state, action, aleph4state) for action in actions]
 
 		# Estimate losses based on this estimated aspiration intervals
 		# and use it to construct softmin propensities (probability weights) for choosing actions.
@@ -352,7 +346,7 @@ class AgentMDP():
 		for i1, p1 in distribution.categorical(indices, propensities).categories():
 			# Get admissibility interval for the first action.
 			a1 = actions[i1]
-			adm1Lo, adm1Hi = adm1 = admissibility4action(state, a1)
+			adm1Lo, adm1Hi = adm1 = self.admissibility4action(state, a1)
 
 			# If a1's admissibility interval is completely contained in aleph4state, we are done:
 			if set(adm1) < set(aleph4state):
@@ -373,7 +367,7 @@ class AgentMDP():
 				# aleph(s) + (aleph(s) - aleph(a1)):
 				aleph2target = interpolate(estAleph1, 2.0, aleph4state)
 				# Due to the new target aleph, we have to recompute the estimated alephs and resulting losses and propensities:
-				estAlephs2 = [estAspiration4action(state, actions[index], aleph2target) for index in indices]
+				estAlephs2 = [self.estAspiration4action(state, actions[index], aleph2target) for index in indices]
 				propensities2 = [propensity(index, indices2, estAlephs2) for index in indices2]
 
 				if DEBUG:
@@ -382,7 +376,7 @@ class AgentMDP():
 				for i2, p2 in distribution.categorical(indices2, propensities2).categories():
 					# Get admissibility interval for the second action.
 					a2 = actions[i2]
-					adm2Lo, adm2Hi = adm2 = admissibility4action(state, a2)
+					adm2Lo, adm2Hi = adm2 = self.admissibility4action(state, a2)
 
 					# Now we need to find two aspiration intervals aleph1 in adm1 and aleph2 in adm2,
 					# and a probability p such that
@@ -424,7 +418,7 @@ class AgentMDP():
 		ps = [max(1e-100, math.exp(locPol.score(item))) for item in support] # 1e-100 prevents normalization problems
 
 		if VERBOSE or DEBUG:
-			print(pad(state),"| localPolicy, state",prettyState(state),"aleph",aleph,":");
+			print(pad(state),"| localPolicy, state",prettyState(state),"aleph",aleph,":")
 			_W.printPolicy(pad(state), support, ps)
 		return [support, ps]
 
@@ -438,7 +432,7 @@ class AgentMDP():
 		# compute the relative position of aleph4action in the expectation that we had of 
 		#	delta + next admissibility interval 
 		# before we knew which state we would land in:
-		lam = relativePosition(minAdmissibleQ(state, action), aleph4action, maxAdmissibleQ(state, action));
+		lam = relativePosition(minAdmissibleQ(state, action), aleph4action, maxAdmissibleQ(state, action))
 		# (this is two numbers between 0 and 1.)
 		# use it to rescale aleph4action to the admissibility interval of the state that we landed in:
 		rescaledAleph4nextState = interpolate(minAdmissibleV(nextState), lam, maxAdmissibleV(nextState))
@@ -485,15 +479,15 @@ class AgentMDP():
 		if DEBUG:
 			print("| Q", prettyState(state), action, aleph4action)
 
-		Edel = self.world.expected_delta([state], action)
+		Edel = self.world.expected_delta(state, action)
 		def total(res):
 			nextState, _, terminated, _, _, _ = res
 			if terminated:
-				return Edel;
+				return Edel
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
 				return Edel + self.V(nextState, nextAleph4state) # recursion
-		q = self.world.expectation([state], action, total)
+		q = self.world.expectation(state, action, total)
 
 		if DEBUG:
 			print("| Q", prettyState(state), action, aleph4action, q)
@@ -512,30 +506,30 @@ class AgentMDP():
 
 		if DEBUG:
 			print("| V", prettyState(state), aleph4state, ":", v)
-		return v;
+		return v
 
 	# Raw moments of delta: 
 	@lru_cache(maxsize=None)
 	def expectedDeltaSquared(self, state, action):
-		Edel = self.world.expected_delta([state], action)
-		return varianceOfDelta(state, action) + squared(Edel)
+		Edel = self.world.expected_delta(state, action)
+		return self["varianceOfDelta"](state, action) + squared(Edel)
 	@lru_cache(maxsize=None)
 	def expectedDeltaCubed(self, state, action):
-		Edel = self.world.expected_delta([state], action)
-		varDel = varianceOfDelta(state, action)
+		Edel = self.world.expected_delta(state, action)
+		varDel = self["varianceOfDelta"](state, action)
 		return (varDel ** 1.5)*skewnessOfDelta(state, action) \
 			+ 3*Edel*varDel \
 			+ (Edel ** 3)
 	@lru_cache(maxsize=None)
 	def expectedDeltaFourth(self, s, a):
-		Edel = self.world.expected_delta([state], action)
-		return squared(varianceOfDelta(s, a)) * (3 + excessKurtosisOfDelta(s, a)) \
+		Edel = self.world.expected_delta(state, action)
+		return squared(self["varianceOfDelta"](s, a)) * (3 + excessKurtosisOfDelta(s, a)) \
 			+ 4*expectedDeltaCubed(s, a)*Edel \
 			- 6*expectedDeltaSquared(s, a)*squared(Edel) \
 			+ 3*(Edel ** 4)
 	@lru_cache(maxsize=None)
 	def expectedDeltaFifth(self, s, a):
-		Edel = self.world.expected_delta([state], action)
+		Edel = self.world.expected_delta(state, action)
 		return fifthMomentOfDelta(s, a) \
 			+ 5*expectedDeltaFourth(s, a)*Edel \
 			- 10*expectedDeltaCubed(s, a)*squared(Edel) \
@@ -543,7 +537,7 @@ class AgentMDP():
 			- 4*(Edel ** 5)
 	@lru_cache(maxsize=None)
 	def expectedDeltaSixth(self, s, a):
-		Edel = self.world.expected_delta([state], action)
+		Edel = self.world.expected_delta(state, action)
 		return sixthMomentOfDelta(s, a) \
 			+ 6*expectedDeltaFifth(s, a)*Edel \
 			- 15*expectedDeltaFourth(s, a)*squared(Edel) \
@@ -554,8 +548,8 @@ class AgentMDP():
 	# Expected squared total, for computing the variance of total:
 	@lru_cache(maxsize=None)
 	def Q2(self, state, action, aleph4action): # recursive
-		Edel = self.world.expected_delta([state], action)
-		Edel2 = self.world.expected_delta2([state], action)
+		Edel = self.world.expected_delta(state, action)
+		Edel2 = self.world.expected_delta2(state, action)
 
 		def total(res):
 			nextState, _, terminated, _, _, _ = res
@@ -568,7 +562,7 @@ class AgentMDP():
 					+ 2*Edel*self.V(nextState, nextAleph4state) \
 					+ self.V2(nextState, nextAleph4state) # recursion
 
-		q2 = self.world.expectation([state], action, total)
+		q2 = self.world.expectation(state, action, total)
 
 		if DEBUG:
 			print("| Q2", prettyState(state), action, aleph4action, q2)
@@ -587,9 +581,9 @@ class AgentMDP():
 	# Similarly: Expected third and fourth powers of total, for computing the 3rd and 4th centralized moment of total:
 	@lru_cache(maxsize=None)
 	def Q3(self, state, action, aleph4action): # recursive
-		Edel = self.world.expected_delta([state], action)
-		Edel2 = self.world.expected_delta2([state], action)
-		Edel3 = self.world.expected_delta3([state], action)
+		Edel = self.world.expected_delta(state, action)
+		Edel2 = self.world.expected_delta2(state, action)
+		Edel3 = self.world.expected_delta3(state, action)
 
 		def total(res):
 			nextState, _, terminated, _, _, _ = res
@@ -602,7 +596,7 @@ class AgentMDP():
 					+ 3*Edel2*self.V(nextState, nextAleph4state) \
 					+ 3*Edel*self.V2(nextState, nextAleph4state) \
 					+ self.V3(nextState, nextAleph4state) # recursion
-		q3 = self.world.expectation([state], action, total)
+		q3 = self.world.expectation(state, action, total)
 
 		if DEBUG:
 			print("| Q3", prettyState(state), action, aleph4action, q3)
@@ -621,15 +615,15 @@ class AgentMDP():
 	# Expected fourth power of total, for computing the expected fourth power of deviation of total from expected total (= fourth centralized moment of total):
 	@lru_cache(maxsize=None)
 	def Q4(self, state, action, aleph4action): # recursive
-		Edel = self.world.expected_delta([state], action)
-		Edel2 = self.world.expected_delta2([state], action)
-		Edel3 = self.world.expected_delta3([state], action)
-		Edel4 = self.world.expected_delta4([state], action)
+		Edel = self.world.expected_delta(state, action)
+		Edel2 = self.world.expected_delta2(state, action)
+		Edel3 = self.world.expected_delta3(state, action)
+		Edel4 = self.world.expected_delta4(state, action)
 
 		def total(res):
 			nextState, _, terminated, _, _, _ = res
 			if terminated:
-				return Edel4;
+				return Edel4
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
 				# TODO: verify formula:
@@ -638,7 +632,7 @@ class AgentMDP():
 					+ 6*Edel2*self.V2(nextState, nextAleph4state) \
 					+ 4*Edel*self.V3(nextState, nextAleph4state) \
 					+ self.V4(nextState, nextAleph4state) # recursion
-		q4 = self.world.expectation([state], action, total)
+		q4 = self.world.expectation(state, action, total)
 
 		if DEBUG:
 			print("| Q4", prettyState(state), action, aleph4action, q4)
@@ -655,16 +649,16 @@ class AgentMDP():
 
 	# Expected fifth power of total, for computing the bed-and-banks loss component based on a 6th order polynomial potential of this shape: https://www.wolframalpha.com/input?i=plot+%28x%2B1%29%C2%B3%28x-1%29%C2%B3+ :
 	def Q5(self, state, action, aleph4action): # recursive
-		Edel = self.world.expected_delta([state], action)
-		Edel2 = self.world.expected_delta2([state], action)
-		Edel3 = self.world.expected_delta3([state], action)
-		Edel4 = self.world.expected_delta4([state], action)
-		Edel5 = self.world.expected_delta5([state], action)
+		Edel = self.world.expected_delta(state, action)
+		Edel2 = self.world.expected_delta2(state, action)
+		Edel3 = self.world.expected_delta3(state, action)
+		Edel4 = self.world.expected_delta4(state, action)
+		Edel5 = self.world.expected_delta5(state, action)
 
 		def total(res):
 			nextState, _, terminated, _, _, _ = res
 			if terminated:
-				return Edel5;
+				return Edel5
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
 				# TODO: verify formula:
@@ -674,7 +668,7 @@ class AgentMDP():
 					+ 10*Edel2*self.V3(nextState, nextAleph4state) \
 					+ 5*Edel*self.V4(nextState, nextAleph4state) \
 					+ self.V5(nextState, nextAleph4state) # recursion
-		q5 = self.world.expectation([state], action, total)
+		q5 = self.world.expectation(state, action, total)
 
 		if DEBUG:
 			print("| Q5", prettyState(state), action, aleph4action, q5)
@@ -693,17 +687,17 @@ class AgentMDP():
 	# Expected sixth power of total, for computing the bed-and-banks loss component based on a 6th order polynomial potential of this shape: https://www.wolframalpha.com/input?i=plot+%28x%2B1%29%C2%B3%28x-1%29%C2%B3+ :
 	@lru_cache(maxsize=None)
 	def Q6(self, state, action, aleph4action): # recursive
-		Edel = self.world.expected_delta([state], action)
-		Edel2 = self.world.expected_delta2([state], action)
-		Edel3 = self.world.expected_delta3([state], action)
-		Edel4 = self.world.expected_delta4([state], action)
-		Edel5 = self.world.expected_delta5([state], action)
-		Edel6 = self.world.expected_delta6([state], action)
+		Edel = self.world.expected_delta(state, action)
+		Edel2 = self.world.expected_delta2(state, action)
+		Edel3 = self.world.expected_delta3(state, action)
+		Edel4 = self.world.expected_delta4(state, action)
+		Edel5 = self.world.expected_delta5(state, action)
+		Edel6 = self.world.expected_delta6(state, action)
 
 		def total(res):
 			nextState, _, terminated, _, _, _ = res
 			if terminated:
-				return Edel6;
+				return Edel6
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
 				# TODO: verify formula:
@@ -714,7 +708,7 @@ class AgentMDP():
 					+ 15*Edel2*self.V4(nextState, nextAleph4state) \
 					+ 6*Edel*self.V5(nextState, nextAleph4state) \
 					+ self.V6(nextState, nextAleph4state) # recursion
-		q6 = self.world.expectation([state], action, total)
+		q6 = self.world.expectation(state, action, total)
 
 		if DEBUG:
 			print("| Q6", prettyState(state), action, aleph4action, q6)
@@ -741,7 +735,7 @@ class AgentMDP():
 			+ v ** 2
 		if DEBUG:
 			print("| Q2v", prettyState(s), a, al, v, res)
-		return res;
+		return res
 
 	@lru_cache(maxsize=None)
 	def relativeQ4(self, s, a, al, v):
@@ -786,7 +780,7 @@ class AgentMDP():
 	@lru_cache(maxsize=None)
 	def LRAdev_action(self, state, action, aleph4action, myopic): # recursive
 		# Note for ANN approximation: LRAdev_action must be between 0 and 0.25 
-		Edel = self.world.expected_delta([state], action)
+		Edel = self.world.expected_delta(state, action)
 
 		def dev(res):
 			nextState, _, terminated, _, _, _ = res
@@ -796,7 +790,7 @@ class AgentMDP():
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
 				return localLRAdev + self.LRAdev_state(nextState, nextAleph4state) # recursion
-		return self.world.expectation([state], action, dev)
+		return self.world.expectation(state, action, dev)
 	@lru_cache(maxsize=None)
 	def LRAdev_state(self, state, aleph4state): # recursive
 		locPol = localPolicy(state, aleph4state)
@@ -810,7 +804,7 @@ class AgentMDP():
 	# Expected total of ones (= expected length of trajectory), for computing the expected Delta variation along a trajectory:
 	@lru_cache(maxsize=None)
 	def Q_ones(self, state, action, aleph4action=None): # recursive
-		Edel = self.world.expected_delta([state], action)
+		Edel = self.world.expected_delta(state, action)
 
 		# Note for ANN approximation: Q_ones must be nonnegative. 
 		def one(res):
@@ -820,7 +814,7 @@ class AgentMDP():
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
 				return 1 + self.V_ones(nextState, nextAleph4state) # recursion
-		q_ones = self.world.expectation([state], action, one)
+		q_ones = self.world.expectation(state, action, one)
 
 		if DEBUG:
 			print("| Q_ones", prettyState(state), action, aleph4action, q_ones)
@@ -839,8 +833,8 @@ class AgentMDP():
 	# Expected total of squared Deltas, for computing the expected Delta variation along a trajectory:
 	@lru_cache(maxsize=None)
 	def Q_DeltaSquare(self, state, action, aleph4action=None): # recursive
-		Edel = self.world.expected_delta([state], action)
-		EdelSq = squared(Edel) + varianceOfDelta(state, action)
+		Edel = self.world.expected_delta(state, action)
+		EdelSq = squared(Edel) + self["varianceOfDelta"](state, action)
 
 		# Note for ANN approximation: Q_DeltaSquare must be nonnegative. 
 		def del(res):
@@ -852,7 +846,7 @@ class AgentMDP():
 				return EdelSq + self.V_DeltaSquare(nextState, nextAleph4state) # recursion
 		if DEBUG:
 			print("| Q_DeltaSquare", prettyState(state), action, aleph4action, qDsq)
-		qDsq = self.world.expectation([state], action, del)
+		qDsq = self.world.expectation(state, action, del)
 		return qDsq
 	@lru_cache(maxsize=None)
 	def V_DeltaSquare(self, state, aleph4state): # recursive
@@ -874,7 +868,7 @@ class AgentMDP():
 	def behaviorEntropy_action(self, state, actionProbability, action, aleph4action=None): # recursive
 		# Note for ANN approximation: behaviorEntropy_action must be <= 0 (!) 
 		# because it is the negative (!) of a KL divergence. 
-		Edel = self.world.expected_delta([state], action)
+		Edel = self.world.expected_delta(state, action)
 		def entropy(res):
 			nextState, _, terminated, _, _, _ = res
 			uninfPolScore = self["uninformedPolicy"](state).score(action) if ("uninformedPolicy" in self.params) else 0
@@ -886,7 +880,7 @@ class AgentMDP():
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
 				return localEntropy + self.behaviorEntropy_state(nextState, nextAleph4state) # recursion
-		return self.world.expectation([state], action, entropy)
+		return self.world.expectation(state, action, entropy)
 	@lru_cache(maxsize=None)
 	def behaviorEntropy_state(self, state, aleph4state): # recursive
 		locPol = localPolicy(state, aleph4state)
@@ -907,7 +901,7 @@ class AgentMDP():
 		else:
 			return None # TODO this should remain None after math operations
 
-		Edel = self.world.expected_delta([state], action)
+		Edel = self.world.expected_delta(state, action)
 		def div(res):
 			nextState, _, terminated, _, _, _ = res
 			localDivergence = math.log(actionProbability) - refPol.score(action)
@@ -916,7 +910,7 @@ class AgentMDP():
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
 				return localDivergence + self.behaviorKLdiv_state(nextState, nextAleph4state) # recursion
-		return self.world.expectation([state], action, div)
+		return self.world.expectation(state, action, div)
 	@lru_cache(maxsize=None)
 	def behaviorKLdiv_state(self, state, aleph4state): # recursive
 		locPol = localPolicy(state, aleph4state)
@@ -928,7 +922,7 @@ class AgentMDP():
 	# other loss:
 	@lru_cache(maxsize=None)
 	def otherLoss_action(self, state, action, aleph4action=None): # recursive
-		Edel = self.world.expected_delta([state], action)
+		Edel = self.world.expected_delta(state, action)
 		def loss(res):
 			nextState, _, terminated, _, _, _ = res
 			localLoss = self["otherLocalLoss"](state, action) # TODO this variable may not exist in params
@@ -937,7 +931,7 @@ class AgentMDP():
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
 				return localLoss + self.otherLoss_state(nextState, nextAleph4state) # recursion
-		return self.world.expectation([state], action, loss)
+		return self.world.expectation(state, action, loss)
 	@lru_cache(maxsize=None)
 	def otherLoss_state(self, state, aleph4state): # recursive
 		locPol = localPolicy(state, aleph4state) # recursion
