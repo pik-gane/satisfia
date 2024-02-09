@@ -10,7 +10,22 @@ VERBOSE = False
 DEBUG = False
 
 class AgentMDP():
-	def __init__(self, params, world):
+	def __init__(self, params, world=None, maxAdmissibleQ=None, minAdmissibleQ=None, 
+			  messingPotential_action=None,
+			  LRAdev_action=None, Q_ones=None, Q_DeltaSquare=None, behaviorEntropy_action=None, behaviorKLdiv_action=None,):
+		"""
+		If world is provided, maxAdmissibleQ, minAdmissibleQ, Q, Q2, ..., Q6 are not needed because they are computed from the world. Otherwise, these functions must be provided, e.g. as learned using some reinforcement learning algorithm. Their signature is
+		- maxAdmissibleQ|minAdmissibleQ: (state, action) -> float
+		- Q,Q2,...,Q6: (state, action, action, aleph4action) -> float
+
+		messingPotential_action, LRAdev_action, Q_ones, Q_DeltaSquare, behaviorEntropy_action, and behaviorKLdiv_action are only needed if their respective loss coefficients 
+		(lossCoeff4MP, lossCoeff4LRA, lossCoeff4Time, lossCoeff4Entropy, lossCoeff4KLdiv)
+		are nonzero and no world model is provided. Their signature is
+		- messingPotential_action: (state, action) -> float
+		- LRAdev_action|Q_ones|Q_DeltaSquare: (state, action, aleph4action) -> float
+		- behaviorEntropy_action|behaviorKLdiv_action: (state, actionProbability, action, aleph4action) -> float
+
+		"""
 		defaults = {
 			# admissibility parameters:
 			"maxLambda": 1, # upper bound on local relative aspiration in each step (must be minLambda...1)	# TODO: rename to lambdaHi
@@ -19,14 +34,23 @@ class AgentMDP():
 			"lossTemperature": 0.1, # temperature of softmin mixture of actions w.r.t. loss, must be > 0
 			# "rescaling4Actions": 0, # degree (0...1) of aspiration rescaling from state to action. (larger implies larger variance) # TODO: disable this because a value of >0 can't be taken into account in a consistent way easily
 			# "rescaling4Successors": 1, # degree (0...1) of aspiration rescaling from action to successor state. (expectation is only preserved if this is 1.0) # TODO: disable also this since a value <1 leads to violation of the expectation guarantee 
+
+			# THESE LOSS COMPONENTS DO NOT USE THE WORLD MODEL:
+
 			# coefficients for cheap to compute loss functions:
 			"lossCoeff4Random": 0, # weight of random tie breaker in loss function, must be >= 0
 			"lossCoeff4FeasibilityPower": 1, # weight of power of squared admissibility interval width in loss function, must be >= 0
-			"lossCoeff4MP": 1, # weight of messing potential in loss function, must be >= 0
 			"lossCoeff4LRA1": 1, # weight of current-state deviation of LRA from 0.5 in loss function, must be >= 0
 			"lossCoeff4Time1": 1, # weight of not terminating in loss function, must be >= 0
 			"lossCoeff4Entropy1": 1, # weight of current-state action entropy in loss function, must be >= 0
 			"lossCoeff4KLdiv1": 1, # weight of current-state KL divergence in loss function, must be >= 0
+
+			# THE FOLLOWING CAN IN PRINCIPLE ALSO COMPUTED OR LEARNED UPFRONT:
+
+			"lossCoeff4MP": 1, # weight of messing potential in loss function, must be >= 0
+
+			# THESE LOSS COMPONENTS USE THE WORLD MODEL BECAUSE THEY DEPEND ON THE TRANSITION FUNCTION AND THE POLICY:
+
 			# coefficients for expensive to compute loss functions (all zero by default except for variance):
 			"lossCoeff4Variance": 1, # weight of variance of total in loss function, must be >= 0
 			"lossCoeff4Fourth": 0, # weight of centralized fourth moment of total in loss function, must be >= 0
@@ -268,6 +292,9 @@ class AgentMDP():
 	# Some safety metrics do not depend on aspiration and can thus also be computed upfront,
 	# like min/maxAdmissibleQ, min/maxAdmissibleV:
 
+
+	# TODO: IMPLEMENT A LEARNING VERSION OF THIS FUNCTION:
+
 	# Messing potential (maximal entropy (relative to some uninformedStatePrior) 
 	# over trajectories any agent could produce from here (see overleaf for details)):
 	@lru_cache(maxsize=None)
@@ -469,6 +496,9 @@ class AgentMDP():
 		So the above rescaling formula is correctly taking account of received delta even without explicitly
 		including Edel in the formula.
 		"""
+
+
+	# TODO: IMPLEMENT A LEARNING VERSION OF THIS FUNCTION:
 
 	# Based on the policy, we can compute many resulting quantities of interest useful in assessing safety
 	# better than with the above myopic safety metrics. All of them satisfy Bellman-style equations:
