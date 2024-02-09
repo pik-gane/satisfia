@@ -127,7 +127,7 @@ class AgentMDP():
 				→ localPolicy (RECURSION)
 				→ E(otherLoss_action) (RECURSION)
 			→ similarly for other loss components (RECURSION)
-		→ world.expected_delta, varianceOfDelta, transition
+		→ world.raw_moment_of_delta, varianceOfDelta, transition
 		→ propagateAspiration
 			→ aspiration4state
 		→ simulate (RECURSION)"""
@@ -152,7 +152,7 @@ class AgentMDP():
 		# register (state, action) in global store (could be anywhere, but here is just as fine as anywhere else)
 		self.stateActionPairsSet.insert((state, action))
 
-		Edel = self.world.expected_delta(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
 		if state.terminateAfterAction:
 			q = Edel
 		else:
@@ -172,7 +172,7 @@ class AgentMDP():
 		# register (state, action) in global store (could be anywhere, but here is just as fine as anywhere else)
 		stateActionPairsSet.insert((state, action))
 
-		Edel = self.world.expected_delta(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
 		if state.terminateAfterAction:
 			q = Edel
 		else:
@@ -274,8 +274,9 @@ class AgentMDP():
 			res = steadfast # WAS: interpolate(steadfast, rescaling4Actions, rescaled);
 
 			if VERBOSE or DEBUG:
-				print(pad(state),"| | estAspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,":",res,"(steadfast)");	// WAS: "(steadfast/rescaled)")
+				print(pad(state),"| | estAspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,":",res,"(steadfast)") # WAS: "(steadfast/rescaled)")
 			return res
+
 	# TODO: Consider two other alternatives:
 	# 1. Only rescale the width and not the location of the aspiration interval,
 	# and move it as close as possible to the state aspiration interval
@@ -343,7 +344,7 @@ class AgentMDP():
 
 		# Estimate aspiration intervals for all possible actions in a way 
 		# independent from the local policy that we are about to construct,
-		actions = stateToActions(state)
+		actions = self.world.stateToActions(state)
 		estAlephs1 = [self.estAspiration4action(state, action, aleph4state) for action in actions]
 
 		# Estimate losses based on this estimated aspiration intervals
@@ -361,7 +362,7 @@ class AgentMDP():
 		def probability_add(p, key, weight):
 			if key in p:
 				p[key] += weight
-			else
+			else:
 				p[key] = weight
 
 		indices = actions.keys()
@@ -509,7 +510,7 @@ class AgentMDP():
 		if DEBUG:
 			print("| Q", prettyState(state), action, aleph4action)
 
-		Edel = self.world.expected_delta(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
 		def total(res):
 			nextState, _, terminated, _, _, _ = res
 			if terminated:
@@ -541,25 +542,25 @@ class AgentMDP():
 	# Raw moments of delta: 
 	@lru_cache(maxsize=None)
 	def expectedDeltaSquared(self, state, action):
-		Edel = self.world.expected_delta(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
 		return self["varianceOfDelta"](state, action) + squared(Edel)
 	@lru_cache(maxsize=None)
 	def expectedDeltaCubed(self, state, action):
-		Edel = self.world.expected_delta(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
 		varDel = self["varianceOfDelta"](state, action)
 		return (varDel ** 1.5)*skewnessOfDelta(state, action) \
 			+ 3*Edel*varDel \
 			+ (Edel ** 3)
 	@lru_cache(maxsize=None)
 	def expectedDeltaFourth(self, s, a):
-		Edel = self.world.expected_delta(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
 		return squared(self["varianceOfDelta"](s, a)) * (3 + excessKurtosisOfDelta(s, a)) \
 			+ 4*expectedDeltaCubed(s, a)*Edel \
 			- 6*expectedDeltaSquared(s, a)*squared(Edel) \
 			+ 3*(Edel ** 4)
 	@lru_cache(maxsize=None)
 	def expectedDeltaFifth(self, s, a):
-		Edel = self.world.expected_delta(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
 		return fifthMomentOfDelta(s, a) \
 			+ 5*expectedDeltaFourth(s, a)*Edel \
 			- 10*expectedDeltaCubed(s, a)*squared(Edel) \
@@ -567,7 +568,7 @@ class AgentMDP():
 			- 4*(Edel ** 5)
 	@lru_cache(maxsize=None)
 	def expectedDeltaSixth(self, s, a):
-		Edel = self.world.expected_delta(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
 		return sixthMomentOfDelta(s, a) \
 			+ 6*expectedDeltaFifth(s, a)*Edel \
 			- 15*expectedDeltaFourth(s, a)*squared(Edel) \
@@ -578,8 +579,8 @@ class AgentMDP():
 	# Expected squared total, for computing the variance of total:
 	@lru_cache(maxsize=None)
 	def Q2(self, state, action, aleph4action): # recursive
-		Edel = self.world.expected_delta(state, action)
-		Edel2 = self.world.expected_delta2(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
+		Edel2 = self.world.raw_moment_of_delta(state, action, 2)
 
 		def total(res):
 			nextState, _, terminated, _, _, _ = res
@@ -611,9 +612,9 @@ class AgentMDP():
 	# Similarly: Expected third and fourth powers of total, for computing the 3rd and 4th centralized moment of total:
 	@lru_cache(maxsize=None)
 	def Q3(self, state, action, aleph4action): # recursive
-		Edel = self.world.expected_delta(state, action)
-		Edel2 = self.world.expected_delta2(state, action)
-		Edel3 = self.world.expected_delta3(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
+		Edel2 = self.world.raw_moment_of_delta(state, action, 2)
+		Edel3 = self.world.raw_moment_of_delta(state, action, 3)
 
 		def total(res):
 			nextState, _, terminated, _, _, _ = res
@@ -645,10 +646,10 @@ class AgentMDP():
 	# Expected fourth power of total, for computing the expected fourth power of deviation of total from expected total (= fourth centralized moment of total):
 	@lru_cache(maxsize=None)
 	def Q4(self, state, action, aleph4action): # recursive
-		Edel = self.world.expected_delta(state, action)
-		Edel2 = self.world.expected_delta2(state, action)
-		Edel3 = self.world.expected_delta3(state, action)
-		Edel4 = self.world.expected_delta4(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
+		Edel2 = self.world.raw_moment_of_delta(state, action, 2)
+		Edel3 = self.world.raw_moment_of_delta(state, action, 3)
+		Edel4 = self.world.raw_moment_of_delta(state, action, 4)
 
 		def total(res):
 			nextState, _, terminated, _, _, _ = res
@@ -679,11 +680,11 @@ class AgentMDP():
 
 	# Expected fifth power of total, for computing the bed-and-banks loss component based on a 6th order polynomial potential of this shape: https://www.wolframalpha.com/input?i=plot+%28x%2B1%29%C2%B3%28x-1%29%C2%B3+ :
 	def Q5(self, state, action, aleph4action): # recursive
-		Edel = self.world.expected_delta(state, action)
-		Edel2 = self.world.expected_delta2(state, action)
-		Edel3 = self.world.expected_delta3(state, action)
-		Edel4 = self.world.expected_delta4(state, action)
-		Edel5 = self.world.expected_delta5(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
+		Edel2 = self.world.raw_moment_of_delta(state, action, 2)
+		Edel3 = self.world.raw_moment_of_delta(state, action, 3)
+		Edel4 = self.world.raw_moment_of_delta(state, action, 4)
+		Edel5 = self.world.raw_moment_of_delta(state, action, 5)
 
 		def total(res):
 			nextState, _, terminated, _, _, _ = res
@@ -717,12 +718,12 @@ class AgentMDP():
 	# Expected sixth power of total, for computing the bed-and-banks loss component based on a 6th order polynomial potential of this shape: https://www.wolframalpha.com/input?i=plot+%28x%2B1%29%C2%B3%28x-1%29%C2%B3+ :
 	@lru_cache(maxsize=None)
 	def Q6(self, state, action, aleph4action): # recursive
-		Edel = self.world.expected_delta(state, action)
-		Edel2 = self.world.expected_delta2(state, action)
-		Edel3 = self.world.expected_delta3(state, action)
-		Edel4 = self.world.expected_delta4(state, action)
-		Edel5 = self.world.expected_delta5(state, action)
-		Edel6 = self.world.expected_delta6(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
+		Edel2 = self.world.raw_moment_of_delta(state, action, 2)
+		Edel3 = self.world.raw_moment_of_delta(state, action, 3)
+		Edel4 = self.world.raw_moment_of_delta(state, action, 4)
+		Edel5 = self.world.raw_moment_of_delta(state, action, 5)
+		Edel6 = self.world.raw_moment_of_delta(state, action, 6)
 
 		def total(res):
 			nextState, _, terminated, _, _, _ = res
@@ -810,7 +811,7 @@ class AgentMDP():
 	@lru_cache(maxsize=None)
 	def LRAdev_action(self, state, action, aleph4action, myopic): # recursive
 		# Note for ANN approximation: LRAdev_action must be between 0 and 0.25 
-		Edel = self.world.expected_delta(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
 
 		def dev(res):
 			nextState, _, terminated, _, _, _ = res
@@ -834,7 +835,7 @@ class AgentMDP():
 	# Expected total of ones (= expected length of trajectory), for computing the expected Delta variation along a trajectory:
 	@lru_cache(maxsize=None)
 	def Q_ones(self, state, action, aleph4action=None): # recursive
-		Edel = self.world.expected_delta(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
 
 		# Note for ANN approximation: Q_ones must be nonnegative. 
 		def one(res):
@@ -863,11 +864,11 @@ class AgentMDP():
 	# Expected total of squared Deltas, for computing the expected Delta variation along a trajectory:
 	@lru_cache(maxsize=None)
 	def Q_DeltaSquare(self, state, action, aleph4action=None): # recursive
-		Edel = self.world.expected_delta(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
 		EdelSq = squared(Edel) + self["varianceOfDelta"](state, action)
 
 		# Note for ANN approximation: Q_DeltaSquare must be nonnegative. 
-		def del(res):
+		def d(res):
 			nextState, _, terminated, _, _, _ = res
 			if terminated or aleph4action == None:
 				return EdelSq
@@ -876,7 +877,7 @@ class AgentMDP():
 				return EdelSq + self.V_DeltaSquare(nextState, nextAleph4state) # recursion
 		if DEBUG:
 			print("| Q_DeltaSquare", prettyState(state), action, aleph4action, qDsq)
-		qDsq = self.world.expectation(state, action, del)
+		qDsq = self.world.expectation(state, action, d)
 		return qDsq
 	@lru_cache(maxsize=None)
 	def V_DeltaSquare(self, state, aleph4state): # recursive
@@ -898,7 +899,7 @@ class AgentMDP():
 	def behaviorEntropy_action(self, state, actionProbability, action, aleph4action=None): # recursive
 		# Note for ANN approximation: behaviorEntropy_action must be <= 0 (!) 
 		# because it is the negative (!) of a KL divergence. 
-		Edel = self.world.expected_delta(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
 		def entropy(res):
 			nextState, _, terminated, _, _, _ = res
 			uninfPolScore = self["uninformedPolicy"](state).score(action) if ("uninformedPolicy" in self.params) else 0
@@ -931,7 +932,7 @@ class AgentMDP():
 		else:
 			return None # TODO this should remain None after math operations
 
-		Edel = self.world.expected_delta(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
 		def div(res):
 			nextState, _, terminated, _, _, _ = res
 			localDivergence = math.log(actionProbability) - refPol.score(action)
@@ -952,7 +953,7 @@ class AgentMDP():
 	# other loss:
 	@lru_cache(maxsize=None)
 	def otherLoss_action(self, state, action, aleph4action=None): # recursive
-		Edel = self.world.expected_delta(state, action)
+		Edel = self.world.raw_moment_of_delta(state, action)
 		def loss(res):
 			nextState, _, terminated, _, _, _ = res
 			localLoss = self["otherLocalLoss"](state, action) # TODO this variable may not exist in params
