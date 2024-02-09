@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-
+import abc
 import math
 from functools import cache, lru_cache
+
+import gymnasium as gym
 
 from util import distribution
 from util.helper import interpolate, between, midpoint, isSubsetOf
@@ -9,10 +11,82 @@ from util.helper import interpolate, between, midpoint, isSubsetOf
 VERBOSE = False
 DEBUG = False
 
-class AgentMDP():
-	def __init__(self, params, world=None, maxAdmissibleQ=None, minAdmissibleQ=None, 
-			  messingPotential_action=None,
-			  LRAdev_action=None, Q_ones=None, Q_DeltaSquare=None, behaviorEntropy_action=None, behaviorKLdiv_action=None,):
+
+class AspirationWrapper(gym.ObservationWrapper):
+	def __init__(self, env, aspiration):
+		super().__init__(env)
+		self.aspiration = aspiration
+
+	def observation(self, obs):
+		return {
+			"obs": obs,
+			"aspiration": self.aspiration
+		}
+
+
+class Agent:
+
+	def act(self, obs) -> Action:
+class AspirationAgent(abc.ABC):
+	@abc.abstractmethod
+	def localPolicy(self, state, aleph) -> distribution: # recursive
+
+		raise NotImplementedError
+
+
+class QTableBasedAgent(AbstractAgent):
+	maxAdmissibleQ: Callable[[State, Action], float] = None
+	minAdmissibleQ: Callable[[State, Action], float] = None
+	maxAdmissibleV: Callable[[State], float] = None
+	minAdmissibleV: Callable[[State], float] = None
+	messingPotential_action: Callable[[State, Action], float] = None
+	LRAdev_action: Callable[[State, Action, Aleph4action], float] = None
+	Q_ones: Callable[[State, Action, Aleph4action], float] = None
+	Q_DeltaSquare: Callable[[State, Action, Aleph4action], float] = None
+	behaviorEntropy_action: Callable[[State, ActionProbability, Action, Aleph4action], float] = None
+	behaviorKLdiv_action: Callable[[State, ActionProbability, Action, Aleph4action], float] = None
+
+	def __init__(self, params, maxAdmissibleQ=None, minAdmissibleQ=None, maxAdmissibleV=None, minAdmissibleV=None, ...):
+		pass
+
+	def localPolicy(self, state, aleph):
+		...
+
+
+	@staticmethod
+	def from_world_model(world_model):
+		max_admissible_q = ...
+
+		...
+
+		agent = QTableBasedAgent(...)
+		return agent
+
+
+class NNBasedAgent(AbstractAgent):
+	...
+
+
+class AgentMDP(abc.ABC):
+	maxAdmissibleQ: Callable[[State, Action], float] = None
+	minAdmissibleQ: Callable[[State, Action], float] = None
+	maxAdmissibleV: Callable[[State], float] = None
+	minAdmissibleV: Callable[[State], float] = None
+	messingPotential_action: Callable[[State, Action], float] = None
+	LRAdev_action: Callable[[State, Action, Aleph4action], float] = None
+	Q_ones: Callable[[State, Action, Aleph4action], float] = None
+	Q_DeltaSquare: Callable[[State, Action, Aleph4action], float] = None
+	behaviorEntropy_action: Callable[[State, ActionProbability, Action, Aleph4action], float] = None
+	behaviorKLdiv_action: Callable[[State, ActionProbability, Action, Aleph4action], float] = None
+
+
+
+
+
+	def __init__(self):
+	# def __init__(self, params, world=None, maxAdmissibleQ=None, minAdmissibleQ=None,
+	# 		  messingPotential_action=None,
+	# 		  LRAdev_action=None, Q_ones=None, Q_DeltaSquare=None, behaviorEntropy_action=None, behaviorKLdiv_action=None,):
 		"""
 		If world is provided, maxAdmissibleQ, minAdmissibleQ, Q, Q2, ..., Q6 are not needed because they are computed from the world. Otherwise, these functions must be provided, e.g. as learned using some reinforcement learning algorithm. Their signature is
 		- maxAdmissibleQ|minAdmissibleQ: (state, action) -> float
