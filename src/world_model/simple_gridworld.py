@@ -70,6 +70,7 @@ class SimpleGridworld(MDPWorldModel):
         - '^': Pinnacle (Climbing on it will result in falling off to any side except to where agent came from, 
                with equal probability)
         - 'A': agent's initial location 
+        - 'Δ': Delta (positive or negative, can be collected once, does not end the episode)
         - 'X': Box (can be pushed around but not pulled, can slide and fall off. Heavy, so agent can only push one at a time)
 
     - not yet implemented, but are planned to be implemented in the future:
@@ -82,7 +83,6 @@ class SimpleGridworld(MDPWorldModel):
         - 'C': Collaborator (might move around)
         - 'D': Door (can only be entered after having collected a key)
         - 'E': Enemy (might move around on its own)
-        - 'Δ': Delta (positive or negative, can be collected once, does not end the episode)
         - 'G': Goal or exit door (acting while on it ends the episode)
         - 'I': (Potential) interruption (agent might get stuck in forever)
         - 'K': Key (must be collected to be able to pass a door)
