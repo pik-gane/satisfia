@@ -10,12 +10,21 @@ VERBOSE = False
 DEBUG = False
 
 class AgentMDP():
-	def __init__(self, params, world=None, maxAdmissibleQ=None, minAdmissibleQ=None, messingPotential_action=None):
+	def __init__(self, params, world=None, maxAdmissibleQ=None, minAdmissibleQ=None, 
+			  messingPotential_action=None,
+			  LRAdev_action=None, Q_ones=None, Q_DeltaSquare=None, behaviorEntropy_action=None, behaviorKLdiv_action=None,):
 		"""
-		If world is provided, maxAdmissibleQ and minAdmissibleQ are not needed because they are computed from the world.
-		Otherwise, maxAdmissibleQ and minAdmissibleQ must be provided, e.g. as learned using some reinforcement learning algorithm.
+		If world is provided, maxAdmissibleQ, minAdmissibleQ, Q, Q2, ..., Q6 are not needed because they are computed from the world. Otherwise, these functions must be provided, e.g. as learned using some reinforcement learning algorithm. Their signature is
+		- maxAdmissibleQ|minAdmissibleQ: (state, action) -> float
+		- Q,Q2,...,Q6: (state, action, action, aleph4action) -> float
 
-		messingPotential_action is only needed if lossCoeff4MP > 0 and no world model is provided.
+		messingPotential_action, LRAdev_action, Q_ones, Q_DeltaSquare, behaviorEntropy_action, and behaviorKLdiv_action are only needed if their respective loss coefficients 
+		(lossCoeff4MP, lossCoeff4LRA, lossCoeff4Time, lossCoeff4Entropy, lossCoeff4KLdiv)
+		are nonzero and no world model is provided. Their signature is
+		- messingPotential_action: (state, action) -> float
+		- LRAdev_action|Q_ones|Q_DeltaSquare: (state, action, aleph4action) -> float
+		- behaviorEntropy_action|behaviorKLdiv_action: (state, actionProbability, action, aleph4action) -> float
+
 		"""
 		defaults = {
 			# admissibility parameters:
