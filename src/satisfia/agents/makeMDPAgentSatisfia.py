@@ -6,13 +6,13 @@ from functools import cache, lru_cache
 from util import distribution
 from util.helper import interpolate, between, midpoint, isSubsetOf
 
+from abc import ABC, abstractmethod
+
 VERBOSE = False
 DEBUG = False
 
-class AgentMDP():
-	def __init__(self, params, world=None, maxAdmissibleQ=None, minAdmissibleQ=None, 
-			  messingPotential_action=None,
-			  LRAdev_action=None, Q_ones=None, Q_DeltaSquare=None, behaviorEntropy_action=None, behaviorKLdiv_action=None,):
+class AspirationAgent(ABC):
+	def __init__(self):
 		"""
 		If world is provided, maxAdmissibleQ, minAdmissibleQ, Q, Q2, ..., Q6 are not needed because they are computed from the world. Otherwise, these functions must be provided, e.g. as learned using some reinforcement learning algorithm. Their signature is
 		- maxAdmissibleQ|minAdmissibleQ: (state, action) -> float
@@ -101,9 +101,6 @@ class AgentMDP():
 		if VERBOSE or DEBUG:
 			print("makeMDPAgentSatisfia with parameters", self.params)
 
-	def __getitem__(self, name):
-		return self.params[name]
-
 	"""The dependency/callback graph of the following functions is partially recursive 
 		and involves aggregation (MIN, MAX, E) operations as follows:
 	
@@ -132,57 +129,8 @@ class AgentMDP():
 			→ aspiration4state
 		→ simulate (RECURSION)"""
 
-	# Utility function for deriving transition probabilities from the transition function:
-	# Remark: later the following should actually be provided by the env/world:
-
-	@lru_cache(maxsize=None)
-	def transitionDistribution(self, state, action):
-		return distribution.infer(lambda: self.world.transition(state, action))
-
-	# Compute upper and lower admissibility bounds for Q and V that are allowed in view of maxLambda and minLambda:
-
-	# Compute the Q and V functions of the classical maximization problem (if maxLambda==1)
-	# or of the LRA-based problem (if maxLambda<1):
-
-	@lru_cache(maxsize=None)
-	def maxAdmissibleQ(self, state, action): # recursive
-		if VERBOSE or DEBUG:
-			print(pad(state), "maxAdmissibleQ, state", state, "action", action, "...")
-
-		# register (state, action) in global store (could be anywhere, but here is just as fine as anywhere else)
-		self.stateActionPairsSet.insert((state, action))
-
-		Edel = self.world.raw_moment_of_delta(state, action)
-		if state.terminateAfterAction:
-			q = Edel
-		else:
-			# Bellman equation
-			q = Edel + self.world.expectation(state, action, self.maxAdmissibleV) # recursion
-
-		if VERBOSE or DEBUG:
-			print(pad(state), "maxAdmissibleQ, state", state, "action", action, ":", q)
-
-		return q
-
-	@lru_cache(maxsize=None)
-	def minAdmissibleQ(self, state, action): # recursive
-		if VERBOSE or DEBUG:
-			print(pad(state), "minAdmissibleQ, state", state, "action", action, "...")
-
-		# register (state, action) in global store (could be anywhere, but here is just as fine as anywhere else)
-		stateActionPairsSet.insert((state, action))
-
-		Edel = self.world.raw_moment_of_delta(state, action)
-		if state.terminateAfterAction:
-			q = Edel
-		else:
-			# Bellman equation
-			q = distribution.infer(lambda: self.minAdmissibleV(self.world.transition(state, action))).E() # recursion
-
-		if VERBOSE or DEBUG:
-			print(pad(state), "minAdmissibleQ, state", state, "action", action, ":", q)
-
-		return q
+	def __getitem__(self, name):
+		return self.params[name]
 
 	@lru_cache(maxsize=None)
 	def maxAdmissibleV(self, state): # recursive
@@ -276,41 +224,6 @@ class AgentMDP():
 			if VERBOSE or DEBUG:
 				print(pad(state),"| | estAspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,":",res,"(steadfast)") # WAS: "(steadfast/rescaled)")
 			return res
-
-	# TODO: Consider two other alternatives:
-	# 1. Only rescale the width and not the location of the aspiration interval,
-	# and move it as close as possible to the state aspiration interval
-	# (but maybe keeping a minimal safety distance from the bounds of the admissibility interval of the action).
-	# In both cases, if the admissibility interval of the action is larger than that of the state,
-	# the final action aspiration interval might need to be shrinked to fit into the aspiration interval of the state
-	# once the mixture is know.
-	# 2. This could be avoided by a further modification, where we rescale only downwards, never upwards:
-	# - If phi(a) contains aleph(s), then aleph(a) = aleph(s)
-	# - If aleph(s) contains phi(a), then aleph(a) = phiMid(a) +- alephW(s)*phiW(a)/phiW(s) / 2
-	# - If phiLo(a) < alephLo(s) and phiHi(a) < alephHi(s), then aleph(a) = phiHi(a) - [0, alephW(s)*min(1,phiW(a)/phiW(s))]
-	# - If phiHi(a) > alephHi(s) and phiLo(a) > alephLo(s), then aleph(a) = phiLo(a) + [0, alephW(s)*min(1,phiW(a)/phiW(s))]
-
-	# Some safety metrics do not depend on aspiration and can thus also be computed upfront,
-	# like min/maxAdmissibleQ, min/maxAdmissibleV:
-
-
-	# TODO: IMPLEMENT A LEARNING VERSION OF THIS FUNCTION:
-
-	# Messing potential (maximal entropy (relative to some uninformedStatePrior) 
-	# over trajectories any agent could produce from here (see overleaf for details)):
-	@lru_cache(maxsize=None)
-	def messingPotential_action(self, state, action): # recursive
-		def sample(nextState, probability):
-			if state.terminateAfterAction:
-				return 0
-			else:
-				nextMP = self.messingPotential_state(nextState) # recursion
-				priorScore = self["uninformedStatePriorScore"](nextState) if self["uninformedStatePriorScore"] else 0
-				internalEntropy = self["internalTransitionEntropy"](state, action, nextState) if self["internalTransitionEntropy"] else 0
-				return nextMP + priorScore - np.log(probability) + internalEntropy
-
-		# Note for ANN approximation: messingPotential_action can be positive or negative. 
-		return self.world.expectation_of_fct_of_probability(state, action, sample)
 
 	@lru_cache(maxsize=None)
 	def messingPotential_state(self, state): # recursive
@@ -498,32 +411,6 @@ class AgentMDP():
 		including Edel in the formula.
 		"""
 
-
-	# TODO: IMPLEMENT A LEARNING VERSION OF THIS FUNCTION:
-
-	# Based on the policy, we can compute many resulting quantities of interest useful in assessing safety
-	# better than with the above myopic safety metrics. All of them satisfy Bellman-style equations:
-
-	# Actual Q and V functions of resulting policy (always returning scalars):
-	@lru_cache(maxsize=None)
-	def Q(self, state, action, aleph4action): # recursive
-		if DEBUG:
-			print("| Q", prettyState(state), action, aleph4action)
-
-		Edel = self.world.raw_moment_of_delta(state, action)
-		def total(res):
-			nextState, _, terminated, _, _, _ = res
-			if terminated:
-				return Edel
-			else:
-				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
-				return Edel + self.V(nextState, nextAleph4state) # recursion
-		q = self.world.expectation(state, action, total)
-
-		if DEBUG:
-			print("| Q", prettyState(state), action, aleph4action, q)
-		return q
-
 	@lru_cache(maxsize=None)
 	def V(self, state, aleph4state): # recursive
 		if DEBUG:
@@ -539,65 +426,6 @@ class AgentMDP():
 			print("| V", prettyState(state), aleph4state, ":", v)
 		return v
 
-	# Raw moments of delta: 
-	@lru_cache(maxsize=None)
-	def expectedDeltaSquared(self, state, action):
-		Edel = self.world.raw_moment_of_delta(state, action)
-		return self["varianceOfDelta"](state, action) + squared(Edel)
-	@lru_cache(maxsize=None)
-	def expectedDeltaCubed(self, state, action):
-		Edel = self.world.raw_moment_of_delta(state, action)
-		varDel = self["varianceOfDelta"](state, action)
-		return (varDel ** 1.5)*skewnessOfDelta(state, action) \
-			+ 3*Edel*varDel \
-			+ (Edel ** 3)
-	@lru_cache(maxsize=None)
-	def expectedDeltaFourth(self, s, a):
-		Edel = self.world.raw_moment_of_delta(state, action)
-		return squared(self["varianceOfDelta"](s, a)) * (3 + excessKurtosisOfDelta(s, a)) \
-			+ 4*expectedDeltaCubed(s, a)*Edel \
-			- 6*expectedDeltaSquared(s, a)*squared(Edel) \
-			+ 3*(Edel ** 4)
-	@lru_cache(maxsize=None)
-	def expectedDeltaFifth(self, s, a):
-		Edel = self.world.raw_moment_of_delta(state, action)
-		return fifthMomentOfDelta(s, a) \
-			+ 5*expectedDeltaFourth(s, a)*Edel \
-			- 10*expectedDeltaCubed(s, a)*squared(Edel) \
-			+ 10*expectedDeltaSquared(s, a)*cubed(Edel) \
-			- 4*(Edel ** 5)
-	@lru_cache(maxsize=None)
-	def expectedDeltaSixth(self, s, a):
-		Edel = self.world.raw_moment_of_delta(state, action)
-		return sixthMomentOfDelta(s, a) \
-			+ 6*expectedDeltaFifth(s, a)*Edel \
-			- 15*expectedDeltaFourth(s, a)*squared(Edel) \
-			+ 20*expectedDeltaCubed(s, a)*cubed(Edel) \
-			- 15*expectedDeltaSquared(s, a)*(Edel ** 4) \
-			+ 5*(Edel ** 6)
-
-	# Expected squared total, for computing the variance of total:
-	@lru_cache(maxsize=None)
-	def Q2(self, state, action, aleph4action): # recursive
-		Edel = self.world.raw_moment_of_delta(state, action)
-		Edel2 = self.world.raw_moment_of_delta(state, action, 2)
-
-		def total(res):
-			nextState, _, terminated, _, _, _ = res
-			if terminated:
-				return Edel2
-			else:
-				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
-				# TODO: verify formula:
-				return Edel2 \
-					+ 2*Edel*self.V(nextState, nextAleph4state) \
-					+ self.V2(nextState, nextAleph4state) # recursion
-
-		q2 = self.world.expectation(state, action, total)
-
-		if DEBUG:
-			print("| Q2", prettyState(state), action, aleph4action, q2)
-		return q2
 	@lru_cache(maxsize=None)
 	def V2(self, state, aleph4state): # recursive
 		locPol = localPolicy(state, aleph4state)
@@ -609,29 +437,6 @@ class AgentMDP():
 			print("| V2", prettyState(state), aleph4state, v2)
 		return v2
 
-	# Similarly: Expected third and fourth powers of total, for computing the 3rd and 4th centralized moment of total:
-	@lru_cache(maxsize=None)
-	def Q3(self, state, action, aleph4action): # recursive
-		Edel = self.world.raw_moment_of_delta(state, action)
-		Edel2 = self.world.raw_moment_of_delta(state, action, 2)
-		Edel3 = self.world.raw_moment_of_delta(state, action, 3)
-
-		def total(res):
-			nextState, _, terminated, _, _, _ = res
-			if terminated:
-				return Edel3
-			else:
-				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
-				# TODO: verify formula:
-				return Edel3 \
-					+ 3*Edel2*self.V(nextState, nextAleph4state) \
-					+ 3*Edel*self.V2(nextState, nextAleph4state) \
-					+ self.V3(nextState, nextAleph4state) # recursion
-		q3 = self.world.expectation(state, action, total)
-
-		if DEBUG:
-			print("| Q3", prettyState(state), action, aleph4action, q3)
-		return q3
 	@lru_cache(maxsize=None)
 	def V3(self, state, aleph4state): # recursive
 		locPol = localPolicy(state, aleph4state)
@@ -643,31 +448,6 @@ class AgentMDP():
 			print("| V3", prettyState(state), aleph4state, v3)
 		return v3
 
-	# Expected fourth power of total, for computing the expected fourth power of deviation of total from expected total (= fourth centralized moment of total):
-	@lru_cache(maxsize=None)
-	def Q4(self, state, action, aleph4action): # recursive
-		Edel = self.world.raw_moment_of_delta(state, action)
-		Edel2 = self.world.raw_moment_of_delta(state, action, 2)
-		Edel3 = self.world.raw_moment_of_delta(state, action, 3)
-		Edel4 = self.world.raw_moment_of_delta(state, action, 4)
-
-		def total(res):
-			nextState, _, terminated, _, _, _ = res
-			if terminated:
-				return Edel4
-			else:
-				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
-				# TODO: verify formula:
-				return Edel4 \
-					+ 4*Edel3*self.V(nextState, nextAleph4state) \
-					+ 6*Edel2*self.V2(nextState, nextAleph4state) \
-					+ 4*Edel*self.V3(nextState, nextAleph4state) \
-					+ self.V4(nextState, nextAleph4state) # recursion
-		q4 = self.world.expectation(state, action, total)
-
-		if DEBUG:
-			print("| Q4", prettyState(state), action, aleph4action, q4)
-		return q4
 	def V4(self, state, aleph4state): # recursive
 		locPol = localPolicy(state, aleph4state)
 		def sample():
@@ -678,32 +458,6 @@ class AgentMDP():
 			print("| V4", prettyState(state), aleph4state, v4)
 		return v4
 
-	# Expected fifth power of total, for computing the bed-and-banks loss component based on a 6th order polynomial potential of this shape: https://www.wolframalpha.com/input?i=plot+%28x%2B1%29%C2%B3%28x-1%29%C2%B3+ :
-	def Q5(self, state, action, aleph4action): # recursive
-		Edel = self.world.raw_moment_of_delta(state, action)
-		Edel2 = self.world.raw_moment_of_delta(state, action, 2)
-		Edel3 = self.world.raw_moment_of_delta(state, action, 3)
-		Edel4 = self.world.raw_moment_of_delta(state, action, 4)
-		Edel5 = self.world.raw_moment_of_delta(state, action, 5)
-
-		def total(res):
-			nextState, _, terminated, _, _, _ = res
-			if terminated:
-				return Edel5
-			else:
-				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
-				# TODO: verify formula:
-				return Edel5 \
-					+ 5*Edel4*self.V(nextState, nextAleph4state) \
-					+ 10*Edel3*self.V2(nextState, nextAleph4state) \
-					+ 10*Edel2*self.V3(nextState, nextAleph4state) \
-					+ 5*Edel*self.V4(nextState, nextAleph4state) \
-					+ self.V5(nextState, nextAleph4state) # recursion
-		q5 = self.world.expectation(state, action, total)
-
-		if DEBUG:
-			print("| Q5", prettyState(state), action, aleph4action, q5)
-		return q5
 	@lru_cache(maxsize=None)
 	def V5(self, state, aleph4state): # recursive
 		locPol = localPolicy(state, aleph4state)
@@ -715,35 +469,6 @@ class AgentMDP():
 			print("| V5", prettyState(state), aleph4state, v5)
 		return v5
 
-	# Expected sixth power of total, for computing the bed-and-banks loss component based on a 6th order polynomial potential of this shape: https://www.wolframalpha.com/input?i=plot+%28x%2B1%29%C2%B3%28x-1%29%C2%B3+ :
-	@lru_cache(maxsize=None)
-	def Q6(self, state, action, aleph4action): # recursive
-		Edel = self.world.raw_moment_of_delta(state, action)
-		Edel2 = self.world.raw_moment_of_delta(state, action, 2)
-		Edel3 = self.world.raw_moment_of_delta(state, action, 3)
-		Edel4 = self.world.raw_moment_of_delta(state, action, 4)
-		Edel5 = self.world.raw_moment_of_delta(state, action, 5)
-		Edel6 = self.world.raw_moment_of_delta(state, action, 6)
-
-		def total(res):
-			nextState, _, terminated, _, _, _ = res
-			if terminated:
-				return Edel6
-			else:
-				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
-				# TODO: verify formula:
-				return Edel6 \
-					+ 6*Edel5*self.V(nextState, nextAleph4state) \
-					+ 15*Edel4*self.V2(nextState, nextAleph4state) \
-					+ 20*Edel3*self.V3(nextState, nextAleph4state) \
-					+ 15*Edel2*self.V4(nextState, nextAleph4state) \
-					+ 6*Edel*self.V5(nextState, nextAleph4state) \
-					+ self.V6(nextState, nextAleph4state) # recursion
-		q6 = self.world.expectation(state, action, total)
-
-		if DEBUG:
-			print("| Q6", prettyState(state), action, aleph4action, q6)
-		return q6
 	@lru_cache(maxsize=None)
 	def V6(self, state, aleph4state): # recursive
 		locPol = localPolicy(state, aleph4state)
@@ -794,7 +519,7 @@ class AgentMDP():
 
 	@lru_cache(maxsize=None)
 	def cupLoss_action(self, state, action, aleph4state, aleph4action):
-		res = relativeQ6(state, action, aleph4action, midpoint(aleph4state))
+		res = self.relativeQ6(state, action, aleph4action, midpoint(aleph4state))
 		if DEBUG:
 			print("| cupLoss_action", prettyState(state), action, aleph4state, res)
 		return res
@@ -807,21 +532,6 @@ class AgentMDP():
 			return self.cupLoss_action(state, actionAndAleph[0], aleph4state, actionAndAleph[1])
 		return distribution.infer(sample).E()
 
-	# Squared deviation of local relative aspiration (midpoint of interval) from 0.5:
-	@lru_cache(maxsize=None)
-	def LRAdev_action(self, state, action, aleph4action, myopic): # recursive
-		# Note for ANN approximation: LRAdev_action must be between 0 and 0.25 
-		Edel = self.world.raw_moment_of_delta(state, action)
-
-		def dev(res):
-			nextState, _, terminated, _, _, _ = res
-			localLRAdev = squared(0.5 - relativePosition(minAdmissibleQ(state, action), midpoint(aleph4action), maxAdmissibleQ(state, action)))
-			if terminated or myopic:
-				return localLRAdev
-			else:
-				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
-				return localLRAdev + self.LRAdev_state(nextState, nextAleph4state) # recursion
-		return self.world.expectation(state, action, dev)
 	@lru_cache(maxsize=None)
 	def LRAdev_state(self, state, aleph4state): # recursive
 		locPol = localPolicy(state, aleph4state)
@@ -830,26 +540,6 @@ class AgentMDP():
 			return self.LRAdev_action(state, actionAndAleph[0], actionAndAleph[1]) # recursion
 		return distribution.infer(sample).E()
 
-	# TODO: verify the following two formulas for expected Delta variation along a trajectory:
-
-	# Expected total of ones (= expected length of trajectory), for computing the expected Delta variation along a trajectory:
-	@lru_cache(maxsize=None)
-	def Q_ones(self, state, action, aleph4action=None): # recursive
-		Edel = self.world.raw_moment_of_delta(state, action)
-
-		# Note for ANN approximation: Q_ones must be nonnegative. 
-		def one(res):
-			nextState, _, terminated, _, _, _ = res
-			if terminated or aleph4action == None:
-				return 1
-			else:
-				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
-				return 1 + self.V_ones(nextState, nextAleph4state) # recursion
-		q_ones = self.world.expectation(state, action, one)
-
-		if DEBUG:
-			print("| Q_ones", prettyState(state), action, aleph4action, q_ones)
-		return q_ones
 	@lru_cache(maxsize=None)
 	def V_ones(self, state, aleph4state): # recursive
 		locPol = localPolicy(state, aleph4state)
@@ -861,24 +551,6 @@ class AgentMDP():
 		v_ones = distribution.infer(sample).E()
 		return v_ones
 
-	# Expected total of squared Deltas, for computing the expected Delta variation along a trajectory:
-	@lru_cache(maxsize=None)
-	def Q_DeltaSquare(self, state, action, aleph4action=None): # recursive
-		Edel = self.world.raw_moment_of_delta(state, action)
-		EdelSq = squared(Edel) + self["varianceOfDelta"](state, action)
-
-		# Note for ANN approximation: Q_DeltaSquare must be nonnegative. 
-		def d(res):
-			nextState, _, terminated, _, _, _ = res
-			if terminated or aleph4action == None:
-				return EdelSq
-			else:
-				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
-				return EdelSq + self.V_DeltaSquare(nextState, nextAleph4state) # recursion
-		if DEBUG:
-			print("| Q_DeltaSquare", prettyState(state), action, aleph4action, qDsq)
-		qDsq = self.world.expectation(state, action, d)
-		return qDsq
 	@lru_cache(maxsize=None)
 	def V_DeltaSquare(self, state, aleph4state): # recursive
 		locPol = localPolicy(state, aleph4state)
@@ -890,28 +562,6 @@ class AgentMDP():
 		vDsq = distribution.infer(sample).E()
 		return vDsq
 
-	# Other safety criteria:
-
-	# Shannon entropy of behavior
-	# (actually, negative KL divergence relative to uninformedPolicy (e.g., a uniform distribution),
-	# to be consistent under action cloning or action refinement):
-	@lru_cache(maxsize=None)
-	def behaviorEntropy_action(self, state, actionProbability, action, aleph4action=None): # recursive
-		# Note for ANN approximation: behaviorEntropy_action must be <= 0 (!) 
-		# because it is the negative (!) of a KL divergence. 
-		Edel = self.world.raw_moment_of_delta(state, action)
-		def entropy(res):
-			nextState, _, terminated, _, _, _ = res
-			uninfPolScore = self["uninformedPolicy"](state).score(action) if ("uninformedPolicy" in self.params) else 0
-			localEntropy = uninfPolScore \
-							- math.log(actionProbability) \
-							+ self["internalActionEntropy"](state, action) if ("internalActionEntropy" in self.params) else 0
-			if terminated or aleph4action == None:
-				return localEntropy
-			else:
-				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
-				return localEntropy + self.behaviorEntropy_state(nextState, nextAleph4state) # recursion
-		return self.world.expectation(state, action, entropy)
 	@lru_cache(maxsize=None)
 	def behaviorEntropy_state(self, state, aleph4state): # recursive
 		locPol = localPolicy(state, aleph4state)
@@ -920,28 +570,6 @@ class AgentMDP():
 			return self.behaviorEntropy_action(state, math.exp(locPol.score(actionAndAleph)), actionAndAleph[0], actionAndAleph[1]) # recursion
 		return distribution.infer(sample).E()
 
-	# KL divergence of behavior relative to refPolicy (or uninformedPolicy if refPolicy is not set):
-	@lru_cache(maxsize=None)
-	def behaviorKLdiv_action(self, state, actionProbability, action, aleph4action=None): # recursive
-		# Note for ANN approximation: behaviorKLdiv_action must be nonnegative. 
-		refPol = None
-		if "referencePolicy" in self.params:
-			refPol = self["referencePolicy"]
-		elif "uninformedPolicy" in self.params:
-			refPol = self["uninformedPolicy"]
-		else:
-			return None # TODO this should remain None after math operations
-
-		Edel = self.world.raw_moment_of_delta(state, action)
-		def div(res):
-			nextState, _, terminated, _, _, _ = res
-			localDivergence = math.log(actionProbability) - refPol.score(action)
-			if terminated or aleph4action == None:
-				return localDivergence
-			else:
-				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
-				return localDivergence + self.behaviorKLdiv_state(nextState, nextAleph4state) # recursion
-		return self.world.expectation(state, action, div)
 	@lru_cache(maxsize=None)
 	def behaviorKLdiv_state(self, state, aleph4state): # recursive
 		locPol = localPolicy(state, aleph4state)
@@ -950,19 +578,6 @@ class AgentMDP():
 			return self.behaviorKLdiv_action(state, math.exp(locPol.score(actionAndAleph)), actionAndAleph[0], actionAndAleph[1]) # recursion
 		return distribution.infer(sample).E()
 
-	# other loss:
-	@lru_cache(maxsize=None)
-	def otherLoss_action(self, state, action, aleph4action=None): # recursive
-		Edel = self.world.raw_moment_of_delta(state, action)
-		def loss(res):
-			nextState, _, terminated, _, _, _ = res
-			localLoss = self["otherLocalLoss"](state, action) # TODO this variable may not exist in params
-			if terminated or aleph4action == None:
-				return localLoss
-			else:
-				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
-				return localLoss + self.otherLoss_state(nextState, nextAleph4state) # recursion
-		return self.world.expectation(state, action, loss)
 	@lru_cache(maxsize=None)
 	def otherLoss_state(self, state, aleph4state): # recursive
 		locPol = localPolicy(state, aleph4state) # recursion
@@ -1050,6 +665,439 @@ class AgentMDP():
 			"states": list({pair[0] for pair in stateActionPairsSet}),
 			"locs": [state.loc for state in states],
 		}
+
+	# @abstractmethod
+
+
+
+
+class AgentMDPLearning(AspirationAgent):
+	def __init__(self, params, maxAdmissibleQ=None, minAdmissibleQ=None, 
+			  messingPotential_action=None,
+			  LRAdev_action=None, Q_ones=None, Q_DeltaSquare=None, behaviorEntropy_action=None, behaviorKLdiv_action=None):
+		super().__init__(params)
+
+		self.maxAdmissibleQ = maxAdmissibleQ
+		self.minAdmissibleQ = minAdmissibleQ
+		self.messingPotential_action = messingPotential_action
+
+		self.LRAdev_action = LRAdev_action
+		self.behaviorEntropy_action = behaviorEntropy_action
+		self.behaviorKLdiv_action = behaviorKLdiv_action
+
+		self.Q_ones = Q_ones
+		self.Q_DeltaSquare = Q_DeltaSquare
+
+		# TODO the following are not passed:
+		"""
+			def Q(self, state, action, aleph4action): # recursive
+			def Q2(self, state, action, aleph4action): # recursive
+			def Q3(self, state, action, aleph4action): # recursive
+			def Q4(self, state, action, aleph4action): # recursive
+			def Q5(self, state, action, aleph4action): # recursive
+			def Q6(self, state, action, aleph4action): # recursive
+
+			def otherLoss_action(self, state, action, aleph4action=None): # recursive
+
+			def expectedDeltaSquared(self, state, action):
+			def expectedDeltaCubed(self, state, action):
+			def expectedDeltaFourth(self, s, a):
+			def expectedDeltaFifth(self, s, a):
+			def expectedDeltaSixth(self, s, a):
+		"""
+
+class AgentMDPPlanning(AspirationAgent):
+	def __init__(self, params, world=None):
+		super().__init__(params)
+
+	# Compute upper and lower admissibility bounds for Q and V that are allowed in view of maxLambda and minLambda:
+
+	# Compute the Q and V functions of the classical maximization problem (if maxLambda==1)
+	# or of the LRA-based problem (if maxLambda<1):
+
+	@lru_cache(maxsize=None)
+	def maxAdmissibleQ(self, state, action): # recursive
+		if VERBOSE or DEBUG:
+			print(pad(state), "maxAdmissibleQ, state", state, "action", action, "...")
+
+		# register (state, action) in global store (could be anywhere, but here is just as fine as anywhere else)
+		self.stateActionPairsSet.insert((state, action))
+
+		Edel = self.world.raw_moment_of_delta(state, action)
+		if state.terminateAfterAction:
+			q = Edel
+		else:
+			# Bellman equation
+			q = Edel + self.world.expectation(state, action, self.maxAdmissibleV) # recursion
+
+		if VERBOSE or DEBUG:
+			print(pad(state), "maxAdmissibleQ, state", state, "action", action, ":", q)
+
+		return q
+
+	@lru_cache(maxsize=None)
+	def minAdmissibleQ(self, state, action): # recursive
+		if VERBOSE or DEBUG:
+			print(pad(state), "minAdmissibleQ, state", state, "action", action, "...")
+
+		# register (state, action) in global store (could be anywhere, but here is just as fine as anywhere else)
+		stateActionPairsSet.insert((state, action))
+
+		Edel = self.world.raw_moment_of_delta(state, action)
+		if state.terminateAfterAction:
+			q = Edel
+		else:
+			# Bellman equation
+			q = distribution.infer(lambda: self.minAdmissibleV(self.world.transition(state, action))).E() # recursion
+
+		if VERBOSE or DEBUG:
+			print(pad(state), "minAdmissibleQ, state", state, "action", action, ":", q)
+
+		return q
+
+	# TODO: Consider two other alternatives:
+	# 1. Only rescale the width and not the location of the aspiration interval,
+	# and move it as close as possible to the state aspiration interval
+	# (but maybe keeping a minimal safety distance from the bounds of the admissibility interval of the action).
+	# In both cases, if the admissibility interval of the action is larger than that of the state,
+	# the final action aspiration interval might need to be shrinked to fit into the aspiration interval of the state
+	# once the mixture is know.
+	# 2. This could be avoided by a further modification, where we rescale only downwards, never upwards:
+	# - If phi(a) contains aleph(s), then aleph(a) = aleph(s)
+	# - If aleph(s) contains phi(a), then aleph(a) = phiMid(a) +- alephW(s)*phiW(a)/phiW(s) / 2
+	# - If phiLo(a) < alephLo(s) and phiHi(a) < alephHi(s), then aleph(a) = phiHi(a) - [0, alephW(s)*min(1,phiW(a)/phiW(s))]
+	# - If phiHi(a) > alephHi(s) and phiLo(a) > alephLo(s), then aleph(a) = phiLo(a) + [0, alephW(s)*min(1,phiW(a)/phiW(s))]
+
+	# Some safety metrics do not depend on aspiration and can thus also be computed upfront,
+	# like min/maxAdmissibleQ, min/maxAdmissibleV:
+
+
+	# TODO: IMPLEMENT A LEARNING VERSION OF THIS FUNCTION:
+
+	# Messing potential (maximal entropy (relative to some uninformedStatePrior) 
+	# over trajectories any agent could produce from here (see overleaf for details)):
+	@lru_cache(maxsize=None)
+	def messingPotential_action(self, state, action): # recursive
+		def sample(nextState, probability):
+			if state.terminateAfterAction:
+				return 0
+			else:
+				nextMP = self.messingPotential_state(nextState) # recursion
+				priorScore = self["uninformedStatePriorScore"](nextState) if self["uninformedStatePriorScore"] else 0
+				internalEntropy = self["internalTransitionEntropy"](state, action, nextState) if self["internalTransitionEntropy"] else 0
+				return nextMP + priorScore - np.log(probability) + internalEntropy
+
+		# Note for ANN approximation: messingPotential_action can be positive or negative. 
+		return self.world.expectation_of_fct_of_probability(state, action, sample)
+
+
+	# TODO: IMPLEMENT A LEARNING VERSION OF THIS FUNCTION:
+
+	# Based on the policy, we can compute many resulting quantities of interest useful in assessing safety
+	# better than with the above myopic safety metrics. All of them satisfy Bellman-style equations:
+
+	# Actual Q and V functions of resulting policy (always returning scalars):
+	@lru_cache(maxsize=None)
+	def Q(self, state, action, aleph4action): # recursive
+		if DEBUG:
+			print("| Q", prettyState(state), action, aleph4action)
+
+		Edel = self.world.raw_moment_of_delta(state, action)
+		def total(res):
+			nextState, _, terminated, _, _, _ = res
+			if terminated:
+				return Edel
+			else:
+				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
+				return Edel + self.V(nextState, nextAleph4state) # recursion
+		q = self.world.expectation(state, action, total)
+
+		if DEBUG:
+			print("| Q", prettyState(state), action, aleph4action, q)
+		return q
+
+	# Raw moments of delta: 
+	@lru_cache(maxsize=None)
+	def expectedDeltaSquared(self, state, action):
+		Edel = self.world.raw_moment_of_delta(state, action)
+		return self["varianceOfDelta"](state, action) + squared(Edel)
+	@lru_cache(maxsize=None)
+	def expectedDeltaCubed(self, state, action):
+		Edel = self.world.raw_moment_of_delta(state, action)
+		varDel = self["varianceOfDelta"](state, action)
+		return (varDel ** 1.5)*skewnessOfDelta(state, action) \
+			+ 3*Edel*varDel \
+			+ (Edel ** 3)
+	@lru_cache(maxsize=None)
+	def expectedDeltaFourth(self, s, a):
+		Edel = self.world.raw_moment_of_delta(state, action)
+		return squared(self["varianceOfDelta"](s, a)) * (3 + excessKurtosisOfDelta(s, a)) \
+			+ 4*expectedDeltaCubed(s, a)*Edel \
+			- 6*expectedDeltaSquared(s, a)*squared(Edel) \
+			+ 3*(Edel ** 4)
+	@lru_cache(maxsize=None)
+	def expectedDeltaFifth(self, s, a):
+		Edel = self.world.raw_moment_of_delta(state, action)
+		return fifthMomentOfDelta(s, a) \
+			+ 5*expectedDeltaFourth(s, a)*Edel \
+			- 10*expectedDeltaCubed(s, a)*squared(Edel) \
+			+ 10*expectedDeltaSquared(s, a)*cubed(Edel) \
+			- 4*(Edel ** 5)
+	@lru_cache(maxsize=None)
+	def expectedDeltaSixth(self, s, a):
+		Edel = self.world.raw_moment_of_delta(state, action)
+		return sixthMomentOfDelta(s, a) \
+			+ 6*expectedDeltaFifth(s, a)*Edel \
+			- 15*expectedDeltaFourth(s, a)*squared(Edel) \
+			+ 20*expectedDeltaCubed(s, a)*cubed(Edel) \
+			- 15*expectedDeltaSquared(s, a)*(Edel ** 4) \
+			+ 5*(Edel ** 6)
+
+	# Expected squared total, for computing the variance of total:
+	@lru_cache(maxsize=None)
+	def Q2(self, state, action, aleph4action): # recursive
+		Edel = self.world.raw_moment_of_delta(state, action)
+		Edel2 = self.world.raw_moment_of_delta(state, action, 2)
+
+		def total(res):
+			nextState, _, terminated, _, _, _ = res
+			if terminated:
+				return Edel2
+			else:
+				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
+				# TODO: verify formula:
+				return Edel2 \
+					+ 2*Edel*self.V(nextState, nextAleph4state) \
+					+ self.V2(nextState, nextAleph4state) # recursion
+
+		q2 = self.world.expectation(state, action, total)
+
+		if DEBUG:
+			print("| Q2", prettyState(state), action, aleph4action, q2)
+		return q2
+
+	# Similarly: Expected third and fourth powers of total, for computing the 3rd and 4th centralized moment of total:
+	@lru_cache(maxsize=None)
+	def Q3(self, state, action, aleph4action): # recursive
+		Edel = self.world.raw_moment_of_delta(state, action)
+		Edel2 = self.world.raw_moment_of_delta(state, action, 2)
+		Edel3 = self.world.raw_moment_of_delta(state, action, 3)
+
+		def total(res):
+			nextState, _, terminated, _, _, _ = res
+			if terminated:
+				return Edel3
+			else:
+				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
+				# TODO: verify formula:
+				return Edel3 \
+					+ 3*Edel2*self.V(nextState, nextAleph4state) \
+					+ 3*Edel*self.V2(nextState, nextAleph4state) \
+					+ self.V3(nextState, nextAleph4state) # recursion
+		q3 = self.world.expectation(state, action, total)
+
+		if DEBUG:
+			print("| Q3", prettyState(state), action, aleph4action, q3)
+		return q3
+
+	# Expected fourth power of total, for computing the expected fourth power of deviation of total from expected total (= fourth centralized moment of total):
+	@lru_cache(maxsize=None)
+	def Q4(self, state, action, aleph4action): # recursive
+		Edel = self.world.raw_moment_of_delta(state, action)
+		Edel2 = self.world.raw_moment_of_delta(state, action, 2)
+		Edel3 = self.world.raw_moment_of_delta(state, action, 3)
+		Edel4 = self.world.raw_moment_of_delta(state, action, 4)
+
+		def total(res):
+			nextState, _, terminated, _, _, _ = res
+			if terminated:
+				return Edel4
+			else:
+				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
+				# TODO: verify formula:
+				return Edel4 \
+					+ 4*Edel3*self.V(nextState, nextAleph4state) \
+					+ 6*Edel2*self.V2(nextState, nextAleph4state) \
+					+ 4*Edel*self.V3(nextState, nextAleph4state) \
+					+ self.V4(nextState, nextAleph4state) # recursion
+		q4 = self.world.expectation(state, action, total)
+
+		if DEBUG:
+			print("| Q4", prettyState(state), action, aleph4action, q4)
+		return q4
+
+	# Expected fifth power of total, for computing the bed-and-banks loss component based on a 6th order polynomial potential of this shape: https://www.wolframalpha.com/input?i=plot+%28x%2B1%29%C2%B3%28x-1%29%C2%B3+ :
+	def Q5(self, state, action, aleph4action): # recursive
+		Edel = self.world.raw_moment_of_delta(state, action)
+		Edel2 = self.world.raw_moment_of_delta(state, action, 2)
+		Edel3 = self.world.raw_moment_of_delta(state, action, 3)
+		Edel4 = self.world.raw_moment_of_delta(state, action, 4)
+		Edel5 = self.world.raw_moment_of_delta(state, action, 5)
+
+		def total(res):
+			nextState, _, terminated, _, _, _ = res
+			if terminated:
+				return Edel5
+			else:
+				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
+				# TODO: verify formula:
+				return Edel5 \
+					+ 5*Edel4*self.V(nextState, nextAleph4state) \
+					+ 10*Edel3*self.V2(nextState, nextAleph4state) \
+					+ 10*Edel2*self.V3(nextState, nextAleph4state) \
+					+ 5*Edel*self.V4(nextState, nextAleph4state) \
+					+ self.V5(nextState, nextAleph4state) # recursion
+		q5 = self.world.expectation(state, action, total)
+
+		if DEBUG:
+			print("| Q5", prettyState(state), action, aleph4action, q5)
+		return q5
+
+	# Expected sixth power of total, for computing the bed-and-banks loss component based on a 6th order polynomial potential of this shape: https://www.wolframalpha.com/input?i=plot+%28x%2B1%29%C2%B3%28x-1%29%C2%B3+ :
+	@lru_cache(maxsize=None)
+	def Q6(self, state, action, aleph4action): # recursive
+		Edel = self.world.raw_moment_of_delta(state, action)
+		Edel2 = self.world.raw_moment_of_delta(state, action, 2)
+		Edel3 = self.world.raw_moment_of_delta(state, action, 3)
+		Edel4 = self.world.raw_moment_of_delta(state, action, 4)
+		Edel5 = self.world.raw_moment_of_delta(state, action, 5)
+		Edel6 = self.world.raw_moment_of_delta(state, action, 6)
+
+		def total(res):
+			nextState, _, terminated, _, _, _ = res
+			if terminated:
+				return Edel6
+			else:
+				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
+				# TODO: verify formula:
+				return Edel6 \
+					+ 6*Edel5*self.V(nextState, nextAleph4state) \
+					+ 15*Edel4*self.V2(nextState, nextAleph4state) \
+					+ 20*Edel3*self.V3(nextState, nextAleph4state) \
+					+ 15*Edel2*self.V4(nextState, nextAleph4state) \
+					+ 6*Edel*self.V5(nextState, nextAleph4state) \
+					+ self.V6(nextState, nextAleph4state) # recursion
+		q6 = self.world.expectation(state, action, total)
+
+		if DEBUG:
+			print("| Q6", prettyState(state), action, aleph4action, q6)
+		return q6
+
+	# Squared deviation of local relative aspiration (midpoint of interval) from 0.5:
+	@lru_cache(maxsize=None)
+	def LRAdev_action(self, state, action, aleph4action, myopic): # recursive
+		# Note for ANN approximation: LRAdev_action must be between 0 and 0.25 
+		Edel = self.world.raw_moment_of_delta(state, action)
+
+		def dev(res):
+			nextState, _, terminated, _, _, _ = res
+			localLRAdev = squared(0.5 - relativePosition(minAdmissibleQ(state, action), midpoint(aleph4action), maxAdmissibleQ(state, action)))
+			if terminated or myopic:
+				return localLRAdev
+			else:
+				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
+				return localLRAdev + self.LRAdev_state(nextState, nextAleph4state) # recursion
+		return self.world.expectation(state, action, dev)
+
+	# TODO: verify the following two formulas for expected Delta variation along a trajectory:
+
+	# Expected total of ones (= expected length of trajectory), for computing the expected Delta variation along a trajectory:
+	@lru_cache(maxsize=None)
+	def Q_ones(self, state, action, aleph4action=None): # recursive
+		Edel = self.world.raw_moment_of_delta(state, action)
+
+		# Note for ANN approximation: Q_ones must be nonnegative. 
+		def one(res):
+			nextState, _, terminated, _, _, _ = res
+			if terminated or aleph4action == None:
+				return 1
+			else:
+				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
+				return 1 + self.V_ones(nextState, nextAleph4state) # recursion
+		q_ones = self.world.expectation(state, action, one)
+
+		if DEBUG:
+			print("| Q_ones", prettyState(state), action, aleph4action, q_ones)
+		return q_ones
+
+	# Expected total of squared Deltas, for computing the expected Delta variation along a trajectory:
+	@lru_cache(maxsize=None)
+	def Q_DeltaSquare(self, state, action, aleph4action=None): # recursive
+		Edel = self.world.raw_moment_of_delta(state, action)
+		EdelSq = squared(Edel) + self["varianceOfDelta"](state, action)
+
+		# Note for ANN approximation: Q_DeltaSquare must be nonnegative. 
+		def d(res):
+			nextState, _, terminated, _, _, _ = res
+			if terminated or aleph4action == None:
+				return EdelSq
+			else:
+				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
+				return EdelSq + self.V_DeltaSquare(nextState, nextAleph4state) # recursion
+		if DEBUG:
+			print("| Q_DeltaSquare", prettyState(state), action, aleph4action, qDsq)
+		qDsq = self.world.expectation(state, action, d)
+		return qDsq
+
+	# Other safety criteria:
+
+	# Shannon entropy of behavior
+	# (actually, negative KL divergence relative to uninformedPolicy (e.g., a uniform distribution),
+	# to be consistent under action cloning or action refinement):
+	@lru_cache(maxsize=None)
+	def behaviorEntropy_action(self, state, actionProbability, action, aleph4action=None): # recursive
+		# Note for ANN approximation: behaviorEntropy_action must be <= 0 (!) 
+		# because it is the negative (!) of a KL divergence. 
+		Edel = self.world.raw_moment_of_delta(state, action)
+		def entropy(res):
+			nextState, _, terminated, _, _, _ = res
+			uninfPolScore = self["uninformedPolicy"](state).score(action) if ("uninformedPolicy" in self.params) else 0
+			localEntropy = uninfPolScore \
+							- math.log(actionProbability) \
+							+ self["internalActionEntropy"](state, action) if ("internalActionEntropy" in self.params) else 0
+			if terminated or aleph4action == None:
+				return localEntropy
+			else:
+				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
+				return localEntropy + self.behaviorEntropy_state(nextState, nextAleph4state) # recursion
+		return self.world.expectation(state, action, entropy)
+
+	# KL divergence of behavior relative to refPolicy (or uninformedPolicy if refPolicy is not set):
+	@lru_cache(maxsize=None)
+	def behaviorKLdiv_action(self, state, actionProbability, action, aleph4action=None): # recursive
+		# Note for ANN approximation: behaviorKLdiv_action must be nonnegative. 
+		refPol = None
+		if "referencePolicy" in self.params:
+			refPol = self["referencePolicy"]
+		elif "uninformedPolicy" in self.params:
+			refPol = self["uninformedPolicy"]
+		else:
+			return None # TODO this should remain None after math operations
+
+		Edel = self.world.raw_moment_of_delta(state, action)
+		def div(res):
+			nextState, _, terminated, _, _, _ = res
+			localDivergence = math.log(actionProbability) - refPol.score(action)
+			if terminated or aleph4action == None:
+				return localDivergence
+			else:
+				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
+				return localDivergence + self.behaviorKLdiv_state(nextState, nextAleph4state) # recursion
+		return self.world.expectation(state, action, div)
+
+	# other loss:
+	@lru_cache(maxsize=None)
+	def otherLoss_action(self, state, action, aleph4action=None): # recursive
+		Edel = self.world.raw_moment_of_delta(state, action)
+		def loss(res):
+			nextState, _, terminated, _, _, _ = res
+			localLoss = self["otherLocalLoss"](state, action) # TODO this variable may not exist in params
+			if terminated or aleph4action == None:
+				return localLoss
+			else:
+				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
+				return localLoss + self.otherLoss_state(nextState, nextAleph4state) # recursion
+		return self.world.expectation(state, action, loss)
 
 
 
