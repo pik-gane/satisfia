@@ -4,7 +4,7 @@ import math
 from functools import cache, lru_cache
 
 from util import distribution
-from util.helper import interpolate, between, midpoint, isSubsetOf
+from util.helper import interpolate, relativePosition, between, midpoint, isSubsetOf
 
 from abc import ABC, abstractmethod
 
@@ -139,7 +139,7 @@ class AspirationAgent(ABC):
 
 		actions = self.world.stateToActions(state)
 		qs = [self.maxAdmissibleQ(state, a) for a in actions] # recursion
-		v = max(qs) if maxLambda == 1 else interpolate(min(qs), maxLambda, max(qs))
+		v = max(qs) if self["maxLambda"] == 1 else interpolate(min(qs), self["maxLambda"], max(qs))
 
 		if VERBOSE or DEBUG:
 			print(pad(state), "maxAdmissibleV, state", state, ":", v)
@@ -153,7 +153,7 @@ class AspirationAgent(ABC):
 
 		actions = self.world.stateToActions(state)
 		qs = [self.minAdmissibleQ(state, a) for a in actions] # recursion
-		v = min(qs) if minLambda == 0 else interpolate(min(qs), minLambda, max(qs))
+		v = min(qs) if self["minLambda"] == 0 else interpolate(min(qs), self["minLambda"], max(qs))
 
 		if VERBOSE or DEBUG:
 			print(pad(state), "minAdmissibleV, state", state, ":", v)
@@ -373,7 +373,7 @@ class AspirationAgent(ABC):
 		# compute the relative position of aleph4action in the expectation that we had of 
 		#	delta + next admissibility interval 
 		# before we knew which state we would land in:
-		lam = relativePosition(minAdmissibleQ(state, action), aleph4action, maxAdmissibleQ(state, action))
+		lam = relativePosition(minAdmissibleQ(state, action), aleph4action, maxAdmissibleQ(state, action)) # TODO didn't we calculate the admissible Q when we chose the action?
 		# (this is two numbers between 0 and 1.)
 		# use it to rescale aleph4action to the admissibility interval of the state that we landed in:
 		rescaledAleph4nextState = interpolate(minAdmissibleV(nextState), lam, maxAdmissibleV(nextState))
@@ -668,13 +668,11 @@ class AspirationAgent(ABC):
 
 	# @abstractmethod
 
-
-
-
 class AgentMDPLearning(AspirationAgent):
 	def __init__(self, params, maxAdmissibleQ=None, minAdmissibleQ=None, 
-			  disorderingPotential_action=None,
-			  LRAdev_action=None, Q_ones=None, Q_DeltaSquare=None, behaviorEntropy_action=None, behaviorKLdiv_action=None):
+			disorderingPotential_action=None,
+			LRAdev_action=None, Q_ones=None, Q_DeltaSquare=None, behaviorEntropy_action=None, behaviorKLdiv_action=None,
+			possible_actions=None):
 		super().__init__(params)
 
 		self.maxAdmissibleQ = maxAdmissibleQ
@@ -688,6 +686,8 @@ class AgentMDPLearning(AspirationAgent):
 		self.Q_ones = Q_ones
 		self.Q_DeltaSquare = Q_DeltaSquare
 
+		self.possible_actions = possible_actions
+
 		# TODO the following are not passed:
 		"""
 			def Q(self, state, action, aleph4action): # recursive
@@ -698,12 +698,6 @@ class AgentMDPLearning(AspirationAgent):
 			def Q6(self, state, action, aleph4action): # recursive
 
 			def otherLoss_action(self, state, action, aleph4action=None): # recursive
-
-			def expectedDeltaSquared(self, state, action):
-			def expectedDeltaCubed(self, state, action):
-			def expectedDeltaFourth(self, s, a):
-			def expectedDeltaFifth(self, s, a):
-			def expectedDeltaSixth(self, s, a):
 		"""
 
 class AgentMDPPlanning(AspirationAgent):
@@ -748,7 +742,7 @@ class AgentMDPPlanning(AspirationAgent):
 			q = Edel
 		else:
 			# Bellman equation
-			q = distribution.infer(lambda: self.minAdmissibleV(self.world.transition(state, action))).E() # recursion
+			q = Edel + distribution.infer(lambda: self.minAdmissibleV(self.world.transition(state, action))).E() # recursion
 
 		if VERBOSE or DEBUG:
 			print(pad(state), "minAdmissibleQ, state", state, "action", action, ":", q)
@@ -815,43 +809,6 @@ class AgentMDPPlanning(AspirationAgent):
 		if DEBUG:
 			print("| Q", prettyState(state), action, aleph4action, q)
 		return q
-
-	# Raw moments of delta: 
-	@lru_cache(maxsize=None)
-	def expectedDeltaSquared(self, state, action):
-		Edel = self.world.raw_moment_of_delta(state, action)
-		return self["varianceOfDelta"](state, action) + squared(Edel)
-	@lru_cache(maxsize=None)
-	def expectedDeltaCubed(self, state, action):
-		Edel = self.world.raw_moment_of_delta(state, action)
-		varDel = self["varianceOfDelta"](state, action)
-		return (varDel ** 1.5)*skewnessOfDelta(state, action) \
-			+ 3*Edel*varDel \
-			+ (Edel ** 3)
-	@lru_cache(maxsize=None)
-	def expectedDeltaFourth(self, s, a):
-		Edel = self.world.raw_moment_of_delta(state, action)
-		return squared(self["varianceOfDelta"](s, a)) * (3 + excessKurtosisOfDelta(s, a)) \
-			+ 4*expectedDeltaCubed(s, a)*Edel \
-			- 6*expectedDeltaSquared(s, a)*squared(Edel) \
-			+ 3*(Edel ** 4)
-	@lru_cache(maxsize=None)
-	def expectedDeltaFifth(self, s, a):
-		Edel = self.world.raw_moment_of_delta(state, action)
-		return fifthMomentOfDelta(s, a) \
-			+ 5*expectedDeltaFourth(s, a)*Edel \
-			- 10*expectedDeltaCubed(s, a)*squared(Edel) \
-			+ 10*expectedDeltaSquared(s, a)*cubed(Edel) \
-			- 4*(Edel ** 5)
-	@lru_cache(maxsize=None)
-	def expectedDeltaSixth(self, s, a):
-		Edel = self.world.raw_moment_of_delta(state, action)
-		return sixthMomentOfDelta(s, a) \
-			+ 6*expectedDeltaFifth(s, a)*Edel \
-			- 15*expectedDeltaFourth(s, a)*squared(Edel) \
-			+ 20*expectedDeltaCubed(s, a)*cubed(Edel) \
-			- 15*expectedDeltaSquared(s, a)*(Edel ** 4) \
-			+ 5*(Edel ** 6)
 
 	# Expected squared total, for computing the variance of total:
 	@lru_cache(maxsize=None)
