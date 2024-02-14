@@ -73,8 +73,6 @@ class AspirationAgent(ABC):
 		self.params = defaults | params
 		# TODO do I need to add params_.options
 
-		self.world = world
-
 		self.stateActionPairsSet = set()
 
 		assert self.params["lossTemperature"] > 0, "lossTemperature must be > 0"
@@ -137,7 +135,7 @@ class AspirationAgent(ABC):
 		if VERBOSE or DEBUG:
 			print(pad(state), "maxAdmissibleV, state", state, "...")
 
-		actions = self.world.stateToActions(state)
+		actions = self.possible_actions(state)
 		qs = [self.maxAdmissibleQ(state, a) for a in actions] # recursion
 		v = max(qs) if self["maxLambda"] == 1 else interpolate(min(qs), self["maxLambda"], max(qs))
 
@@ -151,7 +149,7 @@ class AspirationAgent(ABC):
 		if VERBOSE or DEBUG:
 			print(pad(state), "minAdmissibleV, state", state, "...")
 
-		actions = self.world.stateToActions(state)
+		actions = self.possible_actions(state)
 		qs = [self.minAdmissibleQ(state, a) for a in actions] # recursion
 		v = min(qs) if self["minLambda"] == 0 else interpolate(min(qs), self["minLambda"], max(qs))
 
@@ -227,7 +225,7 @@ class AspirationAgent(ABC):
 
 	@lru_cache(maxsize=None)
 	def disorderingPotential_state(self, state): # recursive
-		actions = self.world.possible_actions(state)
+		actions = self.possible_actions(state)
 		maxMPpolicyWeights = [math.exp(self.disorderingPotential_action(state, a)) for a in actions]
 		return math.log(sum(maxMPpolicyWeights))
 
@@ -257,7 +255,7 @@ class AspirationAgent(ABC):
 
 		# Estimate aspiration intervals for all possible actions in a way 
 		# independent from the local policy that we are about to construct,
-		actions = self.world.stateToActions(state)
+		actions = self.possible_actions(state)
 		estAlephs1 = [self.estAspiration4action(state, action, aleph4state) for action in actions]
 
 		# Estimate losses based on this estimated aspiration intervals
@@ -702,6 +700,7 @@ class AgentMDPLearning(AspirationAgent):
 
 class AgentMDPPlanning(AspirationAgent):
 	def __init__(self, params, world=None):
+		self.world = world
 		super().__init__(params)
 
 	# Compute upper and lower admissibility bounds for Q and V that are allowed in view of maxLambda and minLambda:
