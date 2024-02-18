@@ -669,7 +669,8 @@ class AspirationAgent(ABC):
 class AgentMDPLearning(AspirationAgent):
 	def __init__(self, params, maxAdmissibleQ=None, minAdmissibleQ=None, 
 			disorderingPotential_action=None,
-			LRAdev_action=None, Q_ones=None, Q_DeltaSquare=None, behaviorEntropy_action=None, behaviorKLdiv_action=None,
+			LRAdev_action=None, Q_ones=None, Q_DeltaSquare=None, behaviorEntropy_action=None, behaviorKLdiv_action=None, otherLoss_action=None,
+			Q=None, Q2=None, Q3=None, Q4=None, Q5=None, Q6=None,
 			possible_actions=None):
 		super().__init__(params)
 
@@ -680,23 +681,19 @@ class AgentMDPLearning(AspirationAgent):
 		self.LRAdev_action = LRAdev_action
 		self.behaviorEntropy_action = behaviorEntropy_action
 		self.behaviorKLdiv_action = behaviorKLdiv_action
+		self.otherLoss_action = otherLoss_action
+
+		self.Q = Q
+		self.Q2 = Q2
+		self.Q3 = Q3
+		self.Q4 = Q4
+		self.Q5 = Q5
+		self.Q6 = Q6
 
 		self.Q_ones = Q_ones
 		self.Q_DeltaSquare = Q_DeltaSquare
 
 		self.possible_actions = possible_actions
-
-		# TODO the following are not passed:
-		"""
-			def Q(self, state, action, aleph4action): # recursive
-			def Q2(self, state, action, aleph4action): # recursive
-			def Q3(self, state, action, aleph4action): # recursive
-			def Q4(self, state, action, aleph4action): # recursive
-			def Q5(self, state, action, aleph4action): # recursive
-			def Q6(self, state, action, aleph4action): # recursive
-
-			def otherLoss_action(self, state, action, aleph4action=None): # recursive
-		"""
 
 class AgentMDPPlanning(AspirationAgent):
 	def __init__(self, params, world=None):
