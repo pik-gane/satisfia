@@ -664,7 +664,42 @@ class AspirationAgent(ABC):
 			"locs": [state.loc for state in states],
 		}
 
-	# @abstractmethod
+	@abstractmethod
+	def maxAdmissibleQ(self, state, action): pass
+	@abstractmethod
+	def minAdmissibleQ(self, state, action): pass
+	@abstractmethod
+	def disorderingPotential_action(self, state, action): pass
+
+	@abstractmethod
+	def LRAdev_action(self, state, action, aleph4action, myopic): pass
+	@abstractmethod
+	def behaviorEntropy_action(self, state, actionProbability, action, aleph4action): pass
+	@abstractmethod
+	def behaviorKLdiv_action(self, state, actionProbability, action, aleph4action): pass
+	@abstractmethod
+	def otherLoss_action(self, state, action, aleph4action): pass
+
+	@abstractmethod
+	def Q(self, state, action, aleph4action): pass
+	@abstractmethod
+	def Q2(self, state, action, aleph4action): pass
+	@abstractmethod
+	def Q3(self, state, action, aleph4action): pass
+	@abstractmethod
+	def Q4(self, state, action, aleph4action): pass
+	@abstractmethod
+	def Q5(self, state, action, aleph4action): pass
+	@abstractmethod
+	def Q6(self, state, action, aleph4action): pass
+
+	@abstractmethod
+	def Q_ones(self, state, action, aleph4action): pass
+	@abstractmethod
+	def Q_DeltaSquare(self, state, action, aleph4action): pass
+
+	@abstractmethod
+	def possible_actions(self, state, action): pass
 
 class AgentMDPLearning(AspirationAgent):
 	def __init__(self, params, maxAdmissibleQ=None, minAdmissibleQ=None, 
@@ -699,6 +734,9 @@ class AgentMDPPlanning(AspirationAgent):
 	def __init__(self, params, world=None):
 		self.world = world
 		super().__init__(params)
+
+	def possible_actions(self, state):
+		return self.world.stateToActions(state)
 
 	# Compute upper and lower admissibility bounds for Q and V that are allowed in view of maxLambda and minLambda:
 
@@ -1017,7 +1055,7 @@ class AgentMDPPlanning(AspirationAgent):
 
 	# KL divergence of behavior relative to refPolicy (or uninformedPolicy if refPolicy is not set):
 	@lru_cache(maxsize=None)
-	def behaviorKLdiv_action(self, state, actionProbability, action, aleph4action=None): # recursive
+	def behaviorKLdiv_action(self, state, actionprobability, action, aleph4action=None): # recursive
 		# Note for ANN approximation: behaviorKLdiv_action must be nonnegative. 
 		refPol = None
 		if "referencePolicy" in self.params:
