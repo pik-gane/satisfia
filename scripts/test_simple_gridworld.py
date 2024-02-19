@@ -29,7 +29,7 @@ env.render()
 env.close()
 
 print("\nPUSHING A BOX THROUGH A GOAL:")
-env, aleph0 = make_simple_gridworld(gw = "test_box", render_mode = "human", fps = 1)
+env, aleph0 = make_simple_gridworld(gw = "test_box", render_mode = "human", fps = 2)
 env.reset()
 move_randomly(env)
 env.render()
@@ -38,7 +38,7 @@ env.close()
 
 
 print("\nRUNNING AROUND AISG2:")
-env, aleph0 = make_simple_gridworld(gw = "AISG2", render_mode = "human", fps = 1)
+env, aleph0 = make_simple_gridworld(gw = "AISG2", render_mode = "human", fps = 2)
 env.reset()
 move_randomly(env)
 env.render()
@@ -49,13 +49,13 @@ env.close()
 print("\nRUNNING AROUND A RANDOM GRID:")
 grid = [
     [   
-        random.choice([' ', ' ', ' ', '#', '#', ',', '^', '~','X'])
+        random.choice([' ', ' ', ' ', ' ', ' ', '#', '#', '#', ',', '^', '~','X'])
         for x in range(11)
     ]
     for y in range(11)
 ]
-grid[2][2] = "A"
-grid[8][8] = "G"
+grid[4][4] = "A"
+grid[6][6] = "G"
 delta_grid = [
     [
         ' ' if grid[y][x] == '#' else random.choice([' ','M','P'], p=[0.4,0.3,0.3])
@@ -65,6 +65,6 @@ delta_grid = [
 ]
 print(grid)
 print(delta_grid)
-env = SimpleGridworld(grid = grid, delta_grid = delta_grid, cell_code2delta = {'M':-1, 'P':1}, render_mode = "human", fps = 1)
+env = SimpleGridworld(grid = grid, delta_grid = delta_grid, cell_code2delta = {'M':-1, 'P':1}, render_mode = "human", fps = 2)
 move_randomly(env)
 env.close()
