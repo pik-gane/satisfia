@@ -38,6 +38,19 @@ def set_loc(locs, index, loc):
 def get_loc(locs, index):
     return (locs[2*index], locs[2*index+1])
 
+class MultiDiscreteRanged(spaces.MultiDiscrete):
+    def __init__(self, nvec, start=None):
+        if start == None:
+            start = [0] * len(nvec)
+        assert len(nvec) == len(start)
+        self.start = start
+
+        super().__init__(nvec)
+
+    def sample(self):
+        result = super().sample()
+        return [value + offset for value, offset in zip(result, self.start)]
+
 class SimpleGridworld(MDPWorldModel):
     """A world model of a simple MDP-type Gridworld environment.
     
@@ -190,8 +203,9 @@ class SimpleGridworld(MDPWorldModel):
                     self.n_movable_variable_objects += 1
 
         # The observation returned for reinforcement learning equals state, as described above.
+        # TODO how to specify start range of each dimension for MultiDiscrete?
         nx, ny = xygrid.shape[0], xygrid.shape[1]
-        self.observation_space = spaces.MultiDiscrete(
+        self.observation_space = MultiDiscreteRanged(
             [max_episode_length,  # current time step
              nx, ny,  # current location
              nx, ny]  # previous location
