@@ -1,0 +1,11 @@
+{
+	"grid": [
+		" X XAXG  "
+	],
+	"delta_grid": [
+		"      G  "
+	],
+	"expectedDeltaTable": {"G": 1},
+	"aleph0": 1,
+	"defaultTime": 20
+}

@@ -1,3 +1,5 @@
+import json
+
 from world_model import SimpleGridworld
 
 def make_simple_gridworld(gw="GW1", time=None, **kwargs):
@@ -141,6 +143,15 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         expectedDeltaTable = { 'G': 1 }
         aleph0 = 1
         totalTime = time or 15
+    else:
+        world = None
+        with open(gw, "r") as file:
+            world = json.load(file)
+        grid = [list(line) for line in world["grid"]]
+        delta_grid = [list(line) for line in world["delta_grid"]]
+        expectedDeltaTable = world["expectedDeltaTable"]
+        aleph0 = world["aleph0"]
+        totalTime = time or world["defaultTime"]
 
     return (SimpleGridworld(grid=grid, delta_grid=delta_grid,
                             cell_code2delta=expectedDeltaTable, max_episode_length=totalTime,
