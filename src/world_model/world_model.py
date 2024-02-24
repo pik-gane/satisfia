@@ -73,7 +73,7 @@ class WorldModel(Env):
 
     # methods for enquiring expected values in states:
 
-    def expectation_of_fct_of_reward(self, state, action, f, additional_args = None, n_samples = None):
+    def expectation_of_fct_of_reward(self, state, action, f, additional_args = (), n_samples = None):
         """Return the expected value of f(reward, *additional_args) after taking action in state."""
         return np.sum([successor_probability * reward_probability * f(reward, *additional_args)
                        for (successor, (successor_probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()
@@ -94,12 +94,12 @@ class WorldModel(Env):
     
     expected_delta = expected_reward
     
-    def expectation(self, state, action, f, additional_args = None, n_samples = None):
+    def expectation(self, state, action, f, additional_args = (), n_samples = None):
         """Return the expected value of f(successor, *additional_args) after taking action in state."""
         return np.sum([probability * f(successor, *additional_args)
                        for (successor, (probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()])
 
-    def expectation_of_fct_of_probability(self, state, action, f, additional_args = None, n_samples = None):
+    def expectation_of_fct_of_probability(self, state, action, f, additional_args = (), n_samples = None):
         """Return the expected value of f(successor, probability, *additional_args) after taking action in state,
         where probability is the probability of reaching successor after taking action in state."""
         return np.sum([probability * f(successor, probability, *additional_args)
@@ -130,7 +130,7 @@ class WorldModel(Env):
     def _result2reward(self, result):
         return result[1]  # since result is a tuple (observation, reward, terminated)
     
-    def expectation_of_fct_of_reward_after_history(self, history, action, f, additional_args = None, n_samples = None):
+    def expectation_of_fct_of_reward_after_history(self, history, action, f, additional_args = (), n_samples = None):
         """Return the expected value of f(reward, *additional_args) when calling step(action) after the given history."""
         return np.sum([probability * f(self._result2reward(result), *additional_args)
                        for (result, (probability, _)) in self.result_distribution(history, action, n_samples = None)])
@@ -149,7 +149,7 @@ class WorldModel(Env):
     
     expected_delta_after_history = expected_reward_after_history
 
-    def expectation_after_history(self, history, action, f, additional_args = None, n_samples = None):
+    def expectation_after_history(self, history, action, f, additional_args = (), n_samples = None):
         """Return the expected value of f(step(action), *additional_args) after the giving history."""
         return np.sum([probability * f(result, *additional_args)
                        for (result, (probability, _)) in self.result_distribution(history, action, n_samples = 

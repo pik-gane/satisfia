@@ -1,1 +1,1 @@
-from rl import *
+from satisfia.rl import *
