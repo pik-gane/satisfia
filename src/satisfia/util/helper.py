@@ -2,8 +2,10 @@
 
 class Interval():
 	def __init__(self, left, right=None):
-		if isinstance(left, (Interval, tuple, list)):
+		if hasattr(left, "__len__"):
 			if right != None:
+				raise TypeError()
+			if len(left) != 2:
 				raise TypeError()
 			self._left = left[0]
 			self._right = left[1]
@@ -23,13 +25,13 @@ class Interval():
 		return self._left <= item <= self._right
 
 	def __le__(self, other):
-		return other._left <= self._left <= self._right <= other._right
+		return other[0] <= self._left <= self._right <= other[1]
 
 	def __eq__(self, other):
-		return (self._left == self._right) and (other._left == other._right)
+		return (self._left == other[0]) and (self._right == other[1])
 
 	def __and__(self, other):
-		return Interval(max(self._left, other.left), min(self._right, other.right))
+		return Interval(max(self._left, other[0]), min(self._right, other[1]))
 
 	def __getitem__(self, item):
 		if item == 0:

@@ -55,6 +55,8 @@ class categorical(_distribution):
 
 	def category_set(self, name, weight):
 		if weight <= 0:
+			print("negative weight", weight)
+			exit()
 			raise ValueError("Invalid category weight")
 
 		if name in self._categories:

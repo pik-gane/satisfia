@@ -374,10 +374,10 @@ class AspirationAgent(ABC):
 		# compute the relative position of aleph4action in the expectation that we had of 
 		#	delta + next admissibility interval 
 		# before we knew which state we would land in:
-		lam = relativePosition(minAdmissibleQ(state, action), aleph4action, maxAdmissibleQ(state, action)) # TODO didn't we calculate the admissible Q when we chose the action?
+		lam = relativePosition(self.minAdmissibleQ(state, action), aleph4action, self.maxAdmissibleQ(state, action)) # TODO didn't we calculate the admissible Q when we chose the action?
 		# (this is two numbers between 0 and 1.)
 		# use it to rescale aleph4action to the admissibility interval of the state that we landed in:
-		rescaledAleph4nextState = interpolate(minAdmissibleV(nextState), lam, maxAdmissibleV(nextState))
+		rescaledAleph4nextState = interpolate(self.minAdmissibleV(nextState), lam, self.maxAdmissibleV(nextState))
 		# (only this part preserves aspiration in expectation)
 		res = rescaledAleph4nextState # WAS: interpolate(steadfastAleph4nextState, rescaling4Successors, rescaledAleph4nextState)
 		if VERBOSE or DEBUG:
@@ -417,10 +417,10 @@ class AspirationAgent(ABC):
 		if DEBUG:
 			print("| V", prettyState(state), aleph4state)
 
-		locPol = localPolicy(state, aleph4state)
+		locPol = self.localPolicy(state, aleph4state)
 		def sample():
-			actionAndAleph = locPol.sample() # recursion
-			return Q(state, actionAndAleph[0], actionAndAleph[1]) # recursion
+			actionAndAleph = locPol.sample()[0] # recursion
+			return self.Q(state, actionAndAleph[0], actionAndAleph[1]) # recursion
 		v = distribution.infer(sample).E()
 
 		if DEBUG:
@@ -429,9 +429,9 @@ class AspirationAgent(ABC):
 
 	#@lru_cache(maxsize=None)
 	def V2(self, state, aleph4state): # recursive
-		locPol = localPolicy(state, aleph4state)
+		locPol = self.localPolicy(state, aleph4state)
 		def sample():
-			actionAndAleph = locPol.sample() # recursion
+			actionAndAleph = locPol.sample()[0] # recursion
 			return self.Q2(state, actionAndAleph[0], actionAndAleph[1]) # recursion
 		v2 = distribution.infer(sample).E()
 		if DEBUG:
@@ -440,9 +440,9 @@ class AspirationAgent(ABC):
 
 	#@lru_cache(maxsize=None)
 	def V3(self, state, aleph4state): # recursive
-		locPol = localPolicy(state, aleph4state)
+		locPol = self.localPolicy(state, aleph4state)
 		def sample():
-			actionAndAleph = locPol.sample() # recursion
+			actionAndAleph = locPol.sample()[0] # recursion
 			return self.Q3(state, actionAndAleph[0], actionAndAleph[1]) # recursion
 		v3 = distribution.infer(sample).E()
 		if DEBUG:
@@ -451,9 +451,9 @@ class AspirationAgent(ABC):
 
 	#@lru_cache(maxsize=None)
 	def V4(self, state, aleph4state): # recursive
-		locPol = localPolicy(state, aleph4state)
+		locPol = self.localPolicy(state, aleph4state)
 		def sample():
-			actionAndAleph = locPol.sample() # recursion
+			actionAndAleph = locPol.sample()[0] # recursion
 			return self.Q4(state, actionAndAleph[0], actionAndAleph[1]) # recursion
 		v4 = distribution.infer(sample).E()
 		if DEBUG:
@@ -462,9 +462,9 @@ class AspirationAgent(ABC):
 
 	#@lru_cache(maxsize=None)
 	def V5(self, state, aleph4state): # recursive
-		locPol = localPolicy(state, aleph4state)
+		locPol = self.localPolicy(state, aleph4state)
 		def sample():
-			actionAndAleph = locPol.sample() # recursion
+			actionAndAleph = locPol.sample()[0] # recursion
 			return self.Q5(state, actionAndAleph[0], actionAndAleph[1]) # recursion
 		v5 = distribution.infer(sample).E()
 		if DEBUG:
@@ -473,9 +473,9 @@ class AspirationAgent(ABC):
 
 	#@lru_cache(maxsize=None)
 	def V6(self, state, aleph4state): # recursive
-		locPol = localPolicy(state, aleph4state)
+		locPol = self.localPolicy(state, aleph4state)
 		def sample():
-			actionAndAleph = locPol.sample() # recursion
+			actionAndAleph = locPol.sample()[0] # recursion
 			return self.Q6(state, actionAndAleph[0], actionAndAleph[1]) # recursion
 		v6 = distribution.infer(sample).E()
 		if DEBUG:
@@ -528,25 +528,25 @@ class AspirationAgent(ABC):
 	#@lru_cache(maxsize=None)
 	def cupLoss_state(self, state, unclippedAleph): # recursive
 		aleph4state = self.aspiration4state(state, unclippedAleph)
-		locPol = localPolicy(state, aleph4state) # recursion
+		locPol = self.localPolicy(state, aleph4state) # recursion
 		def sample():
-			actionAndAleph = locPol.sample()
+			actionAndAleph = locPol.sample()[0]
 			return self.cupLoss_action(state, actionAndAleph[0], aleph4state, actionAndAleph[1])
 		return distribution.infer(sample).E()
 
 	#@lru_cache(maxsize=None)
 	def LRAdev_state(self, state, aleph4state): # recursive
-		locPol = localPolicy(state, aleph4state)
+		locPol = self.localPolicy(state, aleph4state)
 		def sample():
-			actionAndAleph = locPol.sample() # recursion
+			actionAndAleph = locPol.sample()[0] # recursion
 			return self.LRAdev_action(state, actionAndAleph[0], actionAndAleph[1]) # recursion
 		return distribution.infer(sample).E()
 
 	#@lru_cache(maxsize=None)
 	def V_ones(self, state, aleph4state): # recursive
-		locPol = localPolicy(state, aleph4state)
+		locPol = self.localPolicy(state, aleph4state)
 		def sample():
-			actionAndAleph = locPol.sample() # recursion
+			actionAndAleph = locPol.sample()[0] # recursion
 			return self.Q_ones(state, actionAndAleph[0], actionAndAleph[1]) # recursion
 		if DEBUG:
 			print("| V_ones", prettyState(state), aleph4state, v_ones)
@@ -555,9 +555,9 @@ class AspirationAgent(ABC):
 
 	#@lru_cache(maxsize=None)
 	def V_DeltaSquare(self, state, aleph4state): # recursive
-		locPol = localPolicy(state, aleph4state)
+		locPol = self.localPolicy(state, aleph4state)
 		def sample():
-			actionAndAleph = locPol.sample() # recursion
+			actionAndAleph = locPol.sample()[0] # recursion
 			return self.Q_DeltaSquare(state, actionAndAleph[0], actionAndAleph[1]) # recursion
 		if DEBUG:
 			print("| V_DeltaSquare", prettyState(state), aleph4state, vDsq)
@@ -566,25 +566,25 @@ class AspirationAgent(ABC):
 
 	#@lru_cache(maxsize=None)
 	def behaviorEntropy_state(self, state, aleph4state): # recursive
-		locPol = localPolicy(state, aleph4state)
+		locPol = self.localPolicy(state, aleph4state)
 		def sample():
-			actionAndAleph = locPol.sample() # recursion
+			actionAndAleph = locPol.sample()[0] # recursion
 			return self.behaviorEntropy_action(state, math.exp(locPol.score(actionAndAleph)), actionAndAleph[0], actionAndAleph[1]) # recursion
 		return distribution.infer(sample).E()
 
 	#@lru_cache(maxsize=None)
 	def behaviorKLdiv_state(self, state, aleph4state): # recursive
-		locPol = localPolicy(state, aleph4state)
+		locPol = self.localPolicy(state, aleph4state)
 		def sample():
-			actionAndAleph = locPol.sample() # recursion
+			actionAndAleph = locPol.sample()[0] # recursion
 			return self.behaviorKLdiv_action(state, math.exp(locPol.score(actionAndAleph)), actionAndAleph[0], actionAndAleph[1]) # recursion
 		return distribution.infer(sample).E()
 
 	#@lru_cache(maxsize=None)
 	def otherLoss_state(self, state, aleph4state): # recursive
-		locPol = localPolicy(state, aleph4state) # recursion
+		locPol = self.localPolicy(state, aleph4state) # recursion
 		def sample():
-			actionAndAleph = locPol.sample()
+			actionAndAleph = locPol.sample()[0]
 			return self.otherLoss_action(state, actionAndAleph[0], actionAndAleph[1]) # recursion
 		return distribution.infer(sample).E()
 
@@ -842,9 +842,8 @@ class AgentMDPPlanning(AspirationAgent):
 			print("| Q", prettyState(state), action, aleph4action)
 
 		Edel = self.world.raw_moment_of_delta(state, action)
-		def total(res):
-			nextState, _, terminated, _, _ = res
-			if terminated:
+		def total(nextState):
+			if self.world.is_terminal(nextState):
 				return Edel
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
@@ -861,9 +860,8 @@ class AgentMDPPlanning(AspirationAgent):
 		Edel = self.world.raw_moment_of_delta(state, action)
 		Edel2 = self.world.raw_moment_of_delta(state, action, 2)
 
-		def total(res):
-			nextState, _, terminated, _, _ = res
-			if terminated:
+		def total(nextState):
+			if self.world.is_terminal(nextState):
 				return Edel2
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
@@ -885,9 +883,8 @@ class AgentMDPPlanning(AspirationAgent):
 		Edel2 = self.world.raw_moment_of_delta(state, action, 2)
 		Edel3 = self.world.raw_moment_of_delta(state, action, 3)
 
-		def total(res):
-			nextState, _, terminated, _, _ = res
-			if terminated:
+		def total(nextState):
+			if self.world.is_terminal(nextState):
 				return Edel3
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
@@ -910,9 +907,8 @@ class AgentMDPPlanning(AspirationAgent):
 		Edel3 = self.world.raw_moment_of_delta(state, action, 3)
 		Edel4 = self.world.raw_moment_of_delta(state, action, 4)
 
-		def total(res):
-			nextState, _, terminated, _, _ = res
-			if terminated:
+		def total(nextState):
+			if self.world.is_terminal(nextState):
 				return Edel4
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
@@ -936,9 +932,8 @@ class AgentMDPPlanning(AspirationAgent):
 		Edel4 = self.world.raw_moment_of_delta(state, action, 4)
 		Edel5 = self.world.raw_moment_of_delta(state, action, 5)
 
-		def total(res):
-			nextState, _, terminated, _, _ = res
-			if terminated:
+		def total(nextState):
+			if self.world.is_terminal(nextState):
 				return Edel5
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
@@ -965,9 +960,8 @@ class AgentMDPPlanning(AspirationAgent):
 		Edel5 = self.world.raw_moment_of_delta(state, action, 5)
 		Edel6 = self.world.raw_moment_of_delta(state, action, 6)
 
-		def total(res):
-			nextState, _, terminated, _, _ = res
-			if terminated:
+		def total(nextState):
+			if self.world.is_terminal(nextState):
 				return Edel6
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
@@ -991,10 +985,9 @@ class AgentMDPPlanning(AspirationAgent):
 		# Note for ANN approximation: LRAdev_action must be between 0 and 0.25 
 		Edel = self.world.raw_moment_of_delta(state, action)
 
-		def dev(res):
-			nextState, _, terminated, _, _ = res
+		def dev(nextState):
 			localLRAdev = (0.5 - relativePosition(self.minAdmissibleQ(state, action), midpoint(aleph4action), self.maxAdmissibleQ(state, action))) ** 2
-			if terminated or myopic:
+			if self.world.is_terminal(nextState) or myopic:
 				return localLRAdev
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
@@ -1009,9 +1002,8 @@ class AgentMDPPlanning(AspirationAgent):
 		Edel = self.world.raw_moment_of_delta(state, action)
 
 		# Note for ANN approximation: Q_ones must be nonnegative. 
-		def one(res):
-			nextState, _, terminated, _, _ = res
-			if terminated or aleph4action == None:
+		def one(nextState):
+			if self.world.is_terminal(nextState) or aleph4action == None:
 				return 1
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
@@ -1029,9 +1021,8 @@ class AgentMDPPlanning(AspirationAgent):
 		EdelSq = Edel**2 + self["varianceOfDelta"](state, action)
 
 		# Note for ANN approximation: Q_DeltaSquare must be nonnegative. 
-		def d(res):
-			nextState, _, terminated, _, _ = res
-			if terminated or aleph4action == None:
+		def d(nextState):
+			if self.world.is_terminal(nextState) or aleph4action == None:
 				return EdelSq
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
@@ -1051,13 +1042,12 @@ class AgentMDPPlanning(AspirationAgent):
 		# Note for ANN approximation: behaviorEntropy_action must be <= 0 (!) 
 		# because it is the negative (!) of a KL divergence. 
 		Edel = self.world.raw_moment_of_delta(state, action)
-		def entropy(res):
-			nextState, _, terminated, _, _ = res
+		def entropy(nextState):
 			uninfPolScore = self["uninformedPolicy"](state).score(action) if ("uninformedPolicy" in self.params) else 0
 			localEntropy = uninfPolScore \
 							- math.log(actionProbability) \
 							+ self["internalActionEntropy"](state, action) if ("internalActionEntropy" in self.params) else 0
-			if terminated or aleph4action == None:
+			if self.world.is_terminal(nextState) or aleph4action == None:
 				return localEntropy
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
@@ -1077,10 +1067,9 @@ class AgentMDPPlanning(AspirationAgent):
 			return None # TODO this should remain None after math operations
 
 		Edel = self.world.raw_moment_of_delta(state, action)
-		def div(res):
-			nextState, _, terminated, _, _ = res
+		def div(nextState):
 			localDivergence = math.log(actionProbability) - refPol(state).score(action)
-			if terminated or aleph4action == None:
+			if self.world.is_terminal(nextState) or aleph4action == None:
 				return localDivergence
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
@@ -1091,11 +1080,10 @@ class AgentMDPPlanning(AspirationAgent):
 	#@lru_cache(maxsize=None)
 	def otherLoss_action(self, state, action, aleph4action=None): # recursive
 		Edel = self.world.raw_moment_of_delta(state, action)
-		def loss(res):
-			nextState, _, terminated, _, _ = res
+		def loss(nextState):
 			#localLoss = self["otherLocalLoss"](state, action) # TODO this variable may not exist in params
 			localLoss = 0 # TODO this variable may not exist in params
-			if terminated or aleph4action == None:
+			if self.world.is_terminal(nextState) or aleph4action == None:
 				return localLoss
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
