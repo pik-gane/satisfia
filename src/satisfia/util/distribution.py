@@ -16,7 +16,8 @@ class _distribution():
 		raise NotImplementedError
 
 	def sample(self, n=1):
-		return torch.tensor([self._sample_single() for _ in range(n)])
+		#return torch.tensor([self._sample_single() for _ in range(n)])
+		return [self._sample_single() for _ in range(n)]
 
 	def median(self, *, precision=64):
 		samples = sorted(self.sample(precision))
@@ -53,6 +54,9 @@ class categorical(_distribution):
 		self._order_sticky = True
 
 	def category_set(self, name, weight):
+		if weight <= 0:
+			raise ValueError("Invalid category weight")
+
 		if name in self._categories:
 			self._weight_total -= self._categories[name]
 		self._weight_total += weight
@@ -112,7 +116,7 @@ class categorical(_distribution):
 
 	def categories(self):
 		for category in self._categories:
-			yield (category, self._categories[name] / self._weight_total)
+			yield (category, self._categories[category] / self._weight_total)
 
 class uniform_discrete(_distribution):
 	def __init__(self, low, high):
