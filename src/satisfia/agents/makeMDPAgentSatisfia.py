@@ -291,7 +291,7 @@ class AspirationAgent(ABC):
 			adm1Lo, adm1Hi = adm1 = self.admissibility4action(state, a1)
 
 			# If a1's admissibility interval is completely contained in aleph4state, we are done:
-			if set(adm1) < set(aleph4state):
+			if Interval(adm1) <= Interval(aleph4state):
 				if VERBOSE or DEBUG:
 					print(pad(state),"| | locPol, state",prettyState(state),"aleph4state",aleph4state,": a1",a1,"adm1",adm1,"(subset of aleph4state)")
 				probability_add(p_effective, (a1, adm1), p1)
