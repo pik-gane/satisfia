@@ -274,7 +274,13 @@ class AspirationAgent(ABC):
 		p_effective = {}
 
 		def probability_add(p, key, weight):
-			if key in p:
+			if weight < 0:
+				raise ValueError("invalid weight")
+
+			if weight == 0:
+				if key in p:
+					del p[key]
+			elif key in p:
 				p[key] += weight
 			else:
 				p[key] = weight

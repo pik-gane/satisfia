@@ -58,7 +58,7 @@ def interpolate(x, l, y):
 		return x + l * (y - x)
 
 def relativePosition(x, z, y):
-	# denoted	x \ l \ y in formulas
+	# denoted	x \ z \ y in formulas
 
 	if isinstance(x, Interval) or isinstance(z, Interval) or isinstance(y, Interval):
 		# one argument is an interval, so everything becomes an interval
@@ -69,8 +69,6 @@ def relativePosition(x, z, y):
 		return 0.5
 	else:
 		return (z - x) / (y - x)
-
-	return (l - x) / (y - x)
 
 def clip(x, z, y):
 	# denoted	x [ z ] y in formulas
