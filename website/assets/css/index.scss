@@ -1,0 +1,155 @@
+$theme: custom ;
+$custom-font-body: 'Noto Sans', sans-serif ; 
+$custom-font-headings: 'Noto Sans', sans-serif ;
+body{ 
+   font-optical-sizing: auto;
+  font-weight: 350;
+  font-variation-settings:
+    "wdth" 88;
+  }
+$paragraph-indent: true; 
+
+$base-font-size: 100 !default;
+$base-font-size-desktop: 120;
+$line-height: 1.625;
+$line-height-desktop: 1.8;
+$max-width: 35;                                   
+
+$color-green: #00ff00; //b3;
+$color-blue: #0000ff; //32;
+$color-red: #ff0000; //34;
+
+$color-font-body: #222222;
+$color-font-headings: $color-font-body;
+$color-font-light: #888;
+$color-font-figcaption: $color-font-light;
+
+
+
+.red {
+  color: $color-red;
+}
+.green {
+  color: $color-green;
+}
+
+/*
+  1. Use a more-intuitive box-sizing model.
+*/
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+/*
+  2. Remove default margin
+*/
+* {
+  margin: 0;
+}
+/*
+  Typographic tweaks!
+  3. Add accessible line-height
+  4. Improve text rendering
+*/
+body {
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+/*
+  5. Improve media defaults
+*/
+img, picture, video, canvas, svg {
+  display: block;
+  max-width: 100%;
+}
+/*
+  6. Remove built-in form typography styles
+*/
+input, button, textarea, select {
+  font: inherit;
+}
+/*
+  7. Avoid text overflows
+*/
+p, h1, h2, h3, h4, h5, h6 {
+  overflow-wrap: break-word;
+}
+/*
+  8. Create a root stacking context
+*/
+#root, #__next {
+  isolation: isolate;
+}
+
+a {
+  text-decoration: none;
+}
+a:after {
+  content: "⤴";
+  font-weight: 450;
+}
+em {
+  font-weight: 450;
+  color: $color-red;
+  font-variation-settings:
+    "wdth" 95;
+}
+
+@import '../../Gutenberg/src/style/gutenberg.scss'
+
+.member {
+  clear: both;
+  padding: 1em 0;
+}
+.member div {
+  margin-bottom: .5em
+}
+.member .portrait {
+  width: 200px;
+  margin-right: 2em;
+  float: left;
+}
+.member:nth-child(even) {
+  text-align: right
+}
+.member:nth-child(even) .portrait{
+  float: right;
+  margin-left: 2em;
+}
+.member .portrait img {
+  height: 200px;
+}
+.member .name {
+  font-weight: 450;
+  color: $color-blue;
+  font-variation-settings:
+    "wdth" 95;
+}
+.member .tags .tag {
+  display: inline-block;
+  font-size: 80%;
+    padding: .1em .5em;
+    border-radius: 20px;
+    background: $color-green;
+}
+
+details > summary {
+  opacity: 75%;
+}
+details > summary::before {
+  content: "⚠";
+  color: red;
+  font-weight: 450;
+}
+details > summary::after {
+  content: "why, you ask...?";
+  font-size: 90%;
+  color: red;
+}
+details > div {
+  font-size: 90%;
+  padding: 0px 1em;
+}
+details[open] > summary::after {
+  content: "got it!";
+  color: green;
+}

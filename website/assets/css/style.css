@@ -1,0 +1,856 @@
+@charset "UTF-8";
+body {
+  font-optical-sizing: auto;
+  font-weight: 350;
+  font-variation-settings: "wdth" 88;
+}
+
+.red {
+  color: #ff0000;
+}
+
+.green {
+  color: #00ff00;
+}
+
+/*
+  1. Use a more-intuitive box-sizing model.
+*/
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/*
+  2. Remove default margin
+*/
+* {
+  margin: 0;
+}
+
+/*
+  Typographic tweaks!
+  3. Add accessible line-height
+  4. Improve text rendering
+*/
+body {
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+  5. Improve media defaults
+*/
+img, picture, video, canvas, svg {
+  display: block;
+  max-width: 100%;
+}
+
+/*
+  6. Remove built-in form typography styles
+*/
+input, button, textarea, select {
+  font: inherit;
+}
+
+/*
+  7. Avoid text overflows
+*/
+p, h1, h2, h3, h4, h5, h6 {
+  overflow-wrap: break-word;
+}
+
+/*
+  8. Create a root stacking context
+*/
+#root, #__next {
+  isolation: isolate;
+}
+
+a {
+  text-decoration: none;
+}
+
+a:after {
+  content: "⤴";
+  font-weight: 450;
+}
+
+em {
+  font-weight: 450;
+  color: #ff0000;
+  font-variation-settings: "wdth" 95;
+}
+
+/*
+Gutenberg: A Meaningful Web Typography Starter Kit
+Website ....... http://matejlatin.github.io/Gutenberg/
+Version ....... 1.2.3
+Github ........ https://github.com/matejlatin/Gutenberg
+Authors ....... Matej Latin (@matejlatin)
+License ....... Creative Commmons Attribution 3.0
+License URL ... https://raw.githubusercontent.com/matejlatin/Gutenberg/master/license.txt
+*/
+/* Configuration
+   ========================================================================== */
+/* Calculations
+   ========================================================================== */
+/* Font themes
+   ========================================================================== */
+@media screen and (min-width: 40em) {
+  .floatLeft {
+    float: left;
+  }
+}
+
+@media screen and (min-width: 40em) {
+  .floatCenter {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+@media screen and (min-width: 40em) {
+  .floatRight {
+    float: right;
+  }
+}
+
+/* Grid
+   ========================================================================== */
+.grid, .grid-double {
+  background-image: linear-gradient(to bottom, hsla(200deg, 100%, 50%, 0.3) 1px, transparent 1px);
+  background-position: left top;
+  background-repeat: repeat;
+  background-size: 100% 26px;
+  background-size: 100% 1.625rem;
+}
+@media screen and (min-width: 40em) {
+  .grid, .grid-double {
+    background-size: 100% 35px;
+    background-size: 100% 1.8229166667rem;
+  }
+}
+
+.grid-double {
+  background-image: linear-gradient(to bottom, hsla(200deg, 100%, 50%, 0.3) 1px, transparent 1px, transparent 13px, hsla(200deg, 100%, 50%, 0.2) 13px, transparent 14px, transparent 26px);
+}
+@media screen and (min-width: 40em) {
+  .grid-double {
+    background-image: linear-gradient(to bottom, hsla(200deg, 100%, 50%, 0.3) 1px, transparent 1px, transparent 17.5px, hsla(200deg, 100%, 50%, 0.2) 17.5px, transparent 18.5px, transparent 35px);
+  }
+}
+
+.toggleWrapper {
+  display: block;
+  position: fixed;
+  top: 26px;
+  right: 26px;
+  background-color: #231F20;
+  border-radius: 25px;
+  padding: 0 10px 0 20px;
+  height: 32px;
+}
+@media screen and (min-width: 40em) {
+  .toggleWrapper {
+    right: 35px;
+    top: 35px;
+  }
+}
+
+.btnToggleGrid {
+  background: url("../../assets/images/grid-icons.png") top right no-repeat;
+  background-size: 32px;
+  display: block;
+  font-size: 14px;
+  text-decoration: none;
+  padding-right: 35px;
+  height: 32px;
+  line-height: 34px;
+  font-family: Helvetica, Arial, sans-serif;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #fff;
+}
+@media screen and (min-width: 40em) {
+  .btnToggleGrid {
+    top: 35px;
+    right: 35px;
+  }
+}
+.btnToggleGrid:hover {
+  color: #fff;
+}
+.btnToggleGrid:active {
+  color: #f00;
+}
+
+.double-grid {
+  background-position-y: -32px;
+}
+
+.grid-off {
+  background-position-y: -64px;
+}
+
+aside {
+  display: block;
+}
+
+/* Defaults
+   ========================================================================== */
+@media screen and (min-width: 40em) {
+  body,
+html {
+    margin: 0;
+    width: 100%;
+    max-width: none;
+  }
+}
+
+html {
+  box-sizing: border-box;
+  font-size: 16px;
+  font-size: 100%;
+  font-family: "Noto Sans", sans-serif;
+  color: #222222;
+  -ms-text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+@media screen and (min-width: 40em) {
+  html {
+    font-size: 19.2px;
+    font-size: 1.2rem;
+  }
+}
+
+* {
+  line-height: 26px;
+  line-height: 1.625rem;
+  margin: 0px 0px 26px;
+  margin: 0rem 0rem 1.625rem;
+}
+@media screen and (min-width: 40em) {
+  * {
+    line-height: 35px;
+    line-height: 1.8229166667rem;
+    margin-bottom: 35px;
+    margin-bottom: 1.8229166667rem;
+    max-width: 672px;
+    max-width: 35rem;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: inherit;
+}
+
+body {
+  margin: 0;
+}
+
+footer {
+  display: block;
+}
+body > footer {
+  margin: 0 auto;
+  width: 80%;
+}
+
+header {
+  display: block;
+}
+
+main {
+  display: block;
+}
+
+section {
+  display: block;
+}
+
+/* Links
+   ========================================================================== */
+a {
+  background: transparent;
+  color: #0000ff;
+  transition: all 0.3s;
+}
+a:active, a:hover {
+  outline: 0;
+}
+a:hover {
+  color: #ff0000;
+}
+a:visited {
+  color: #0000ff;
+}
+a:visited:hover {
+  color: #ff0000;
+}
+a:active {
+  color: #f00;
+}
+
+article {
+  display: block;
+  margin: 0 auto;
+  width: 80%;
+}
+@media screen and (min-width: 40em) {
+  article {
+    max-width: 1008px;
+    max-width: 52.5rem;
+  }
+}
+
+audio {
+  display: inline-block;
+  vertical-align: baseline;
+}
+audio:not([controls]) {
+  display: none;
+  height: 0;
+}
+
+canvas {
+  display: inline-block;
+  vertical-align: baseline;
+}
+
+pre {
+  overflow: auto;
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: monospace, monospace;
+}
+
+code {
+  padding: 26px;
+  padding: 1.625rem;
+  display: block;
+}
+@media screen and (min-width: 40em) {
+  code {
+    padding: 35px;
+    padding: 1.8229166667rem;
+  }
+}
+
+details {
+  display: block;
+}
+
+summary {
+  display: block;
+}
+
+figcaption {
+  line-height: 26px;
+  line-height: 1.625rem;
+  color: #888;
+  display: block;
+  font-size: 0.8125rem;
+  font-style: italic;
+  margin-bottom: 0;
+  text-align: center;
+}
+@media screen and (min-width: 40em) {
+  figcaption {
+    line-height: 35px;
+    line-height: 1.8229166667rem;
+    margin-bottom: 0;
+  }
+}
+
+figure {
+  display: block;
+}
+
+@media screen and (min-width: 40em) {
+  figure.floatLeft,
+figure.floatRight {
+    max-width: 336px;
+    max-width: 17.5rem;
+    padding: 0px 35px;
+    padding: 0rem 1.8229166667rem;
+  }
+}
+@media screen and (min-width: 40em) {
+  figure.floatLeft blockquote,
+figure.floatRight blockquote {
+    padding: 0px;
+    padding: 0rem;
+    text-align: left;
+  }
+}
+@media screen and (min-width: 40em) {
+  figure.floatLeft blockquote p,
+figure.floatRight blockquote p {
+    font-size: 19.2px;
+    font-size: 1.2rem;
+    line-height: 35px;
+    line-height: 1.8229166667rem;
+  }
+}
+
+/* Headings
+   ========================================================================== */
+h1 {
+  font-size: 40px;
+  font-size: 2.5rem;
+  line-height: 52px;
+  line-height: 3.25rem;
+  margin-top: 104px;
+  margin-top: 6.5rem;
+  margin-bottom: 26px;
+  margin-bottom: 1.625rem;
+}
+
+h2 {
+  font-size: 27px;
+  font-size: 1.6875rem;
+  line-height: 39px;
+  line-height: 2.4375rem;
+  margin-top: 65px;
+  margin-top: 4.0625rem;
+  margin-bottom: 13px;
+  margin-bottom: 0.8125rem;
+}
+
+h3 {
+  font-size: 22px;
+  font-size: 1.375rem;
+  line-height: 26px;
+  line-height: 1.625rem;
+  margin-top: 52px;
+  margin-top: 3.25rem;
+  margin-bottom: 13px;
+  margin-bottom: 0.8125rem;
+}
+
+h4 {
+  font-size: 19.2px;
+  font-size: 1.2rem;
+  line-height: 26px;
+  line-height: 1.625rem;
+  margin-top: 39px;
+  margin-top: 2.4375rem;
+  margin-bottom: 13px;
+  margin-bottom: 0.8125rem;
+}
+
+h5 {
+  font-size: 16px;
+  font-size: 1rem;
+  line-height: 26px;
+  line-height: 1.625rem;
+  margin-top: 65px;
+  margin-top: 4.0625rem;
+  margin-bottom: 13px;
+  margin-bottom: 0.8125rem;
+}
+
+h6 {
+  font-size: 16px;
+  font-size: 1rem;
+  line-height: 26px;
+  line-height: 1.625rem;
+  margin-top: 65px;
+  margin-top: 4.0625rem;
+  margin-bottom: 13px;
+  margin-bottom: 0.8125rem;
+}
+
+@media screen and (min-width: 40em) {
+  h1 {
+    font-size: 40px;
+    font-size: 2.5rem;
+    line-height: 70px;
+    line-height: 3.6458333333rem;
+    margin-top: 140px;
+    margin-top: 7.2916666667rem;
+    margin-bottom: 35px;
+    margin-bottom: 1.8229166667rem;
+  }
+  h2 {
+    font-size: 27px;
+    font-size: 1.6875rem;
+    line-height: 52.5px;
+    line-height: 2.734375rem;
+    margin-top: 87.5px;
+    margin-top: 4.5572916667rem;
+    margin-bottom: 17.5px;
+    margin-bottom: 0.9114583333rem;
+  }
+  h3 {
+    font-size: 22px;
+    font-size: 1.375rem;
+    line-height: 35px;
+    line-height: 1.8229166667rem;
+    margin-top: 70px;
+    margin-top: 3.6458333333rem;
+    margin-bottom: 17.5px;
+    margin-bottom: 0.9114583333rem;
+  }
+  h4 {
+    font-size: 19.2px;
+    font-size: 1.2rem;
+    line-height: 35px;
+    line-height: 1.8229166667rem;
+    margin-top: 52.5px;
+    margin-top: 2.734375rem;
+    margin-bottom: 17.5px;
+    margin-bottom: 0.9114583333rem;
+  }
+  h5 {
+    font-size: 16px;
+    font-size: 1rem;
+    line-height: 35px;
+    line-height: 1.8229166667rem;
+    margin-top: 87.5px;
+    margin-top: 4.5572916667rem;
+    margin-bottom: 17.5px;
+    margin-bottom: 0.9114583333rem;
+  }
+  h6 {
+    font-size: 16px;
+    font-size: 1rem;
+    line-height: 35px;
+    line-height: 1.8229166667rem;
+    margin-top: 87.5px;
+    margin-top: 4.5572916667rem;
+    margin-bottom: 17.5px;
+    margin-bottom: 0.9114583333rem;
+  }
+}
+h1 + h2 {
+  margin-top: 26px;
+  margin-top: 1.625rem;
+}
+@media screen and (min-width: 40em) {
+  h1 + h2 {
+    margin-top: 35px;
+    margin-top: 1.8229166667rem;
+  }
+}
+
+h2 + h3,
+h3 + h4,
+h4 + h5 {
+  margin-top: 13px;
+  margin-top: 0.8125rem;
+}
+@media screen and (min-width: 40em) {
+  h2 + h3,
+h3 + h4,
+h4 + h5 {
+    margin-top: 17.5px;
+    margin-top: 0.9114583333rem;
+  }
+}
+
+h5 + h6 {
+  margin-top: -13px;
+  margin-top: -0.8125rem;
+}
+@media screen and (min-width: 40em) {
+  h5 + h6 {
+    margin-top: -17.5px;
+    margin-top: -0.9114583333rem;
+  }
+}
+
+h6 {
+  font-style: italic;
+  font-weight: normal;
+}
+
+hgroup {
+  display: block;
+}
+
+hr {
+  margin-top: 52px;
+  margin-top: 3.25rem;
+  margin-bottom: 52px;
+  margin-bottom: 3.25rem;
+  box-sizing: content-box;
+  border: 0;
+  color: #222222;
+  display: block;
+  height: 26px;
+  height: 1.625rem;
+  margin-right: auto;
+  margin-left: auto;
+  background-size: 100% 26px;
+  background-size: 100% 1.625rem;
+  background-image: linear-gradient(to bottom, transparent 1px, transparent 11px, #222222 11px, #222222 15px, transparent 15px, transparent 26px);
+  width: 100px;
+}
+@media screen and (min-width: 40em) {
+  hr {
+    margin-top: 70px;
+    margin-top: 3.6458333333rem;
+    margin-bottom: 70px;
+    margin-bottom: 3.6458333333rem;
+    height: 35px;
+    height: 1.8229166667rem;
+  }
+}
+@media screen and (min-width: 40em) {
+  hr {
+    background-size: 100% 35px;
+    background-size: 100% 1.8229166667rem;
+    background-image: linear-gradient(to bottom, transparent 1px, transparent 15.5px, #222222 15.5px, #222222 19.5px, transparent 19.5px, transparent 35px);
+  }
+}
+
+img {
+  border: 0;
+  max-width: 100%;
+  display: block;
+  margin: inherit auto;
+}
+
+svg:not(:root) {
+  overflow: hidden;
+}
+
+ul li,
+ol li {
+  margin-bottom: 0;
+}
+
+nav {
+  display: block;
+}
+
+progress {
+  display: inline-block;
+  vertical-align: baseline;
+}
+
+blockquote {
+  font-style: italic;
+  padding-left: 1.4375rem;
+}
+@media screen and (min-width: 40em) {
+  blockquote {
+    padding-left: 2rem;
+  }
+}
+
+cite {
+  display: block;
+  font-style: normal;
+}
+
+figure blockquote {
+  padding: 26px 0px;
+  padding: 1.625rem 0rem;
+}
+@media screen and (min-width: 40em) {
+  figure blockquote {
+    padding: 70px 0px 35px;
+    padding: 3.6458333333rem 0rem 1.8229166667rem;
+    text-align: center;
+  }
+}
+figure blockquote p {
+  font-size: 27px;
+  font-size: 1.6875rem;
+  line-height: 39px;
+  line-height: 2.4375rem;
+}
+@media screen and (min-width: 40em) {
+  figure blockquote p {
+    font-size: 27px;
+    font-size: 1.6875rem;
+    line-height: 52.5px;
+    line-height: 2.734375rem;
+  }
+}
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+td,
+th {
+  padding: 0;
+}
+
+[hidden],
+template {
+  display: none;
+}
+
+br {
+  margin-bottom: 0;
+}
+
+abbr {
+  letter-spacing: 0.1em;
+}
+
+abbr[title] {
+  border-bottom: 1px dotted;
+}
+
+b,
+strong {
+  font-weight: bold;
+}
+
+dfn {
+  font-style: italic;
+}
+
+em,
+i {
+  line-height: 0;
+  vertical-align: baseline;
+}
+
+mark {
+  background: #ff0;
+  color: #000;
+}
+
+small {
+  line-height: 13px;
+  line-height: 0.8125rem;
+  font-size: 70%;
+}
+@media screen and (min-width: 40em) {
+  small {
+    line-height: 17.5px;
+    line-height: 0.9114583333rem;
+  }
+}
+
+sub,
+sup {
+  font-size: 75%;
+  line-height: 0;
+  position: relative;
+  vertical-align: baseline;
+}
+
+sup {
+  top: -0.5em;
+}
+
+sub {
+  bottom: -0.25em;
+}
+
+/* Paragraph
+========================================================================== */
+.attention-grabber {
+  font-size: 19.2px;
+  font-size: 1.2rem;
+}
+
+.alignLeft {
+  text-align: left;
+}
+
+.alignCenter {
+  text-align: center;
+}
+
+.alignRight {
+  text-align: right;
+}
+
+.uppercase {
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+video {
+  display: inline-block;
+  vertical-align: baseline;
+}
+
+/* TODOs:
+ - some line heights produce margins with .5 results, seemingly breaking the gird (?),
+ - add table and side comments elements,
+ */
+.member {
+  clear: both;
+  padding: 1em 0;
+}
+
+.member div {
+  margin-bottom: 0.5em;
+}
+
+.member .portrait {
+  width: 200px;
+  margin-right: 2em;
+  float: left;
+}
+
+.member:nth-child(even) {
+  text-align: right;
+}
+
+.member:nth-child(even) .portrait {
+  float: right;
+  margin-left: 2em;
+}
+
+.member .portrait img {
+  height: 200px;
+}
+
+.member .name {
+  font-weight: 450;
+  color: #0000ff;
+  font-variation-settings: "wdth" 95;
+}
+
+.member .tags .tag {
+  display: inline-block;
+  font-size: 80%;
+  padding: 0.1em 0.5em;
+  border-radius: 20px;
+  background: #00ff00;
+}
+
+details > summary {
+  opacity: 75%;
+}
+
+details > summary::before {
+  content: "⚠";
+  color: red;
+  font-weight: 450;
+}
+
+details > summary::after {
+  content: "why, you ask...?";
+  font-size: 90%;
+  color: red;
+}
+
+details > div {
+  font-size: 90%;
+  padding: 0px 1em;
+}
+
+details[open] > summary::after {
+  content: "got it!";
+  color: green;
+}

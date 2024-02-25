@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="X-UA-Compatible" content="ie=edge">
+        <title>SatisfIA</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <!-- <link href="https://fonts.googleapis.com/css2?family=Charm:wght@400;700&family=Playpen+Sans:wght@100..800&family=Shantell+Sans:ital,wght@0,300..800;1,300..800&display=swap"
+       rel="stylesheet"> -->
+        <!--     <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&display=swap"
+           rel="stylesheet"> -->
+        <!-- <link href="https://fonts.googleapis.com/css2?family=Are+You+Serious&family=Gwendolyn:wght@400;700&family=Henny+Penny&family=Love+Ya+Like+A+Sister&family=Princess+Sofia&family=Ruge+Boogie&display=swap"
+       rel="stylesheet"> -->
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wdth,wght@0,62.5..100,300..700;1,62.5..100,300..700&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="assets/css/style.css">
+    </head>
+    <body>
+        <div class="container">
+            <img src="assets/img/logo_colored.svg" width="100%">
+            <h2>What is SatisfIA?</h2>
+            <p>
+                We are an interdisciplinary research team developing aspiration-based designs for intelligent agents. The project is hosted by the FutureLab on <a href="https://www.pik-potsdam.de/en/institute/futurelabs/gane/futurelab-gane">Game Theory &amp; Networks of Interacting Agents</a> at PIK in collaboration with the <a href="https://aisafety.camp">AI Safety Camp</a>, <a href="https://sparai.notion.site/Supervised-Program-for-Alignment-Research-SPAR-4da6be132e974823961abfdd0c218536">SPAR</a>, and <a href="https://www.ens.psl.eu/en">ENS Paris</a>, led by Jobst Heitzig. <br>
+                Our original contribution to AI safety research is our focus on <em>non-maximizing agents</em>. The project’s approach diverges from traditional AI designs that aim to maximize objective functions, which can be unsafe if these objective functions are not perfectly aligned with actually desired outcomes. <br>
+                Instead, SatisfIA’s AI agents are designed to fulfill goals specified through constraints known as <em>aspirations</em>, reducing the likelihood of extreme actions and increasing safety.
+            </p>
+            <h2>Research Focus</h2>
+            <p>
+                Our research explores various designs of these non-maximizing agents and corresponding planning and/or learning algorithms, primarily variations of model-based planning and <a href="https://en.wikipedia.org/wiki/Reinforcement_learning">Reinforcement Learning</a> in fully or partially observed <a href="https://en.wikipedia.org/wiki/Markov_decision_process">Markov Decision Processes</a>.<br>
+                This involves a theoretical design of agents and algorithms, implementing them in software (mostly using Python and/or <a href="https://webppl.org/">WebPPL</a>), simulating their behavior in test environments such as AI safety gridworlds, and analyzing their behavior and safety implications. The goal is to provide numerical evidence and formal proofs where possible, contributing to the academic discourse through publications and blog posts.
+            </p>
+            <h2>Motivation and Background</h2>
+            <p>
+                The motivation for this research stems from a growing consensus among AI researchers and the public about the potential existential threat posed by powerful AI agents if not properly aligned with human values and safety concerns.<br>
+                In the worst case scenario it won’t be possible to align AI’s with human values, since 
+            </p>
+                <ul>
+                    <li>there might not be a set of universally acceptable values, </li>
+                    <li>they might not be formalizable,</li>
+                    <li>if they are, it might not be possible to discover or implement them before risk-factors start appearing.</li>
+                </ul>
+                <p>By adopting a non-maximizing, aspiration-based approach, we aim to address these safety concerns directly by designing AI agents that operate within safer, more predictable parameters.
+            </p>
+            <h2>Theoretical Foundations</h2>
+            <h3>Aspiration-based goals</h3>
+            <p>
+                Rather than assuming that the goal or task of an AI agent should be to maximize some objective function, the project assumes that goals are formulated <em>without any reference to such a function at all</em>. Instead, goals are specified by requesting that certain variables, such as global mean temperature, should fall into certain desirable ranges, such as between zero and two degrees of warming.</p>
+            <p>These ranges are called <em>aspirations</em>. Since such aspiration-based goals are typically easier to fulfill than maximizing a certain objective function, the agent has some freedom in choosing how to achieve them. Hence we can design agents so that they use this freedom to fulfill the goals in ways that are generally safer than what a maximizing agent would do.<br>
+                In order to find these safer ways of satisfying the constraints, our designs make use of a number of safety criteria such as
+            </p>
+                <ul>
+                    <li>how much the agent changes or disturbs its environment,</li>
+                    <li>how predictable or conventional its actions are,</li>
+                    <li>how much influence or resources it acquires or uses.</li>
+                </ul>
+                <details>
+                    <summary>
+                    This approach is fundamentally different from the alternative approach of “<a href="https://en.wikipedia.org/wiki/Satisficing">satisficing</a>”
+                    </summary><div>
+            <p >
+                 In satisficing the agent <em>does</em> have an objective function, which has the general interpretation of “more is better”, but which might still not reflect all aspects of the agent’s preferences. In such a case, finding the maximum of the imperfect objective function would incur too large costs of a type not included in the specification of the objective function, and would thus not be advisable.<br>
+                A satisficing agent would thus <em>choose to not fully maximize</em>, but rather stop searching for further improvements of the objective function once a certain level has been reached.
+            </p>
+            </div>
+                </details>
+            <h3>Goodhart’s law</h3>
+            <p>
+                Even though behavioral science suggests that <em>human</em> behavior can sometimes be well modeled as “satisficing” behavior, we do <em>not</em> adopt a “satisficing” approach here because it does not address another common safety risk from maximizing an imperfect objective function known as “Goodhart’s law.”
+            </p>
+            <p>
+                <a href=https://en.wikipedia.org/wiki/Goodhart%27s_law">Goodhart’s law</a> serves as a critical caution in the formulation and pursuit of goals, especially in complex systems such as those managed by AI. The law consists in the finding that, usually
+<blockquote>
+	<p>when a measure becomes a target, it ceases to be a good measure.</p>
+</blockquote>
+This principle highlights a fundamental risk in setting objectives, particularly in AI-driven endeavors. By making a specific measure the target of an AI agent’s actions, we inadvertently shift its goals. The agent, in striving to optimize for this target, may exploit loopholes or take shortcuts that <em>align with the letter of the goal but deviate from its intended spirit</em>. This can lead to unintended consequences, where the pursuit of a narrowly defined objective overshadows broader considerations, such as ethical implications, societal impact, or long-term sustainability.
+            </p>
+            <p>
+                In the context of our research, Goodhart’s law underscores the importance of designing AI agents whose goals are not to maximize some objective function. Instead, by embracing aspiration-based goals, we aim to create systems that are inherently more aligned with holistic and adaptable criteria.<br>
+                This approach seeks to mitigate the risks associated with Goodhart’s law by ensuring that the metrics used to guide AI behavior are not fixed targets but rather flexible aspirations that encourage the agent to consider a wider range of outcomes and behaviors. Thus, our project recognizes and addresses the challenge posed by Goodhart’s law, advocating for a more nuanced and safety-conscious strategy in the development of AI systems.
+            </p>
+            <h2>Challenges</h2>
+            <ol>
+                <li aria-level="1">
+                    Dealing with different forms of uncertainty, incoming data, changing circumstances or goals, chance, and good or bad luck.
+                </li>
+                <li aria-level="1">
+                    Adapting existing model-based planning and reinforcement learning algorithms from the maximizing context into the aspiration-based context.
+                </li>
+                <li aria-level="1">
+                    Dealing with goals specified as constraints on several variables, such as temperature and precipitation, without merging them into one joint indicator.
+                </li>
+            </ol>
+            <h2>Contributions and Impact</h2>
+            <p>
+                By advancing the understanding and implementation of non-maximizing, aspiration-based AI agents, SatisfIA aims to contribute significantly to the field of AI safety. The project’s outcomes will include well-documented software components, academic papers, and educational materials to disseminate our findings and encourage further research in this vital area.
+            </p>
+            <p>
+                In essence, SatisfIA is pioneering a shift towards safer AI by embedding the principles of aspiration-based decision making at the core of AI agent design. This research not only challenges conventional maximization paradigms but also opens new avenues for creating AI systems that are not contradicting human values and safety requirements.
+            </p>
+            <h2>The Team</h2>
+            <div class="team">
+                <div class="member">
+                    <div class="portrait">
+                        <img src="assets/img/bj.jpg">
+                    </div>
+                    <div class="name">
+                    Bob Jacobs 
+                    </div>
+                    <div class="description">
+                    Student of moral science at the University of Ghent
+                    </div>
+                    <div class="tags">
+                    </div>
+                </div>
+                <div class="member">
+                    <div class="portrait">
+                        <img src="assets/img/jh.png">
+                    </div>
+                    <div class="name">
+                    Jobst Heitzig
+                    </div>
+                    <div class="description">
+                    Project lead
+                    </div>
+                    <div class="tags">
+                    <div class="tag">project management</div>
+                    <div class="tag">overall theory</div>
+                    <div class="tag">adjusting goals over time</div>
+                    </div>
+                </div>
+                <div class="member">
+                    <div class="portrait">
+                        <img src="assets/img/km.png">
+                    </div>
+                    <div class="name">
+                    Krystal Maughan
+                    </div>
+                    <div class="description">
+                    PhD student
+                    </div>
+                    <div class="tags">
+                        <div class="tag">Deep learning</div>
+                        <div class="tag">information theory</div>
+                    </div>
+                </div>
+                <div class="member">
+                    <div class="portrait">
+                        <img src="assets/img/mk.jpg">
+                    </div>
+                    <div class="name">
+                    Martin Kunev
+                    </div>
+                    <div class="description">
+                    AI engineer
+                    </div>
+                    <div class="tags">
+                    </div>
+                </div>
+                <div class="member">
+                    <div class="portrait">
+                        <img src="assets/img/mr.jpg">
+                    </div>
+                    <div class="name">
+                        Massimo Redaelli
+                    </div>
+                    <div class="description">
+                        Software Engineer
+                    </div>
+                    <div class="tags">
+                    </div>
+                </div>
+                <div class="member">
+                    <div class="portrait">
+                        <!-- <img src="assets/img/.jpg"> -->
+                    </div>
+                    <div class="name">
+                    Simon Dima 
+                    </div>
+                    <div class="description">
+                        Master’s student in Computer science, <span lang="fr">École Normale Supérieure</span>
+                    </div>
+                    <div class="tags">
+                        <!-- <div class="tag"></div> -->
+                    </div>
+                </div>
+                <div class="member">
+                    <div class="portrait">
+                        <img src="assets/img/sf.jpg">
+                    </div>
+                    <div class="name">
+                    Simon Fischer
+                    </div>
+                    <div class="description">
+                    Independent AI safety researcher
+                    </div>
+                    <div class="tags">
+                    </div>
+                </div>
+                <div class="member">
+                    <div class="portrait">
+                        <img src="assets/img/vi.jpg">
+                    </div>
+                    <div class="name">
+                    Vladimir Ivanov
+                    </div>
+                    <div class="description">
+                    Master’s CS student
+                    </div>
+                    <div class="tags">
+                        <div class="tag">Deep learning</div>
+                    </div>
+                </div>
+                <!--
+                <div class="member">
+                    <div class="portrait">
+                        <img src="assets/img/.jpg">
+                    </div>
+                    <div class="name">
+                    </div>
+                    <div class="description">
+                    </div>
+                    <div class="tags">
+                        <div class="tag"></div>
+                    </div>
+                </div>
+                -->
+            </div>
+        </div>
+    </body>
+</html>
