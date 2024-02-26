@@ -2,7 +2,7 @@ $theme: custom ;
 $custom-font-body: 'Noto Sans', sans-serif ; 
 $custom-font-headings: 'Noto Sans', sans-serif ;
 body{ 
-   font-optical-sizing: auto;
+  font-optical-sizing: auto;
   font-weight: 350;
   font-variation-settings:
     "wdth" 88;
@@ -87,7 +87,7 @@ a:after {
   content: "⤴";
   font-weight: 450;
 }
-em {
+strong {
   font-weight: 450;
   color: $color-red;
   font-variation-settings:
@@ -105,6 +105,7 @@ em {
 }
 .member .portrait {
   width: 200px;
+  height: 200px;
   margin-right: 2em;
   float: left;
 }
@@ -117,6 +118,7 @@ em {
 }
 .member .portrait img {
   height: 200px;
+  width: 200px;
 }
 .member .name {
   font-weight: 450;
@@ -152,4 +154,9 @@ details > div {
 details[open] > summary::after {
   content: "got it!";
   color: green;
+}
+@media screen  {
+  body {
+    margin: 1em;
+  }
 }

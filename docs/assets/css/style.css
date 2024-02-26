@@ -75,7 +75,7 @@ a:after {
   font-weight: 450;
 }
 
-em {
+strong {
   font-weight: 450;
   color: #ff0000;
   font-variation-settings: "wdth" 95;
@@ -798,6 +798,7 @@ video {
 
 .member .portrait {
   width: 200px;
+  height: 200px;
   margin-right: 2em;
   float: left;
 }
@@ -813,6 +814,7 @@ video {
 
 .member .portrait img {
   height: 200px;
+  width: 200px;
 }
 
 .member .name {
@@ -853,4 +855,10 @@ details > div {
 details[open] > summary::after {
   content: "got it!";
   color: green;
+}
+
+@media screen {
+  body {
+    margin: 1em;
+  }
 }
