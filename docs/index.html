@@ -22,14 +22,20 @@
             <img src="assets/img/logo_colored.svg" width="100%">
             <h2>The SatisfIA project</h2>
             <p>
-                We are an interdisciplinary research team developing aspiration-based designs for intelligent agents. The project is hosted by the FutureLab on <a href="https://www.pik-potsdam.de/en/institute/futurelabs/gane/futurelab-gane">Game Theory &amp; Networks of Interacting Agents</a> at PIK in collaboration with the <a href="https://aisafety.camp">AI Safety Camp</a>, <a href="https://sparai.notion.site/Supervised-Program-for-Alignment-Research-SPAR-4da6be132e974823961abfdd0c218536">SPAR</a>, and <a href="https://www.ens.psl.eu/en">ENS Paris</a>, led by <a href="https://www.pik-potsdam.de/members/heitzig">Jobst Heitzig</a>. <br>
-                Our original contribution to AI safety research is our focus on <b>non-maximizing agents</b>. The project’s approach diverges from traditional AI designs that are based on the idea of maximizing objective functions, which is unsafe if these objective functions are not perfectly aligned with actually desired outcomes. <br>
+                We are an interdisciplinary research team developing aspiration-based designs for intelligent agents. The project is hosted by the <a href="https://www.pik-potsdam.de/en/institute/futurelabs/gane/futurelab-gane">FutureLab on Game Theory &amp; Networks of Interacting Agents</a> at PIK in collaboration with the <a href="https://aisafety.camp">AI Safety Camp</a>, <a href="https://sparai.notion.site/Supervised-Program-for-Alignment-Research-SPAR-4da6be132e974823961abfdd0c218536">SPAR</a>, and <a href="https://www.ens.psl.eu/en">ENS Paris</a>, led by <a href="https://www.pik-potsdam.de/members/heitzig">Jobst Heitzig</a>.
+	    </p>
+	    <p>
+                Our original contribution to AI safety research is our focus on <strong>non-maximizing agents</strong>. The project’s approach diverges from traditional AI designs that are based on the idea of maximizing objective functions, which is unsafe if these objective functions are not perfectly aligned with actually desired outcomes.
+	    </p>
+	    <p>
                 Instead, SatisfIA’s AI agents are designed to fulfill goals specified through constraints known as <strong>aspirations</strong>, reducing the likelihood of extreme actions and increasing safety.
             </p>
             <h2>Research focus</h2>
             <p>
-                Our research explores various designs of these non-maximizing agents and corresponding planning and/or learning algorithms, primarily variations of model-based planning and <a href="https://en.wikipedia.org/wiki/Reinforcement_learning">reinforcement learning</a> in fully or partially observed <a href="https://en.wikipedia.org/wiki/Markov_decision_process">Markov Decision Processes</a>.<br>
-                This involves the theoretical design of agents and algorithms, implementing them in software (mostly using Python and/or <a href="https://webppl.org/">WebPPL</a>), simulating their behavior in test environments such as <a href="https://github.com/google-deepmind/ai-safety-gridworlds">AI safety gridworlds</a>, and analyzing their behavior and safety implications. The goal is to provide numerical evidence and formal proofs where possible, and to contribute to the academic and non-academic discourse through publications and blog posts.
+                Our research explores various designs of these non-maximizing agents and corresponding planning and/or learning algorithms, primarily variations of model-based planning and <a href="https://en.wikipedia.org/wiki/Reinforcement_learning">reinforcement learning</a> in fully or partially observed <a href="https://en.wikipedia.org/wiki/Markov_decision_process">Markov Decision Processes</a>.
+	    </p>
+	    <p>
+		This involves the theoretical design of agents and algorithms, implementing them in software (mostly using Python and/or <a href="https://webppl.org/">WebPPL</a>), simulating their behavior in test environments such as <a href="https://github.com/google-deepmind/ai-safety-gridworlds">AI safety gridworlds</a>, and analyzing their behavior and safety implications. The goal is to provide numerical evidence and formal proofs where possible, and to contribute to the academic and non-academic discourse through publications and blog posts.
             </p>
             <h2>Motivation and background</h2>
             <p>
@@ -45,12 +51,15 @@
             <h2>Theoretical foundations</h2>
             <h3>Aspiration-based goals</h3>
             <p>
-                In contrast to traditional AI, we do <em>not</em> think that one should give a powerful AI system the goal or task to take that action which results in the largest possible value of some objective function (“maximizing”). Instead, we assume that goals and tasks for powerful AI systems should be formulated <em>without any reference to such a function at all</em>. Instead, goals should be specified by requesting that certain observables or variables should fall into certain desirable ranges. E.g., a powerful climate-managing AI system should rather be given a task such as “keep global mean temperature in the range between zero and two degrees warming without decreasing global GDP”, rather than “maximize this or that complicated function of temperature and GDP”.</p>
-            <p>
-		These desirability ranges are called <em>aspirations</em> in our project. Since aspiration-based goals are typically easier to fulfill than maximizing a certain objective function, the agent gains some freedom in choosing <em>how</em> exactly to achieve them. Hence we can design agents so that they use this freedom to fulfill the goals in ways that are generally safer than what a maximizing agent would do.
+                In contrast to traditional AI, we do <em>not</em> think that one should give a powerful AI system the goal or task to take that action which results in the largest possible value of some objective function (“maximizing”). Instead, we assume that goals and tasks for powerful AI systems should be formulated <em>without any reference to such a function at all</em>. Instead, goals should be specified by requesting that certain observables or variables should fall into certain desirable ranges. 
 	    </p>
 	    <p>
-		In order to find these safer ways of satisfying the constraints, our designs make use of a number of safety criteria such as
+		E.g., a powerful climate-managing AI system should rather be given a task such as “keep global mean temperature in the range between zero and two degrees warming without decreasing global GDP”, rather than “maximize this or that complicated function of temperature and GDP”.</p>
+            <p>
+		These desirability ranges are called <strong>aspirations</strong> in our project. Since aspiration-based goals are typically easier to fulfill than maximizing a certain objective function, the agent gains some freedom in choosing <em>how</em> exactly to achieve them. Hence we can design agents so that they use this freedom to fulfill the goals in ways that are generally <em>safer</em> than what a maximizing agent would do.
+	    </p>
+	    <p>
+		In order to find these safer ways of satisfying the aspirations, our designs make use of a number of <strong>safety criteria</strong> such as
                 <ul>
                     <li>how much the agent changes or disturbs its environment,</li>
                     <li>how predictable or conventional its actions are,</li>
@@ -59,7 +68,7 @@
 	    </p>
                 <details>
                     <summary>
-                    This approach is fundamentally different from the alternative approach of “<a href="https://en.wikipedia.org/wiki/Satisficing">satisficing</a>”
+                    This approach is fundamentally different from the alternative approach of <a href="https://en.wikipedia.org/wiki/Satisficing">“satisficing”</a>
                     </summary><div>
             <p>
                  In the satisficing approach, the agent <em>does</em> have an objective function, which has the general interpretation of “more is better”, but which might still not reflect <em>all</em> aspects of the agent’s preferences. In such a case, bringing about the maximum of that imperfect objective function would incur too large costs of a type not included in the specification of the objective function, and would thus not be optimal or even advisable.<br>
@@ -69,21 +78,21 @@
                 </details>
             <h3>Goodhart’s law</h3>
             <p>
-                Even though behavioral science suggests that <em>human</em> behavior can sometimes be well modeled as “satisficing” behavior, we do <em>not</em> adopt a “satisficing” approach here because it does not address another common safety risk from maximizing an imperfect objective function known as “Goodhart’s law.”
+                Even though behavioral science suggests that <em>human</em> behavior can sometimes be well modeled as “satisficing” behavior, we do <em>not</em> adopt a “satisficing” approach here because it does not address <em>another</em> common safety risk from using objective functions: “Goodhart’s law.”
             </p>
             <p>
-                <a href=https://en.wikipedia.org/wiki/Goodhart%27s_law">Goodhart’s law</a> serves as a critical caution in the formulation and pursuit of goals, especially in complex systems such as those managed by AI. The law consists in the finding that, usually
+                <a href="https://en.wikipedia.org/wiki/Goodhart%27s_law">Goodhart’s law</a> serves as a critical caution in the formulation and pursuit of goals, especially in complex systems such as those a general-purpose AI system will typically find itself in. The law consists in the finding that, usually,
 <blockquote>
 	<p>when a measure becomes a target, it ceases to be a good measure.</p>
 </blockquote>
-This principle highlights a fundamental risk in setting objectives, particularly in AI-driven endeavors. By making a specific measure the target of an AI agent’s actions, we inadvertently shift its goals. The agent, in striving to optimize for this target, may exploit loopholes or take shortcuts that <em>align with the letter of the goal but deviate from its intended spirit</em>. This can lead to unintended consequences, where the pursuit of a narrowly defined objective overshadows broader considerations, such as ethical implications, societal impact, or long-term sustainability.
+This principle highlights a fundamental risk in setting objectives, particularly in AI-driven endeavors. By making a specific measure the objective function of an AI agent’s actions, we inadvertently shift its goals. The agent, in striving to maximize that objective function, may exploit loopholes or take shortcuts that <em>align with the letter of the goal but deviate from its intended spirit</em>. This will usually lead to unintended consequences and side-effects, where the pursuit of a narrowly defined objective overshadows broader, not explicitly specified considerations, such as ethical implications, societal impact, or long-term sustainability.
             </p>
             <p>
-                In the context of our research, Goodhart’s law underscores the importance of designing AI agents whose goals are not to maximize some objective function. Instead, by embracing aspiration-based goals, we aim to create systems that are inherently more aligned with holistic and adaptable criteria.<br>
+                In the context of our research, Goodhart’s law underscores the importance of designing AI agents whose goals are <em>the full or partial maximization of some objective function</em>. Instead, by embracing aspiration-based designs, we aim to create systems that are inherently more aligned with holistic and adaptable criteria.<br>
                 This approach seeks to mitigate the risks associated with Goodhart’s law by ensuring that the metrics used to guide AI behavior are not fixed targets but rather flexible aspirations that encourage the agent to consider a wider range of outcomes and behaviors. Thus, our project recognizes and addresses the challenge posed by Goodhart’s law, advocating for a more nuanced and safety-conscious strategy in the development of AI systems.
             </p>
             <h2>Challenges</h2>
-            <ol>
+            <ul>
                 <li aria-level="1">
                     Dealing with different forms of uncertainty, incoming data, changing circumstances or goals, chance, and good or bad luck.
                 </li>
@@ -93,13 +102,13 @@ This principle highlights a fundamental risk in setting objectives, particularly
                 <li aria-level="1">
                     Dealing with goals specified as constraints on several variables, such as temperature and precipitation, without merging them into one joint indicator.
                 </li>
-            </ol>
+            </ul>
             <h2>Contributions and Impact</h2>
             <p>
-                By advancing the understanding and implementation of non-maximizing, aspiration-based AI agents, SatisfIA aims to contribute significantly to the field of AI safety. The project’s outcomes will include well-documented software components, academic papers, and educational materials to disseminate our findings and encourage further research in this vital area.
+                By advancing the understanding and implementation of non-maximizing, aspiration-based AI agents, the SatisfIA project aims to contribute significantly to the field of AI safety. The project’s outcomes will include well-documented software components, academic papers, and educational materials to disseminate our findings and encourage further research in this vital area.
             </p>
             <p>
-                In essence, SatisfIA is pioneering a shift towards safer AI by embedding the principles of aspiration-based decision making at the core of AI agent design. This research not only challenges conventional maximization paradigms but also opens new avenues for creating AI systems that are not contradicting human values and safety requirements.
+                In essence, SatisfIA is pioneering a shift towards safer AI by embedding the principles of aspiration-based decision making at the core of AI agent design. It can be seen as a form of AI that is <a href="https://groups.google.com/g/safe-by-design">“safe-by-design”</a>. This research not only challenges conventional maximization paradigms but also opens new avenues for creating AI systems that are not contradicting human values and safety requirements. Not the least, this research poses interesting mathematical and engineering questions!
             </p>
             <h2>The Team</h2>
             <div class="team">
@@ -137,9 +146,9 @@ This principle highlights a fundamental risk in setting objectives, particularly
                     Project lead
                     </div>
                     <div class="tags">
-                    <div class="tag">project management</div>
-                    <div class="tag">overall theory</div>
-                    <div class="tag">adjusting goals over time</div>
+                    <div class="tag">Project management</div>
+                    <div class="tag">Overall theory</div>
+                    <div class="tag">Adjusting goals over time</div>
                     </div>
                 </div>
                 <div class="member">
