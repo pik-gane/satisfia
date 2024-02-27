@@ -20,48 +20,50 @@
     <body>
         <div class="container">
             <img src="assets/img/logo_colored.svg" width="100%">
-            <h2>What is SatisfIA?</h2>
+            <h2>The SatisfIA project</h2>
             <p>
-                We are an interdisciplinary research team developing aspiration-based designs for intelligent agents. The project is hosted by the FutureLab on <a href="https://www.pik-potsdam.de/en/institute/futurelabs/gane/futurelab-gane">Game Theory &amp; Networks of Interacting Agents</a> at PIK in collaboration with the <a href="https://aisafety.camp">AI Safety Camp</a>, <a href="https://sparai.notion.site/Supervised-Program-for-Alignment-Research-SPAR-4da6be132e974823961abfdd0c218536">SPAR</a>, and <a href="https://www.ens.psl.eu/en">ENS Paris</a>, led by Jobst Heitzig. <br>
-                Our original contribution to AI safety research is our focus on <b>non-maximizing agents</b>. The project’s approach diverges from traditional AI designs that aim to maximize objective functions, which can be unsafe if these objective functions are not perfectly aligned with actually desired outcomes. <br>
-                Instead, SatisfIA’s AI agents are designed to fulfill goals specified through constraints known as <b>aspirations</b>, reducing the likelihood of extreme actions and increasing safety.
+                We are an interdisciplinary research team developing aspiration-based designs for intelligent agents. The project is hosted by the FutureLab on <a href="https://www.pik-potsdam.de/en/institute/futurelabs/gane/futurelab-gane">Game Theory &amp; Networks of Interacting Agents</a> at PIK in collaboration with the <a href="https://aisafety.camp">AI Safety Camp</a>, <a href="https://sparai.notion.site/Supervised-Program-for-Alignment-Research-SPAR-4da6be132e974823961abfdd0c218536">SPAR</a>, and <a href="https://www.ens.psl.eu/en">ENS Paris</a>, led by <a href="https://www.pik-potsdam.de/members/heitzig">Jobst Heitzig</a>. <br>
+                Our original contribution to AI safety research is our focus on <b>non-maximizing agents</b>. The project’s approach diverges from traditional AI designs that are based on the idea of maximizing objective functions, which is unsafe if these objective functions are not perfectly aligned with actually desired outcomes. <br>
+                Instead, SatisfIA’s AI agents are designed to fulfill goals specified through constraints known as <strong>aspirations</strong>, reducing the likelihood of extreme actions and increasing safety.
             </p>
-            <h2>Research Focus</h2>
+            <h2>Research focus</h2>
             <p>
-                Our research explores various designs of these non-maximizing agents and corresponding planning and/or learning algorithms, primarily variations of model-based planning and <a href="https://en.wikipedia.org/wiki/Reinforcement_learning">Reinforcement Learning</a> in fully or partially observed <a href="https://en.wikipedia.org/wiki/Markov_decision_process">Markov Decision Processes</a>.<br>
-                This involves a theoretical design of agents and algorithms, implementing them in software (mostly using Python and/or <a href="https://webppl.org/">WebPPL</a>), simulating their behavior in test environments such as AI safety gridworlds, and analyzing their behavior and safety implications. The goal is to provide numerical evidence and formal proofs where possible, contributing to the academic discourse through publications and blog posts.
+                Our research explores various designs of these non-maximizing agents and corresponding planning and/or learning algorithms, primarily variations of model-based planning and <a href="https://en.wikipedia.org/wiki/Reinforcement_learning">reinforcement learning</a> in fully or partially observed <a href="https://en.wikipedia.org/wiki/Markov_decision_process">Markov Decision Processes</a>.<br>
+                This involves the theoretical design of agents and algorithms, implementing them in software (mostly using Python and/or <a href="https://webppl.org/">WebPPL</a>), simulating their behavior in test environments such as <a href="https://github.com/google-deepmind/ai-safety-gridworlds">AI safety gridworlds</a>, and analyzing their behavior and safety implications. The goal is to provide numerical evidence and formal proofs where possible, and to contribute to the academic and non-academic discourse through publications and blog posts.
             </p>
-            <h2>Motivation and Background</h2>
+            <h2>Motivation and background</h2>
             <p>
                 The motivation for this research stems from a growing consensus among AI researchers and the public about the potential existential threat posed by powerful AI agents if not properly aligned with human values and safety concerns.<br>
                 In the worst case scenario it won’t be possible to align AI’s with human values, since 
-            </p>
                 <ul>
                     <li>there might not be a set of universally acceptable values, </li>
                     <li>they might not be formalizable,</li>
                     <li>if they are, it might not be possible to discover or implement them before risk-factors start appearing.</li>
                 </ul>
-                <p>By adopting a non-maximizing, aspiration-based approach, we aim to address these safety concerns directly by designing AI agents that operate within safer, more predictable parameters.
+                By adopting a non-maximizing, aspiration-based approach, we aim to address these safety concerns directly by helping designing AI agents that operate in a safer and maybe also more predictable way.
             </p>
-            <h2>Theoretical Foundations</h2>
+            <h2>Theoretical foundations</h2>
             <h3>Aspiration-based goals</h3>
             <p>
-                Rather than assuming that the goal or task of an AI agent should be to maximize some objective function, the project assumes that goals are formulated <em>without any reference to such a function at all</em>. Instead, goals are specified by requesting that certain variables, such as global mean temperature, should fall into certain desirable ranges, such as between zero and two degrees of warming.</p>
-            <p>These ranges are called <em>aspirations</em>. Since such aspiration-based goals are typically easier to fulfill than maximizing a certain objective function, the agent has some freedom in choosing how to achieve them. Hence we can design agents so that they use this freedom to fulfill the goals in ways that are generally safer than what a maximizing agent would do.<br>
-                In order to find these safer ways of satisfying the constraints, our designs make use of a number of safety criteria such as
-            </p>
+                In contrast to traditional AI, we do <em>not</em> think that one should give a powerful AI system the goal or task to take that action which results in the largest possible value of some objective function (“maximizing”). Instead, we assume that goals and tasks for powerful AI systems should be formulated <em>without any reference to such a function at all</em>. Instead, goals should be specified by requesting that certain observables or variables should fall into certain desirable ranges. E.g., a powerful climate-managing AI system should rather be given a task such as “keep global mean temperature in the range between zero and two degrees warming without decreasing global GDP”, rather than “maximize this or that complicated function of temperature and GDP”.</p>
+            <p>
+		These desirability ranges are called <em>aspirations</em> in our project. Since aspiration-based goals are typically easier to fulfill than maximizing a certain objective function, the agent gains some freedom in choosing <em>how</em> exactly to achieve them. Hence we can design agents so that they use this freedom to fulfill the goals in ways that are generally safer than what a maximizing agent would do.
+	    </p>
+	    <p>
+		In order to find these safer ways of satisfying the constraints, our designs make use of a number of safety criteria such as
                 <ul>
                     <li>how much the agent changes or disturbs its environment,</li>
                     <li>how predictable or conventional its actions are,</li>
                     <li>how much influence or resources it acquires or uses.</li>
                 </ul>
+	    </p>
                 <details>
                     <summary>
                     This approach is fundamentally different from the alternative approach of “<a href="https://en.wikipedia.org/wiki/Satisficing">satisficing</a>”
                     </summary><div>
-            <p >
-                 In satisficing the agent <em>does</em> have an objective function, which has the general interpretation of “more is better”, but which might still not reflect all aspects of the agent’s preferences. In such a case, finding the maximum of the imperfect objective function would incur too large costs of a type not included in the specification of the objective function, and would thus not be advisable.<br>
-                A satisficing agent would thus <em>choose to not fully maximize</em>, but rather stop searching for further improvements of the objective function once a certain level has been reached.
+            <p>
+                 In the satisficing approach, the agent <em>does</em> have an objective function, which has the general interpretation of “more is better”, but which might still not reflect <em>all</em> aspects of the agent’s preferences. In such a case, bringing about the maximum of that imperfect objective function would incur too large costs of a type not included in the specification of the objective function, and would thus not be optimal or even advisable.<br>
+                A satisficing agent would thus choose to <em>not go all the way</em> towards the maximum of the imperfect objective function, but would rather stop searching for further increases in the objective function once a certain value of that function has been reached.
             </p>
             </div>
                 </details>
