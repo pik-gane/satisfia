@@ -11,6 +11,9 @@ from abc import ABC, abstractmethod
 VERBOSE = False
 DEBUG = False
 
+pad = str
+prettyState = str
+
 class AspirationAgent(ABC):
 	def __init__(self, params):
 		"""
@@ -138,9 +141,11 @@ class AspirationAgent(ABC):
 		if VERBOSE or DEBUG:
 			print(pad(state), "maxAdmissibleV, state", state, "...")
 
+		v = 0
 		actions = self.possible_actions(state)
-		qs = [self.maxAdmissibleQ(state, a) for a in actions] # recursion
-		v = max(qs) if self["maxLambda"] == 1 else interpolate(min(qs), self["maxLambda"], max(qs))
+		if actions != []:
+			qs = [self.maxAdmissibleQ(state, a) for a in actions] # recursion
+			v = max(qs) if self["maxLambda"] == 1 else interpolate(min(qs), self["maxLambda"], max(qs))
 
 		if VERBOSE or DEBUG:
 			print(pad(state), "maxAdmissibleV, state", state, ":", v)
@@ -152,9 +157,11 @@ class AspirationAgent(ABC):
 		if VERBOSE or DEBUG:
 			print(pad(state), "minAdmissibleV, state", state, "...")
 
+		v = 0
 		actions = self.possible_actions(state)
-		qs = [self.minAdmissibleQ(state, a) for a in actions] # recursion
-		v = min(qs) if self["minLambda"] == 0 else interpolate(min(qs), self["minLambda"], max(qs))
+		if actions != []:
+			qs = [self.minAdmissibleQ(state, a) for a in actions] # recursion
+			v = min(qs) if self["minLambda"] == 0 else interpolate(min(qs), self["minLambda"], max(qs))
 
 		if VERBOSE or DEBUG:
 			print(pad(state), "minAdmissibleV, state", state, ":", v)
@@ -189,7 +196,7 @@ class AspirationAgent(ABC):
 	#@lru_cache(maxsize=None)
 	def estAspiration4action(self, state, action, aleph4state):
 		if DEBUG:
-			console.log("| | estAspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,"...")
+			print("| | estAspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,"...")
 		phi = self.admissibility4action(state, action)
 		if isSubsetOf(phi, aleph4state):
 			if VERBOSE or DEBUG:
@@ -230,6 +237,7 @@ class AspirationAgent(ABC):
 	def disorderingPotential_state(self, state): # recursive
 		actions = self.possible_actions(state)
 		maxMPpolicyWeights = [math.exp(self.disorderingPotential_action(state, a)) for a in actions]
+		# TODO what if the sum is 0
 		return math.log(sum(maxMPpolicyWeights))
 
 	# Based on the admissibility information computed above, we can now construct the policy,
@@ -256,9 +264,10 @@ class AspirationAgent(ABC):
 		# Clip aspiration interval to admissibility interval of state:
 		alephLo, alephHi = aleph4state = self.aspiration4state(state, aleph)
 
-		# Estimate aspiration intervals for all possible actions in a way 
+		# Estimate aspiration intervals for all possible actions in a way
 		# independent from the local policy that we are about to construct,
 		actions = self.possible_actions(state)
+		assert actions != []
 		estAlephs1 = [self.estAspiration4action(state, action, aleph4state) for action in actions]
 
 		# Estimate losses based on this estimated aspiration intervals
@@ -335,6 +344,7 @@ class AspirationAgent(ABC):
 					estAleph2 = estAlephs2[i2]
 					mid2 = midpoint(estAleph2)
 					p = relativePosition(mid1, midTarget, mid2)
+					# TODO try clipping
 
 					# Now we find the largest relative size of aleph1 and aleph2
 					# so that their mixture is still contained in aleph4state:
@@ -615,9 +625,6 @@ class AspirationAgent(ABC):
 		lFeasibilityPower = expr_params(lambda l: l * (self.maxAdmissibleQ(s, a) - self.minAdmissibleQ(s, a)) ** 2, "lossCoeff4FeasibilityPower")
 		lMP = expr_params(lambda l: l * self.disorderingPotential_action(s, a), "lossCoeff4DP")
 		lLRA1 = expr_params(lambda l: l * self.LRAdev_action(s, a, al4a, True), "lossCoeff4LRA1")
-		# TODO this requires world model
-		#lTime1 = expr_params(lambda l: l * int(not s.terminateAfterAction), "lossCoeff4Time1")
-		lTime1 = 1
 		lEntropy1 = expr_params(lambda l: l * self.behaviorEntropy_action(s, p, a), "lossCoeff4Entropy1")
 		lKLdiv1 = expr_params(lambda l: l * self.behaviorKLdiv_action(s, p, a), "lossCoeff4KLdiv1")
 
@@ -645,7 +652,7 @@ class AspirationAgent(ABC):
 		if "otherLocalLoss" in self.params:
 			lOther = expr_params(lambda l: l * self.otherLoss_action(s, a, al4a), "lossCoeff4OtherLoss") # recursion
 
-		res = lRandom + lFeasibilityPower + lMP + lLRA1 + lTime1 + lEntropy1 + lKLdiv1 \
+		res = lRandom + lFeasibilityPower + lMP + lLRA1 + self["lossCoeff4Time1"] + lEntropy1 + lKLdiv1 \
 							+ lVariance + lFourth + lCup + lLRA \
 							+ lTime + lDeltaVariation \
 							+ lEntropy + lKLdiv \
@@ -656,7 +663,7 @@ class AspirationAgent(ABC):
 				"lFeasibilityPower": lFeasibilityPower,
 				"lMP": lMP,
 				"lLRA1": lLRA1,
-				"lTime1": lTime1,
+				"lTime1": self["lossCoeff4Time1"],
 				"lEntropy1": lEntropy1,
 				"lKLdiv1": lKLdiv1,
 				"lVariance": lVariance,
@@ -750,6 +757,8 @@ class AgentMDPPlanning(AspirationAgent):
 		super().__init__(params)
 
 	def possible_actions(self, state):
+		if self.world.is_terminal(state):
+			return []
 		return self.world.possible_actions(state)
 
 	# Compute upper and lower admissibility bounds for Q and V that are allowed in view of maxLambda and minLambda:
@@ -766,12 +775,8 @@ class AgentMDPPlanning(AspirationAgent):
 		self.stateActionPairsSet.add((state, action))
 
 		Edel = self.world.raw_moment_of_delta(state, action)
-		#if state.terminateAfterAction:
-		if self.world.is_terminal(state):
-			q = Edel
-		else:
-			# Bellman equation
-			q = Edel + self.world.expectation(state, action, self.maxAdmissibleV) # recursion
+		# Bellman equation
+		q = Edel + self.world.expectation(state, action, self.maxAdmissibleV) # recursion
 
 		if VERBOSE or DEBUG:
 			print(pad(state), "maxAdmissibleQ, state", state, "action", action, ":", q)
@@ -787,12 +792,8 @@ class AgentMDPPlanning(AspirationAgent):
 		self.stateActionPairsSet.add((state, action))
 
 		Edel = self.world.raw_moment_of_delta(state, action)
-		#if state.terminateAfterAction:
-		if self.world.is_terminal(state):
-			q = Edel
-		else:
-			# Bellman equation
-			q = Edel + self.world.expectation(state, action, self.minAdmissibleV) # recursion
+		# Bellman equation
+		q = Edel + self.world.expectation(state, action, self.minAdmissibleV) # recursion
 
 		if VERBOSE or DEBUG:
 			print(pad(state), "minAdmissibleQ, state", state, "action", action, ":", q)
@@ -823,8 +824,7 @@ class AgentMDPPlanning(AspirationAgent):
 	#@lru_cache(maxsize=None)
 	def disorderingPotential_action(self, state, action): # recursive
 		def sample(nextState, probability):
-			#if state.terminateAfterAction:
-			if self.world.is_terminal(state):
+			if self.world.is_terminal(nextState):
 				return 0
 			else:
 				nextMP = self.disorderingPotential_state(nextState) # recursion

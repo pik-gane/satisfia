@@ -2,10 +2,13 @@
 
 """ TODO
 what are the policies in behaviorKLdiv_action
-what to do about world model dependency
-is the terminal action check correct
 what should localLoss be
 rounding errors when calculating aspiration4state break inequalities in localPolicy
+
+
+
+
+environment vs world model
 """
 
 import sys
