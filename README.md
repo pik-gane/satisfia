@@ -1,6 +1,9 @@
 # satisfia
 
-Satisficing-based Intelligent Agents
+Intelligent agents that satisfy aspirations. This is the main repository of code produced in the [SatisfIA project](https://pik-gane.github.io/satisfia/).
+
+![image](https://github.com/pik-gane/satisfia/assets/22815964/d2c2e297-eb51-4cef-8989-875e8bf20719)
+
 
 ## Requirements
 
