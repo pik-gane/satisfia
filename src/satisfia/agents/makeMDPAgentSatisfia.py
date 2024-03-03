@@ -4,8 +4,8 @@ import math
 from functools import cache, lru_cache
 import json
 
-from util import distribution
-from util.helper import *
+from satisfia.util import distribution
+from satisfia.util.helper import *
 
 from abc import ABC, abstractmethod
 
@@ -277,10 +277,11 @@ class AspirationAgent(ABC):
 		# since we don't know the actual probabilities of actions yet (we will determine those only later),
 		# but the loss estimation requires an estimate of the probability of the chosen action,
 		# we estimate the probability at 1 / number of actions:
-		def propensity(index, indices, estAlephs):
-			action = actions[index]
-			loss = self.combinedLoss(state, action, aleph4state, estAlephs[index], 1 / len(indices))
-			return min(1e100, max(math.exp(-loss / self["lossTemperature"]), 1e-100))
+		def propensity(indices, estAlephs):
+			p = 1 / len(indices)
+			losses = [self.combinedLoss(state, actions[index], aleph4state, estAlephs[index], p) for index in indices] # bottleneck
+			min_loss = min(losses)
+			return [max(math.exp(-(loss - min_loss) / self["lossTemperature"]), 1e-100) for loss in losses]
 
 		p_effective = {}
 
@@ -297,7 +298,7 @@ class AspirationAgent(ABC):
 				p[key] = weight
 
 		indices = list(range(len(actions)))
-		propensities = [propensity(index, indices, estAlephs1) for index in indices] # bottleneck
+		propensities = propensity(indices, estAlephs1)
 
 		if DEBUG:
 			print("| localPolicyData", prettyState(state), aleph, actions, propensities)
@@ -327,7 +328,7 @@ class AspirationAgent(ABC):
 				aleph2target = interpolate(estAleph1, 2.0, aleph4state)
 				# Due to the new target aleph, we have to recompute the estimated alephs and resulting losses and propensities:
 				estAlephs2 = [self.estAspiration4action(state, actions[index], aleph2target) for index in indices]
-				propensities2 = [propensity(index, indices2, estAlephs2) for index in indices2]
+				propensities2 = propensity(indices2, estAlephs2)
 
 				if DEBUG:
 					print("| localPolicyData", prettyState(state), aleph4state, {"a1": a1, "midTarget": midTarget, "estAleph1": estAleph1, "mid1": mid1, "indices2": indices2, "aleph2target": aleph2target, "estAlephs2": estAlephs2, "propensities2": propensities2})

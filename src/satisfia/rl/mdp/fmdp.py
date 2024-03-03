@@ -1,5 +1,5 @@
 from numpy import inf, log, argsort, sum
-from mdp import MDP
+from .mdp import MDP
 
 class FMDP(MDP):
     """A Feasibility Markov Decision Process"""
