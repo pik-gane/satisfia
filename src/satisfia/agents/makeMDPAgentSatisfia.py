@@ -9,10 +9,9 @@ from satisfia.util.helper import *
 
 from abc import ABC, abstractmethod
 
-VERBOSE = True #False
-DEBUG = True #False
+VERBOSE = False
+DEBUG = False
 
-# pad = str
 prettyState = str
 
 def pad(state):
@@ -198,7 +197,7 @@ class AspirationAgent(ABC):
 	# that does not depend on the local policy but is simply based on the state's aspiration interval,
 	# moved from the admissibility interval of the state to the admissibility interval of the action.
 	@lru_cache(maxsize=None)
-	def estAspiration4action(self, state, action, aleph4state):
+	def aspiration4action(self, state, action, aleph4state):
 		if DEBUG:
 			print(pad(state),"| | estAspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,"...")
 
@@ -282,7 +281,7 @@ class AspirationAgent(ABC):
 		# independent from the local policy that we are about to construct,
 		actions = self.possible_actions(state)
 		assert actions != []
-		estAlephs = [self.estAspiration4action(state, action, aleph4state) for action in actions]
+		estAlephs = [self.aspiration4action(state, action, aleph4state) for action in actions]
 
 		# Estimate losses based on this estimated aspiration intervals
 		# and use it to construct softmin propensities (probability weights) for choosing actions.
