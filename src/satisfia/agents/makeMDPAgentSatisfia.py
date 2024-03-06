@@ -331,8 +331,9 @@ class AspirationAgent(ABC):
 				aleph1 = estAlephs[i1]
 				mid1 = midpoint(aleph1)
 				indices2 = [index for index in indices if between(midTarget, midpoint(estAlephs[index]), mid1)]
+				propensities2 = propensity(indices2, estAlephs)
 
-				for i2, p2 in distribution.categorical(indices2, [propensities[i] for i in indices2]).categories():
+				for i2, p2 in distribution.categorical(indices2, propensities2).categories():
 					# Get admissibility interval for the second action.
 					a2 = actions[i2]
 					adm2 = self.admissibility4action(state, a2)
