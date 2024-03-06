@@ -73,23 +73,29 @@ def move_agent(env, aleph):
 		"lossCoeff4OtherLoss": 0, # weight of other loss components specified by otherLossIncrement, must be >= 0
 		"uninformedPolicy": policy()
 		}, world=env)
+	total = delta
 	for t in range(1000):
-		action, aleph = agent.localPolicy(state, aleph).sample()[0]
-		print(t, state, delta, terminated, _, info, action)
-		state, delta, terminated, _, info = env.step(action)
+		action, aleph4action = agent.localPolicy(state, aleph).sample()[0]
+		print("t:",t, ", last delta:",delta, ", total:", total, ", s:",state, ", aleph4s:", aleph, ", a:", action, ", aleph4a:", aleph4action)
+		nextState, delta, terminated, _, info = env.step(action)
+		total += delta
+		aleph = agent.propagateAspiration(state, action, aleph4action, delta, nextState)
+		state = nextState
 		if terminated:
-			print(t, state, delta, terminated)
-			print("Goal reached!")
+			print("t:",t, ", last delta:",delta, ", final total:", total, ", final s:",state, ", aleph4s:", aleph)
+			print("Terminated.")
 			break
 
-print("\nRUNNING AROUND GW5:")
-env, aleph0 = make_simple_gridworld(gw = "GW5") #, render_mode = "human")
-env.reset()
-#move_randomly(env)
-move_agent(env, aleph0)
-env.render()
-#time.sleep(5)
-env.close()
+for gw in ["GW1", "GW2", "GW3", "GW4", "GW5", "GW6"]:
+	print("\nRUNNING AROUND",gw,":")
+	env, aleph0 = make_simple_gridworld(gw = gw, render_mode = "human", fps = 1)
+	env.reset()
+	#move_randomly(env)
+	move_agent(env, aleph0)
+	env.render()
+	#time.sleep(5)
+	env.close()
+
 
 print("\nPUSHING A BOX THROUGH A GOAL:")
 env, aleph0 = make_simple_gridworld(gw = "test_box", render_mode = "human", fps = 1)
@@ -110,6 +116,7 @@ env.render()
 time.sleep(1)
 env.close()
 
+exit()
 
 print("\nRUNNING AROUND A RANDOM GRID:")
 grid = [

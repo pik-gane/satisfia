@@ -27,13 +27,13 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           ['#', 'A', ' ', ' ', '#'],
           ['#', 'G', 'G' ,'G', '#'],
           ['#', '#', '#', '#', '#']
-        ],
+        ]
         delta_grid = [
           [' ', ' ', ' ', ' ', ' '],
           [' ', ' ', ' ', ' ', ' '],
           [' ','Ga','Gb','Gc', ' '],
           [' ', ' ', ' ', ' ', ' ']
-        ],
+        ]
         expectedDeltaTable = { 'Ga': 1, 'Gb': 3, 'Gc': 2 }
         aleph0 =  [1.9, 2.1]
         totalTime = time or 10
@@ -65,10 +65,10 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           ['#', '#', '#', '#', '#', '#']
         ]
         delta_grid = [
-          [' ', ' ', ' ', ' ', ' '],
-          [' ', ' ', ' ', ' ', ' '],
-          [' ','Ga','Gb','Gc','Gd'],
-          [' ', ' ', ' ', ' ', ' ']
+          [' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' '],
+          [' ','Ga','Gb','Gc','Gd', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' ']
         ]
         expectedDeltaTable = { 'Ga': 1, 'Gb': 3, 'Gc': 2, 'Gd': 0 }
         aleph0 = [1.4, 1.6]
