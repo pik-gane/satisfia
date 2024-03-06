@@ -616,7 +616,7 @@ class AspirationAgent(ABC):
 		lLRA = expr_params(lambda l: l * self.LRAdev_action(s, a, al4a), "lossCoeff4LRA") # recursion
 
 		# timing-related criteria:
-		q_ones = expr_params(lambda x, y: Q_ones(s, a, al4a), "lossCoeff4DeltaVariation", "lossCoeff4Time")
+		q_ones = expr_params(lambda x, y: self.Q_ones(s, a, al4a), "lossCoeff4DeltaVariation", "lossCoeff4Time")
 		lTime = expr_params(lambda l: l * q_ones, "lossCoeff4Time")
 		lDeltaVariation = 0
 		if q_ones != 0:
@@ -990,7 +990,7 @@ class AgentMDPPlanning(AspirationAgent):
 
 		# Note for ANN approximation: Q_ones must be nonnegative. 
 		def one(nextState):
-			if self.world.is_terminal(nextState) or aleph4action == None:
+			if self.world.is_terminal(nextState):
 				return 1
 			else:
 				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
