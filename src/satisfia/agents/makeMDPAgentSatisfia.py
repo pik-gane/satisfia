@@ -49,7 +49,7 @@ class AspirationAgent(ABC):
 			"lossCoeff4LRA1": 1, # weight of current-state deviation of LRA from 0.5 in loss function, must be >= 0
 			"lossCoeff4Time1": 1, # weight of not terminating in loss function, must be >= 0
 			"lossCoeff4Entropy1": 1, # weight of current-state action entropy in loss function, must be >= 0
-			"lossCoeff4KLdiv1": 1, # weight of current-state KL divergence in loss function, must be >= 0
+			"lossCoeff4KLdiv1": 0, # weight of current-state KL divergence in loss function, must be >= 0
 
 			# THE FOLLOWING CAN IN PRINCIPLE ALSO COMPUTED OR LEARNED UPFRONT:
 
@@ -79,7 +79,7 @@ class AspirationAgent(ABC):
 			"sixthMomentOfDelta": (lambda state, action: 15 * self.params["varianceOfDelta"](state, action) ** 3) # assumes a Gaussian distribution
 		}
 
-		self.params = defaults | params
+		self.params = params | defaults
 		# TODO do I need to add params_.options
 
 		self.stateActionPairsSet = set()
