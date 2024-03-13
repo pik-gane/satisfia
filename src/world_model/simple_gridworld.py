@@ -1,4 +1,5 @@
 from functools import cache, lru_cache
+import os
 
 from . import MDPWorldModel
 
@@ -455,6 +456,7 @@ class SimpleGridworld(MDPWorldModel):
 
     def _render_frame(self):
         if self._window is None and self.render_mode == "human":
+            os.environ['SDL_VIDEO_WINDOW_POS'] = "%d,%d" % (900,0)
             pygame.init()
             pygame.display.init()
             self._window = pygame.display.set_mode(
