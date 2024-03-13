@@ -127,6 +127,9 @@ class categorical(_distribution):
 
 	def score(self, name):
 		return math.log(self._category2weight[name] / self._weight_total)
+	
+	def probability(self, name):
+		return self._category2weight[name] / self._weight_total
 
 	def categories(self):
 		for category in self._category2weight:

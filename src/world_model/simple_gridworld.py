@@ -237,10 +237,10 @@ class SimpleGridworld(MDPWorldModel):
         I.e. 0 corresponds to "right", 1 to "up" etc.
         """
         self._action_to_direction = {
-            0: np.array([1, 0]),  # right
-            1: np.array([0, 1]),  # up
-            2: np.array([-1, 0]), # left
-            3: np.array([0, -1]), # down
+            0: np.array([0, 1]),  # up
+            1: np.array([1, 0]),  # right
+            2: np.array([0, -1]), # down
+            3: np.array([-1, 0]), # left
         }
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
@@ -358,9 +358,9 @@ class SimpleGridworld(MDPWorldModel):
     @lru_cache(maxsize=None)
     def is_terminal(self, state):
         """Return True if the given state is a terminal state."""
-        t, _, prev_loc, _, _, _, _ = self._extract_state_attributes(state)
-        was_at_goal = prev_loc[0] >= 0 and self.xygrid[prev_loc] == 'G'
-        return (t == self.max_episode_length) or was_at_goal
+        t, loc, _, _, _, _, _ = self._extract_state_attributes(state)
+        is_at_goal = self.xygrid[loc] == 'G'
+        return (t == self.max_episode_length) or is_at_goal
 
     @lru_cache(maxsize=None)
     def transition_distribution(self, state, action, n_samples = None):
@@ -420,13 +420,16 @@ class SimpleGridworld(MDPWorldModel):
 
     @lru_cache(maxsize=None)
     def observation_and_reward_distribution(self, state, action, successor, n_samples = None):
+        """
+        Delta for a state accrues when entering the state, so it depends on successor:
+        """
         if state is None and action is None:
             return {(self._make_state(), 0): (1, True)}
-        t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
+        t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(successor)
         delta = self.time_deltas[t % self.time_deltas.size]
         if self.delta_xygrid[loc] in self.cell_code2delta:
             delta += self.cell_code2delta[self.delta_xygrid[loc]]
-        if t == self.max_episode_length:
+        if t == self.max_episode_length and self.xygrid[loc] != 'G':
             delta += self.timeout_delta
         return {(successor, delta): (1, True)}
 
