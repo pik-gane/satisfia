@@ -7,7 +7,7 @@ import PySimpleGUI as sg
 from environments.very_simple_gridworlds import make_simple_gridworld
 from satisfia.agents.makeMDPAgentSatisfia import AgentMDPPlanning
 
-gridworlds = ["AISG2", "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "test_box"]
+gridworlds = ["AISG2", "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "test_box"]
 parameter_data = [
     ("lossTemperature", 0, 10, 0.1),
     ("lossCoeff4Variance", 0, 100, 0),
@@ -25,6 +25,7 @@ parameter_data = [
     ('lossCoeff4DeltaVariation', 0, 100, 0), 
     ('lossCoeff4Entropy', 0, 100, 0), 
     ('lossCoeff4KLdiv', 0, 100, 0),
+    ('lossCoeff4TrajectoryEntropy', 0, 100, 0), 
     ('minLambda', 0, 1, 0), 
     ('maxLambda', 0, 1, 1), 
 ] # name, min, max, initial
@@ -73,9 +74,9 @@ while True:
         if event == sg.WINDOW_CLOSED:
             break
         elif event == 'restart_button':
-            print("RESTART gridworld", gridworld, parameter_values)
             gridworld = values['gridworld_dropdown']
             parameter_values = { pd[0]: values[pd[0]] for pd in parameter_data }
+            print("RESTART gridworld", gridworld, parameter_values)
             env, aleph = make_simple_gridworld(gw=gridworld, render_mode="human", fps=values['speed_slider'])
             state, delta, terminated, _, info = env.reset()
             agent = AgentMDPPlanning(parameter_values, world=env)

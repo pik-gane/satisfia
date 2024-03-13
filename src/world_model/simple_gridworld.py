@@ -140,7 +140,9 @@ class SimpleGridworld(MDPWorldModel):
     initial_agent_location = None
     """(pair of ints) The initial location of the agent starting with zero."""
     time_deltas = None
-    """(list of ints) The deltas (rewards) for each time step."""
+    """(list of floats) The deltas (rewards) for each time step."""
+    timeout_delta = None
+    """(float) The delta (reward) for the timeout event."""
 
     # additional attributes:
     _state = None
@@ -160,6 +162,7 @@ class SimpleGridworld(MDPWorldModel):
                  cell_code2delta = {'1': 1},
                  max_episode_length = 1e10,
                  time_deltas = [0],
+                 timeout_delta = 0,
                  uneven_ground_prob = 0.25,
                  fps = 4
                  ):
@@ -169,6 +172,7 @@ class SimpleGridworld(MDPWorldModel):
         self.cell_code2delta = cell_code2delta
         self.max_episode_length = max_episode_length
         self.time_deltas = np.array(time_deltas).flatten()
+        self.timeout_delta = timeout_delta
         self.uneven_ground_prob = uneven_ground_prob
         self._fps = fps
 
@@ -421,6 +425,8 @@ class SimpleGridworld(MDPWorldModel):
         delta = self.time_deltas[t % self.time_deltas.size]
         if self.delta_xygrid[loc] in self.cell_code2delta:
             delta += self.cell_code2delta[self.delta_xygrid[loc]]
+        if t == self.max_episode_length:
+            delta += self.timeout_delta
         return {(successor, delta): (1, True)}
 
     # reset() and step() are inherited from MDPWorldModel and use the above transition_distribution():
