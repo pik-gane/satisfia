@@ -932,12 +932,13 @@ class AgentMDPPlanning(AspirationAgent):
 
 	@lru_cache(maxsize=None)
 	def agencyChange_action(self, state, action): # recursive
+		"""the expected absolute change in log agency (to be independent of scale)"""
 		if self.debug:
 			print(pad(state),"| | | agencyChange_action", prettyState(state), action, '...')
 		# Note for ANN approximation: agency_action can only be non-negative. 
 		state_agency = self.agency_state(state)
 		def f(successor):
-			return abs(state_agency - self.agency_state(successor))
+			return 0 if self.world.is_terminal(successor) else abs(math.log(state_agency) - math.log(self.agency_state(successor)))
 		res = self.world.expectation(state, action, f)
 		if self.debug:
 			print(pad(state),"| | | ╰ agencyChange_action", prettyState(state), action, ':', res)

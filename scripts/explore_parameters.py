@@ -70,6 +70,9 @@ restart_button = sg.Button("(Re)start", key='restart_button')
 pause_button = sg.Button("Pause", key='pause_button')
 step_button = sg.Button("Step", key='step_button')
 continue_button = sg.Button("Continue", key='continue_button')
+
+autorestart_checkbox = sg.Checkbox("Auto restart", default=True, key='autorestart_checkbox')
+
 speed_slider = sg.Slider(range=(1, 20), default_value=10, orientation='h', key='speed_slider')
 
 # Create the layout
@@ -84,7 +87,7 @@ layout = [
         for r in range(len(parameter_data) // 2)
         ], element_justification='r')],
     [restart_button, pause_button, step_button, continue_button], 
-    [sg.Text("Speed"), speed_slider]
+    [autorestart_checkbox, sg.Text("Speed"), speed_slider]
 ]
 
 # Create the window
@@ -99,6 +102,25 @@ running = False
 stepping = False
 terminated = False
 
+def restart():
+    global gridworld, parameter_values, env, agent, running, stepping, terminated, t, state, total, aleph
+    gridworld = values['gridworld_dropdown']
+    parameter_values = { pd[0]: values[pd[0]] for pd in parameter_data }
+    parameter_values.update({
+        'verbose': values['verbose_checkbox'],
+        'debug': values['debug_checkbox'],
+        'allowNegativeCoeffs': True,
+        'uninformedPolicy': uninformedPolicy
+    })
+    print("\n\nRESTART gridworld", gridworld, parameter_values)
+    env, aleph = make_simple_gridworld(gw=gridworld, render_mode="human", fps=values['speed_slider'])
+    state, delta, terminated, _, info = env.reset()
+    agent = AgentMDPPlanning(parameter_values, world=env)
+    t = 0
+    total = delta
+    running = True
+    stepping = False
+
 while True:
     parsed_events = False
     while not parsed_events:
@@ -109,22 +131,7 @@ while True:
             for pd in parameter_data:
                 window[pd[0]].update(pd[3])
         elif event == 'restart_button':
-            gridworld = values['gridworld_dropdown']
-            parameter_values = { pd[0]: values[pd[0]] for pd in parameter_data }
-            parameter_values.update({
-                'verbose': values['verbose_checkbox'],
-                'debug': values['debug_checkbox'],
-                'allowNegativeCoeffs': True,
-                'uninformedPolicy': uninformedPolicy
-            })
-            print("\n\nRESTART gridworld", gridworld, parameter_values)
-            env, aleph = make_simple_gridworld(gw=gridworld, render_mode="human", fps=values['speed_slider'])
-            state, delta, terminated, _, info = env.reset()
-            agent = AgentMDPPlanning(parameter_values, world=env)
-            t = 0
-            total = delta
-            running = True
-            stepping = False
+            restart()
         elif event == 'pause_button':
             print("\n\nPAUSE")
             running = False
@@ -154,8 +161,11 @@ while True:
                 print("t:",t, ", last delta:",delta, ", final total:", total, ", final s:",state, ", aleph4s:", aleph)
                 print("Terminated.")
             running = stepping = False
-        t += 1
-        if stepping: stepping = False
+            if values['autorestart_checkbox']:
+                restart()
+        else:
+            t += 1
+            if stepping: stepping = False
     else:
         time.sleep(0.1)
 
