@@ -166,7 +166,7 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         ]
         expectedDeltaTable = { 'G': 1 }
         aleph0 = 1
-        totalTime = time or 15
+        totalTime = time or 10 #15
 
     else:
         world = None

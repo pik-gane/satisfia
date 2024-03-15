@@ -234,12 +234,11 @@ class SimpleGridworld(MDPWorldModel):
         """
         The following dictionary maps abstract actions from `self.action_space` to
         the direction we will walk in if that action is taken.
-        I.e. 0 corresponds to "right", 1 to "up" etc.
         """
         self._action_to_direction = {
-            0: np.array([0, 1]),  # up
-            1: np.array([1, 0]),  # right
-            2: np.array([0, -1]), # down
+            0: np.array([0, -1]), # up
+            1: np.array([1, 0]), # right
+            2: np.array([0, 1]), # down
             3: np.array([-1, 0]), # left
         }
 

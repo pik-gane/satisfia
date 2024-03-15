@@ -15,6 +15,9 @@ parameter_data = [
     ('lossCoeff4Fourth', -100, 100, 0, 1), 
     ('lossCoeff4Cup', -100, 100, 0, 1), 
 
+    ('lossCoeff4Random', -100, 100, 0, 1), 
+    ('lossCoeff4AgencyChange', -100, 100, 0, 1), 
+
     ('lossCoeff4FeasibilityPower', -100, 100, 0, 1), 
     ('lossCoeff4DP', -100, 100, 0, 1), 
 
@@ -32,8 +35,6 @@ parameter_data = [
 
     ('lossCoeff4DeltaVariation', -100, 100, 0, 1), 
     ('lossCoeff4TrajectoryEntropy', -100, 100, 0, 1), 
-
-#    ('lossCoeff4Random', -100, 100, 0, 1), 
 
     ('minLambda', 0, 1, 0, 0.01), 
     ('maxLambda', 0, 1, 1, 0.01), 

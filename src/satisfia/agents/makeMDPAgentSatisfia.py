@@ -19,16 +19,20 @@ def pad(state):
 	return " :            " * state[0]  # state[0] is the time step
 
 class AspirationAgent(ABC):
+
+	reachable_states = None
+	uninformedStatePrior = None
+
 	def __init__(self, params):
 		"""
 		If world is provided, maxAdmissibleQ, minAdmissibleQ, Q, Q2, ..., Q6 are not needed because they are computed from the world. Otherwise, these functions must be provided, e.g. as learned using some reinforcement learning algorithm. Their signature is
 		- maxAdmissibleQ|minAdmissibleQ: (state, action) -> float
 		- Q,Q2,...,Q6: (state, action, action, aleph4action) -> float
 
-		disorderingPotential_action, LRAdev_action, Q_ones, Q_DeltaSquare, behaviorEntropy_action, and behaviorKLdiv_action are only needed if their respective loss coefficients 
-		(lossCoeff4DP, lossCoeff4LRA, lossCoeff4Time, lossCoeff4Entropy, lossCoeff4KLdiv)
+		disorderingPotential_action, agency_action, LRAdev_action, Q_ones, Q_DeltaSquare, behaviorEntropy_action, and behaviorKLdiv_action are only needed if their respective loss coefficients 
+		(lossCoeff4DP, lossCoeff4AgencyChange, lossCoeff4LRA, lossCoeff4Time, lossCoeff4Entropy, lossCoeff4KLdiv)
 		are nonzero and no world model is provided. Their signature is
-		- disorderingPotential_action: (state, action) -> float
+		- disorderingPotential|agency_action: (state, action) -> float
 		- LRAdev_action|Q_ones|Q_DeltaSquare: (state, action, aleph4action) -> float
 		- behaviorEntropy_action|behaviorKLdiv_action: (state, actionProbability, action, aleph4action) -> float
 
@@ -55,6 +59,7 @@ class AspirationAgent(ABC):
 			# THE FOLLOWING CAN IN PRINCIPLE ALSO COMPUTED OR LEARNED UPFRONT:
 
 			"lossCoeff4DP": 1, # weight of disordering potential in loss function, must be >= 0
+			"lossCoeff4AgencyChange": 1, # weight of expected absolute agency change in loss function, must be >= 0
 
 			"uninformedStatePriorScore": 0,
 			"internalTransitionEntropy": 0,
@@ -96,6 +101,7 @@ class AspirationAgent(ABC):
 		assert self.params["allowNegativeCoeffs"] or self.params["lossCoeff4Random"] >= 0, "lossCoeff4random must be >= 0"
 		assert self.params["allowNegativeCoeffs"] or self.params["lossCoeff4FeasibilityPower"] >= 0, "lossCoeff4FeasibilityPower must be >= 0"
 		assert self.params["allowNegativeCoeffs"] or self.params["lossCoeff4DP"] >= 0, "lossCoeff4DP must be >= 0"
+		assert self.params["allowNegativeCoeffs"] or self.params["lossCoeff4AgencyChange"] >= 0, "lossCoeff4AgencyChange must be >= 0"
 		assert self.params["allowNegativeCoeffs"] or self.params["lossCoeff4LRA1"] >= 0, "lossCoeff4LRA1 must be >= 0"
 		assert self.params["allowNegativeCoeffs"] or self.params["lossCoeff4Time1"] >= 0, "lossCoeff4Time1 must be >= 0"
 		assert self.params["allowNegativeCoeffs"] or self.params["lossCoeff4Entropy1"] >= 0, "lossCoeff4Entropy1 must be >= 0"
@@ -257,10 +263,42 @@ class AspirationAgent(ABC):
 
 	@lru_cache(maxsize=None)
 	def disorderingPotential_state(self, state): # recursive
+		if self.debug or self.verbose:
+			print(pad(state),"| | disorderingPotential_state", prettyState(state), "...")
 		actions = self.possible_actions(state)
 		maxMPpolicyWeights = [math.exp(self.disorderingPotential_action(state, a)) for a in actions]
 		if sum(maxMPpolicyWeights) == 0: return 0 # TODO this shouldn't be 0
-		return math.log(sum(maxMPpolicyWeights))
+		res = math.log(sum(maxMPpolicyWeights))
+		if self.debug or self.verbose:
+			print(pad(state),"| | ╰ disorderingPotential_state", prettyState(state), ":", res)
+		return res
+
+	@lru_cache(maxsize=None)
+	def agency_state(self, state): # recursive
+		if self.debug or self.verbose:
+			print(pad(state),"| | | | agency_state", prettyState(state), "...")
+		if self.world.is_terminal(state):
+			res = 0
+		else:
+			if not self.uninformedStatePrior:
+				if not self.reachable_states:
+					self.reachable_states = self.world.reachable_states(state)
+					print("reachable states:", self.reachable_states)
+				scores = self.params["uninformedStatePriorScore"]
+				if not scores: scores = lambda s: 0
+				self.uninformedStatePrior = distribution.categorical(self.reachable_states, [math.exp(scores(s)) for s in self.reachable_states])
+			actions = self.possible_actions(state)
+			def X(other_state):
+				aps = [(a, self.world.transition_probability(state, a, other_state)[0]) for a in actions]
+				if max([p for (a, p) in aps]) > 0:  # other_state is possible successor 
+					next_agency = self.agency_state(other_state)
+					return max([math.sqrt(p) + p * next_agency for (a, p) in aps])
+				else:
+					return 0
+			res = self.uninformedStatePrior.expectation(X)
+		if self.debug or self.verbose:
+			print(pad(state),"| | | | ╰ agency_state", prettyState(state), ":", res)
+		return res
 
 	# Based on the admissibility information computed above, we can now construct the policy,
 	# which is a mapping taking a state and an aspiration interval as input and returning
@@ -664,7 +702,8 @@ class AspirationAgent(ABC):
 		# cheap criteria, including some myopic versions of the more expensive ones:
 		lRandom = expr_params(lambda l: l * self.randomTieBreaker(s, a), "lossCoeff4Random")
 		lFeasibilityPower = expr_params(lambda l: l * (self.maxAdmissibleQ(s, a) - self.minAdmissibleQ(s, a)) ** 2, "lossCoeff4FeasibilityPower")
-		lMP = expr_params(lambda l: l * self.disorderingPotential_action(s, a), "lossCoeff4DP")
+		lDP = expr_params(lambda l: l * self.disorderingPotential_action(s, a), "lossCoeff4DP")
+		lAgencyChange = expr_params(lambda l: l * self.agencyChange_action(s, a), "lossCoeff4AgencyChange")
 		lLRA1 = expr_params(lambda l: l * self.LRAdev_action(s, a, al4a, True), "lossCoeff4LRA1")
 		lEntropy1 = expr_params(lambda l: l * self.behaviorEntropy_action(s, p, a), "lossCoeff4Entropy1")
 		lKLdiv1 = expr_params(lambda l: l * self.behaviorKLdiv_action(s, p, a), "lossCoeff4KLdiv1")
@@ -694,7 +733,7 @@ class AspirationAgent(ABC):
 		if "otherLocalLoss" in self.params:
 			lOther = expr_params(lambda l: l * self.otherLoss_action(s, a, al4a), "lossCoeff4OtherLoss") # recursion
 
-		res = lRandom + lFeasibilityPower + lMP + lLRA1 + self["lossCoeff4Time1"] + lEntropy1 + lKLdiv1 \
+		res = lRandom + lFeasibilityPower + lDP + lAgencyChange + lLRA1 + self["lossCoeff4Time1"] + lEntropy1 + lKLdiv1 \
 							+ lVariance + lFourth + lCup + lLRA \
 							+ lTime + lDeltaVariation \
 							+ lEntropy + lKLdiv \
@@ -704,7 +743,8 @@ class AspirationAgent(ABC):
 			print(pad(s),"| | combinedLoss, state",prettyState(s),"action",a,"aleph4state",al4s,"aleph4action",al4a,"estActionProbability",p,":",res,"\n"+pad(s),"| |	", json.dumps({
 				"lRandom": lRandom,
 				"lFeasibilityPower": lFeasibilityPower,
-				"lMP": lMP,
+				"lDP": lDP,
+				"lAgency": lAgencyChange,
 				"lLRA1": lLRA1,
 				"lTime1": self["lossCoeff4Time1"],
 				"lEntropy1": lEntropy1,
@@ -722,7 +762,7 @@ class AspirationAgent(ABC):
 			}))
 		return res
 
-	def getData():
+	def getData(self): # FIXME: still needed?
 		return {
 			"stateActionPairs": list(self.stateActionPairsSet),
 			"states": list({pair[0] for pair in self.stateActionPairsSet}),
@@ -735,6 +775,8 @@ class AspirationAgent(ABC):
 	def minAdmissibleQ(self, state, action): pass
 	@abstractmethod
 	def disorderingPotential_action(self, state, action): pass
+	@abstractmethod
+	def agencyChange_action(self, state, action): pass
 
 	@abstractmethod
 	def LRAdev_action(self, state, action, aleph4action, myopic=False): pass
@@ -769,6 +811,7 @@ class AspirationAgent(ABC):
 class AgentMDPLearning(AspirationAgent):
 	def __init__(self, params, maxAdmissibleQ=None, minAdmissibleQ=None, 
 			disorderingPotential_action=None,
+			agencyChange_action=None,
 			LRAdev_action=None, Q_ones=None, Q_DeltaSquare=None, behaviorEntropy_action=None, behaviorKLdiv_action=None, otherLoss_action=None,
 			Q=None, Q2=None, Q3=None, Q4=None, Q5=None, Q6=None,
 			possible_actions=None):
@@ -777,6 +820,7 @@ class AgentMDPLearning(AspirationAgent):
 		self.maxAdmissibleQ = maxAdmissibleQ
 		self.minAdmissibleQ = minAdmissibleQ
 		self.disorderingPotential_action = disorderingPotential_action
+		self.agencyChange_action = agencyChange_action
 
 		self.LRAdev_action = LRAdev_action
 		self.behaviorEntropy_action = behaviorEntropy_action
@@ -884,6 +928,19 @@ class AgentMDPPlanning(AspirationAgent):
 		res = self.world.expectation_of_fct_of_probability(state, action, f)
 		if self.debug:
 			print(pad(state),"| | | ╰ disorderingPotential_action", prettyState(state), action, ':', res)
+		return res
+
+	@lru_cache(maxsize=None)
+	def agencyChange_action(self, state, action): # recursive
+		if self.debug:
+			print(pad(state),"| | | agencyChange_action", prettyState(state), action, '...')
+		# Note for ANN approximation: agency_action can only be non-negative. 
+		state_agency = self.agency_state(state)
+		def f(successor):
+			return abs(state_agency - self.agency_state(successor))
+		res = self.world.expectation(state, action, f)
+		if self.debug:
+			print(pad(state),"| | | ╰ agencyChange_action", prettyState(state), action, ':', res)
 		return res
 
 
