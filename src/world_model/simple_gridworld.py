@@ -271,12 +271,12 @@ class SimpleGridworld(MDPWorldModel):
                 and 0 <= to_loc[1] < self.xygrid.shape[1]
                 and not self.xygrid[to_loc] in unenterable_cell_types):
             return False
-        if self.xygrid[to_loc] == ',':
-            # can only move there if it hasn't turned into a wall yet:
-            if self._immovable_object_states[self.immovable_object_indices[to_loc]] > 0:
-                return False
         # TODO: add other conditions for not being able to move, e.g. because of other objects
         t, agent_loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
+        if self.xygrid[to_loc] == ',':
+            # can only move there if it hasn't turned into a wall yet:
+            if imm_states[self.immovable_object_indices[to_loc]] > 0:
+                return False
         # loop through all movable objects and see if they hinder the movement:
         for i, object_type in enumerate(self.movable_constant_object_types):
             if (mc_locs[2*i],mc_locs[2*i+1]) == to_loc:

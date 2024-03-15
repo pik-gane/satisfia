@@ -7,7 +7,7 @@ import PySimpleGUI as sg
 from environments.very_simple_gridworlds import make_simple_gridworld
 from satisfia.agents.makeMDPAgentSatisfia import AgentMDPPlanning
 
-gridworlds = ["AISG2", "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "test_box"]
+gridworlds = ["AISG2", "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "test_box"]
 parameter_data = [
     ("lossTemperature", 0, 100, 1, 1),
     ("lossCoeff4Variance", -100, 100, 0, 1),

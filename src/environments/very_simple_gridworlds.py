@@ -136,6 +136,22 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         timeout_delta = -10
         aleph0 = [-4,0]
 
+    elif gw == "GW23":
+        grid = [
+          ['#', '#', '#', '#', '#', '#', '#', '#', '#'],
+          ['#', ' ', ' ', ',', 'A', ' ', ' ', ' ', '#'],
+          ['#', '#', '#', '#', '#', '#', '#', '#', '#']
+        ]
+        delta_grid = [
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
+        ]
+        expectedDeltaTable = { }
+        time_deltas = [-1]
+        totalTime = 3
+        aleph0 = [0,0]
+
     elif gw == "test_box":
         grid = [
             [' ', 'X', ' ', 'X', 'A', 'X', 'G', ' ', ' ']
@@ -166,7 +182,7 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         ]
         expectedDeltaTable = { 'G': 1 }
         aleph0 = 1
-        totalTime = time or 10 #15
+        totalTime = time or 15
 
     else:
         world = None
