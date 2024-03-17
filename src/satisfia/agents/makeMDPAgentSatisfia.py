@@ -283,10 +283,12 @@ class AspirationAgent(ABC):
 			if not self.uninformedStatePrior:
 				if not self.reachable_states:
 					self.reachable_states = self.world.reachable_states(state)
-					print("reachable states:", self.reachable_states)
+					if self.debug or self.verbose:
+						print("no. of reachable states:", len(self.reachable_states))
 				scores = self.params["uninformedStatePriorScore"]
 				if not scores: scores = lambda s: 0
-				self.uninformedStatePrior = distribution.categorical(self.reachable_states, [math.exp(scores(s)) for s in self.reachable_states])
+				self.uninformedStatePriorProb = {s : math.exp(scores(s)) for s in self.reachable_states}
+				self.uninformedStatePrior = distribution.categorical(self.reachable_states, self.uninformedStatePriorProb.values())
 			actions = self.possible_actions(state)
 			def X(other_state):
 				aps = [(a, self.world.transition_probability(state, a, other_state)[0]) for a in actions]
@@ -295,7 +297,10 @@ class AspirationAgent(ABC):
 					return max([math.sqrt(p) + p * next_agency for (a, p) in aps])
 				else:
 					return 0
-			res = self.uninformedStatePrior.expectation(X)
+			possible_successors = self.world.possible_successors(state)
+			prob = self.uninformedStatePriorProb
+			these_probs = [prob[s] for s in possible_successors]
+			res = sum([these_probs[i] * X(s) for i,s in enumerate(possible_successors)]) / sum(these_probs)
 		if self.debug or self.verbose:
 			print(pad(state),"| | | | ╰ agency_state", prettyState(state), ":", res)
 		return res

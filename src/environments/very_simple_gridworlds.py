@@ -4,6 +4,7 @@ from world_model import SimpleGridworld
 
 def make_simple_gridworld(gw="GW1", time=None, **kwargs):
 
+    delta_grid = None
     time_deltas = [0]
     timeout_delta = -10
 
@@ -148,8 +149,23 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
         ]
         expectedDeltaTable = { }
-        time_deltas = [-1]
         totalTime = 3
+        aleph0 = [0,0]
+
+    elif gw == "GW24":
+        grid = [
+          [' ', ',', ' ', ',', ' ', ',', ' ', ',', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+          [',', ' ', ',', ' ', ',', ' ', ',', ' ', ','],
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', ',', ' ', ',', 'A', ',', ' ', ',', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+          [',', ' ', ',', ' ', ',', ' ', ',', ' ', ','],
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', ',', ' ', ',', ' ', ',', ' ', ',', ' '],
+        ]
+        expectedDeltaTable = { }
+        totalTime = 10
         aleph0 = [0,0]
 
     elif gw == "test_box":

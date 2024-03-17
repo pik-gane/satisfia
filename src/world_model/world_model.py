@@ -47,10 +47,16 @@ class WorldModel(Env):
         space = self.action_space
         return range(space.start, space.start + space.n)
     
-    def possible_successors(self, state, action, n_samples = None):
+    def possible_successors(self, state, action=None, n_samples = None):
         """Return a list of possible successor states after performing action in state,
         or, if state and action are None, a list of possible initial states."""
-        return list(self.transition_distribution(state, action, n_samples).keys())
+        if action is None:
+            res = set()
+            for action in self.possible_actions(state):
+                res.update(self.transition_distribution(state, action, n_samples).keys())
+        else:
+            res = self.transition_distribution(state, action, n_samples).keys()
+        return list(res)
     
     def reachable_states(self, state):
         """Return a list of all states that can be reached from the given state by taking any sequence of actions."""

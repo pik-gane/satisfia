@@ -159,7 +159,7 @@ class SimpleGridworld(MDPWorldModel):
 
     def __init__(self, render_mode = None, 
                  grid = [['A','G']],
-                 delta_grid = [[' ','1']],
+                 delta_grid = None,
                  cell_code2delta = {'1': 1},
                  max_episode_length = 1e10,
                  time_deltas = [0],
@@ -169,7 +169,7 @@ class SimpleGridworld(MDPWorldModel):
                  ):
 
         self.xygrid = xygrid = np.array(grid).T
-        self.delta_xygrid = delta_xygrid = np.array(delta_grid).T
+        self.delta_xygrid = delta_xygrid = np.array(delta_grid).T if delta_grid is not None else np.full(xygrid.shape, ' ')
         self.cell_code2delta = cell_code2delta
         self.max_episode_length = max_episode_length
         self.time_deltas = np.array(time_deltas).flatten()
@@ -360,6 +360,11 @@ class SimpleGridworld(MDPWorldModel):
         t, loc, _, _, _, _, _ = self._extract_state_attributes(state)
         is_at_goal = self.xygrid[loc] == 'G'
         return (t == self.max_episode_length) or is_at_goal
+
+    @lru_cache(maxsize=None)
+    def state_distance(self, state1, state2):
+        """Return the distance between the two given states, disregarding time."""
+        return np.sqrt(np.sum(np.power(np.array(state1)[1:] - np.array(state2)[1:], 2)))
 
     @lru_cache(maxsize=None)
     def transition_distribution(self, state, action, n_samples = None):
