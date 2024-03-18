@@ -10,7 +10,7 @@ body {
 }
 
 .green {
-  color: #00ff00;
+  color: #00aa00;
 }
 
 .blue {
@@ -428,7 +428,7 @@ h2 {
   margin-top: 2.7rem;
   margin-bottom: 13px;
   margin-bottom: 0.8125rem;
-  color: #00ff00;
+  color: #00aa00;
 }
 
 h3 {
@@ -440,7 +440,7 @@ h3 {
   margin-top: 2.1rem;
   margin-bottom: 13px;
   margin-bottom: 0.8125rem;
-  color: #00ff00;
+  color: #00aa00;
 }
 
 h4, h5, h5 {
@@ -452,7 +452,7 @@ h4, h5, h5 {
   margin-top: 1.6rem;
   margin-bottom: 13px;
   margin-bottom: 0.8125rem;
-  color: #00ff00;
+  color: #00aa00;
 }
 
 @media screen and (min-width: 40em) {
@@ -814,7 +814,7 @@ video {
   font-size: 80%;
   padding: 0.1em 0.5em;
   border-radius: 20px;
-  background: #00ff00;
+  background: #00aa00;
 }
 
 details > summary {
