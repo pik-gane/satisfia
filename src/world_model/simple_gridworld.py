@@ -439,6 +439,9 @@ class SimpleGridworld(MDPWorldModel):
 
     # reset() and step() are inherited from MDPWorldModel and use the above transition_distribution():
 
+    def initial_state(self):
+        return self._make_state()
+    
     def reset(self, seed = None, options = None): 
         ret = super().reset(seed = seed, options = options)
         if self.render_mode == "human":

@@ -1,6 +1,7 @@
 import json
 
 from world_model import SimpleGridworld
+from satisfia.util.helper import *
 
 def make_simple_gridworld(gw="GW1", time=None, **kwargs):
 
@@ -198,7 +199,7 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         ]
         expectedDeltaTable = { 'G': 1 }
         aleph0 = 1
-        totalTime = time or 11
+        totalTime = time or 12
 
     else:
         world = None
@@ -214,4 +215,4 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
                             cell_code2delta=expectedDeltaTable, max_episode_length=totalTime,
                             time_deltas=time_deltas, timeout_delta=timeout_delta,
                             **kwargs), 
-            aleph0)
+            Interval(aleph0))
