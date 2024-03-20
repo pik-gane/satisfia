@@ -135,10 +135,11 @@ def test_agent(agent, env, aleph):
     observation, _ = env.reset()
     total = 0.
     while True:
-        action = agent.localPolicy(observation, aleph=aleph).sample()
-        action = action[0][0]
-        observation, reward, done, truncated, _ = env.step(np.array(action))
+        action, aleph4action = agent.localPolicy(observation, aleph=aleph).sample()[0]
+        next_observation, reward, done, truncated, _ = env.step(np.array(action))
         total += reward
+        agent.propagateAspiration(observation, action, aleph4action, reward, next_observation)
+        observation = next_observation
         if done or truncated:
             return total
 
@@ -166,13 +167,13 @@ for unbias in [False]: # [True, False]
 
     # alephs = [-4., -2., -1., 0., 0.25, 0.5, 0.75, 1., 1.25, 1.5, 1.75, 2.]
     # alephs = [-8., -4., -2., -1., -0.5, 0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1., 1.2, 1.4, 1.6, 1.8, 1.9, 2.25, 2.5, 3, 4., 8.]
-    # alephs = [-8., -4., -2., -1., -0.5, -0.25, -0.125, 0.125, 0.25, 0.5, 1., 2., 4., 8.]
-    alephs = [-2., -1., -0.5, -0.25, -0.125, 0.125, 0.25, 0.5, 1., 2.]
+    alephs = [-8., -4., -2., -1., -0.5, -0.25, -0.125, 0.125, 0.25, 0.5, 1., 2., 4., 8.]
+    # alephs = [-2., -1., -0.5, -0.25, -0.125, 0.125, 0.25, 0.5, 1., 2.]
     # alephs = [1.]
     total_means = []
     total_stdevs = []
     for aleph in alephs:
-        totals = [test_agent(agent, env, aleph=aleph) for _ in tqdm(range(50_000), desc=f"{aleph=}")]
+        totals = [test_agent(agent, env, aleph=aleph) for _ in tqdm(range(1_000), desc=f"{aleph=}")]
         print(f"mean aspiration agent total for aspiration {aleph}: mean:", mean(totals), "stdev:", stdev(totals))
         total_means.append(mean(totals))
         total_stdevs.append(stdev(totals))
