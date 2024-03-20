@@ -1,9 +1,26 @@
 #!/usr/bin/env python3
 
 import math
-from functools import cache, lru_cache
 import json
 import random
+
+from functools import wraps
+
+def dummy_decorator(*decorator_args, **decorator_kwargs):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+        return wrapper
+    # Check if used without arguments
+    if decorator_args and callable(decorator_args[0]) and not decorator_kwargs:
+        return decorator(decorator_args[0])
+    else:
+        return decorator
+	
+# from functools import cache, lru_cache
+cache = dummy_decorator
+lru_cache = dummy_decorator
 
 from satisfia.util import distribution
 from satisfia.util.helper import *
@@ -16,7 +33,8 @@ DEBUG = False
 prettyState = str
 
 def pad(state):
-	return " :            " * state[0]  # state[0] is the time step
+	return ""
+	# return " :            " * state[0]  # state[0] is the time step
 
 class AspirationAgent(ABC):
 
@@ -725,39 +743,45 @@ class AspirationAgent(ABC):
 			print(pad(s),"| | combinedLoss, state",prettyState(s),"action",a,"aleph4state",al4s,"aleph4action",al4a,"estActionProbability",p,"...")
 
 		# cheap criteria, including some myopic versions of the more expensive ones:
-		lRandom = expr_params(lambda l: l * self.randomTieBreaker(s, a), "lossCoeff4Random")
-		lFeasibilityPower = expr_params(lambda l: l * (self.maxAdmissibleQ(s, a) - self.minAdmissibleQ(s, a)) ** 2, "lossCoeff4FeasibilityPower")
-		lDP = expr_params(lambda l: l * self.disorderingPotential_action(s, a), "lossCoeff4DP")
-		lAgencyChange = expr_params(lambda l: l * self.agencyChange_action(s, a), "lossCoeff4AgencyChange")
-		lLRA1 = expr_params(lambda l: l * self.LRAdev_action(s, a, al4a, True), "lossCoeff4LRA1")
-		lEntropy1 = expr_params(lambda l: l * self.behaviorEntropy_action(s, p, a), "lossCoeff4Entropy1")
-		lKLdiv1 = expr_params(lambda l: l * self.behaviorKLdiv_action(s, p, a), "lossCoeff4KLdiv1")
+		lRandom = expr_params(lambda l: l * self.randomTieBreaker(s, a) if l != 0 else 0, "lossCoeff4Random")
+		lFeasibilityPower = expr_params(lambda l: l * (self.maxAdmissibleQ(s, a) - self.minAdmissibleQ(s, a)) ** 2 if l != 0 else 0, "lossCoeff4FeasibilityPower")
+		lDP = expr_params(lambda l: l * self.disorderingPotential_action(s, a) if l != 0 else 0, "lossCoeff4DP")
+		lAgencyChange = expr_params(lambda l: l * self.agencyChange_action(s, a) if l != 0 else 0, "lossCoeff4AgencyChange")
+		lLRA1 = expr_params(lambda l: l * self.LRAdev_action(s, a, al4a, True) if l != 0 else 0, "lossCoeff4LRA1")
+		lEntropy1 = expr_params(lambda l: l * self.behaviorEntropy_action(s, p, a) if l != 0 else 0, "lossCoeff4Entropy1")
+		lKLdiv1 = expr_params(lambda l: l * self.behaviorKLdiv_action(s, p, a) if l != 0 else 0, "lossCoeff4KLdiv1")
 
 		# moment-based criteria:
 		# (To compute expected powers of deviation from V(s), we cannot use the actual V(s) 
 		# because we don't know the local policy at s yet. Hence we use a simple estimate based on aleph4state)
 		estVs = midpoint(al4s)
-		lVariance = expr_params(lambda l: l * self.relativeQ2(s, a, al4a, estVs), "lossCoeff4Variance") # recursion
-		lFourth = expr_params(lambda l: l * self.relativeQ4(s, a, al4a, estVs), "lossCoeff4Fourth") # recursion
-		lCup = expr_params(lambda l: l * self.cupLoss_action(s, a, al4s, al4a), "lossCoeff4Cup") # recursion
-		lLRA = expr_params(lambda l: l * self.LRAdev_action(s, a, al4a), "lossCoeff4LRA") # recursion
+		lVariance = expr_params(lambda l: l * self.relativeQ2(s, a, al4a, estVs) if l != 0 else 0, "lossCoeff4Variance") # recursion
+		lFourth = expr_params(lambda l: l * self.relativeQ4(s, a, al4a, estVs) if l != 0 else 0, "lossCoeff4Fourth") # recursion
+		lCup = expr_params(lambda l: l * self.cupLoss_action(s, a, al4s, al4a) if l != 0 else 0, "lossCoeff4Cup") # recursion
+		lLRA = expr_params(lambda l: l * self.LRAdev_action(s, a, al4a) if l != 0 else 0, "lossCoeff4LRA") # recursion
 
 		# timing-related criteria:
 		q_ones = expr_params(lambda x, y: self.Q_ones(s, a, al4a), "lossCoeff4DeltaVariation", "lossCoeff4Time")
-		lTime = expr_params(lambda l: l * q_ones, "lossCoeff4Time")
+		lTime = expr_params(lambda l: l * q_ones if l != 0 else 0, "lossCoeff4Time")
 		lDeltaVariation = 0
 		if q_ones != 0:
-			lDeltaVariation = expr_params(lambda l: l * (self.Q_DeltaSquare(s, a, al4a) / q_ones - self.Q2(s, a, al4a) / (q_ones ** 2)), "lossCoeff4DeltaVariation") # recursion
+			lDeltaVariation = expr_params(lambda l: l * (self.Q_DeltaSquare(s, a, al4a) / q_ones - self.Q2(s, a, al4a) / (q_ones ** 2)) if l != 0 else 0, "lossCoeff4DeltaVariation") # recursion
 
 		# randomization-related criteria:
+<<<<<<< Updated upstream
 		lEntropy = expr_params(lambda l: l * self.behaviorEntropy_action(s, p, a, al4a), "lossCoeff4Entropy") # recursion
 		lKLdiv = expr_params(lambda l: l * self.behaviorKLdiv_action(s, p, a, al4a), "lossCoeff4KLdiv") # recursion
 		lTrajectoryEntropy = expr_params(lambda l: l * self.trajectoryEntropy_action(s, p, a, al4a), "lossCoeff4TrajectoryEntropy") # recursion
 		lStateDistance = expr_params(lambda l: l * self.stateDistance_action(s, a, al4a), "lossCoeff4StateDistance") # recursion
+=======
+		lEntropy = expr_params(lambda l: l * self.behaviorEntropy_action(s, p, a, al4a) if l != 0 else 0, "lossCoeff4Entropy") # recursion
+		lKLdiv = expr_params(lambda l: l * self.behaviorKLdiv_action(s, p, a, al4a) if l != 0 else 0, "lossCoeff4KLdiv") # recursion
+		lTrajectoryEntropy = expr_params(lambda l: l * self.trajectoryEntropy_action(s, p, a, al4a) if l != 0 else 0, "lossCoeff4TrajectoryEntropy") # recursion
+>>>>>>> Stashed changes
 
 		lOther = 0
 		if "otherLocalLoss" in self.params:
-			lOther = expr_params(lambda l: l * self.otherLoss_action(s, a, al4a), "lossCoeff4OtherLoss") # recursion
+			lOther = expr_params(lambda l: l * self.otherLoss_action(s, a, al4a) if l != 0 else 0, "lossCoeff4OtherLoss") # recursion
 
 		res = lRandom + lFeasibilityPower + lDP + lAgencyChange + lLRA1 + self["lossCoeff4Time1"] + lEntropy1 + lKLdiv1 \
 							+ lVariance + lFourth + lCup + lLRA \
