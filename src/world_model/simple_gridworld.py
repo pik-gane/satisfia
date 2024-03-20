@@ -1,4 +1,5 @@
 from functools import cache, lru_cache
+import os
 
 from . import MDPWorldModel
 
@@ -140,7 +141,9 @@ class SimpleGridworld(MDPWorldModel):
     initial_agent_location = None
     """(pair of ints) The initial location of the agent starting with zero."""
     time_deltas = None
-    """(list of ints) The deltas (rewards) for each time step."""
+    """(list of floats) The deltas (rewards) for each time step."""
+    timeout_delta = None
+    """(float) The delta (reward) for the timeout event."""
 
     # additional attributes:
     _state = None
@@ -156,19 +159,21 @@ class SimpleGridworld(MDPWorldModel):
 
     def __init__(self, render_mode = None, 
                  grid = [['A','G']],
-                 delta_grid = [[' ','1']],
+                 delta_grid = None,
                  cell_code2delta = {'1': 1},
                  max_episode_length = 1e10,
                  time_deltas = [0],
+                 timeout_delta = 0,
                  uneven_ground_prob = 0.25,
                  fps = 4
                  ):
 
         self.xygrid = xygrid = np.array(grid).T
-        self.delta_xygrid = delta_xygrid = np.array(delta_grid).T
+        self.delta_xygrid = delta_xygrid = np.array(delta_grid).T if delta_grid is not None else np.full(xygrid.shape, ' ')
         self.cell_code2delta = cell_code2delta
         self.max_episode_length = max_episode_length
         self.time_deltas = np.array(time_deltas).flatten()
+        self.timeout_delta = timeout_delta
         self.uneven_ground_prob = uneven_ground_prob
         self._fps = fps
 
@@ -229,13 +234,12 @@ class SimpleGridworld(MDPWorldModel):
         """
         The following dictionary maps abstract actions from `self.action_space` to
         the direction we will walk in if that action is taken.
-        I.e. 0 corresponds to "right", 1 to "up" etc.
         """
         self._action_to_direction = {
-            0: np.array([1, 0]),  # right
-            1: np.array([0, 1]),  # up
-            2: np.array([-1, 0]), # left
-            3: np.array([0, -1]), # down
+            0: np.array([0, -1]), # up
+            1: np.array([1, 0]), # right
+            2: np.array([0, 1]), # down
+            3: np.array([-1, 0]), # left
         }
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
@@ -267,12 +271,12 @@ class SimpleGridworld(MDPWorldModel):
                 and 0 <= to_loc[1] < self.xygrid.shape[1]
                 and not self.xygrid[to_loc] in unenterable_cell_types):
             return False
-        if self.xygrid[to_loc] == ',':
-            # can only move there if it hasn't turned into a wall yet:
-            if self._immovable_object_states[self.immovable_object_indices[to_loc]] > 0:
-                return False
         # TODO: add other conditions for not being able to move, e.g. because of other objects
         t, agent_loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
+        if self.xygrid[to_loc] == ',':
+            # can only move there if it hasn't turned into a wall yet:
+            if imm_states[self.immovable_object_indices[to_loc]] > 0:
+                return False
         # loop through all movable objects and see if they hinder the movement:
         for i, object_type in enumerate(self.movable_constant_object_types):
             if (mc_locs[2*i],mc_locs[2*i+1]) == to_loc:
@@ -353,9 +357,14 @@ class SimpleGridworld(MDPWorldModel):
     @lru_cache(maxsize=None)
     def is_terminal(self, state):
         """Return True if the given state is a terminal state."""
-        t, _, prev_loc, _, _, _, _ = self._extract_state_attributes(state)
-        was_at_goal = prev_loc[0] >= 0 and self.xygrid[prev_loc] == 'G'
-        return (t == self.max_episode_length) or was_at_goal
+        t, loc, _, _, _, _, _ = self._extract_state_attributes(state)
+        is_at_goal = self.xygrid[loc] == 'G'
+        return (t == self.max_episode_length) or is_at_goal
+
+    @lru_cache(maxsize=None)
+    def state_distance(self, state1, state2):
+        """Return the distance between the two given states, disregarding time."""
+        return np.sqrt(np.sum(np.power(np.array(state1)[1:] - np.array(state2)[1:], 2)))
 
     @lru_cache(maxsize=None)
     def transition_distribution(self, state, action, n_samples = None):
@@ -415,16 +424,24 @@ class SimpleGridworld(MDPWorldModel):
 
     @lru_cache(maxsize=None)
     def observation_and_reward_distribution(self, state, action, successor, n_samples = None):
+        """
+        Delta for a state accrues when entering the state, so it depends on successor:
+        """
         if state is None and action is None:
             return {(self._make_state(), 0): (1, True)}
-        t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
+        t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(successor)
         delta = self.time_deltas[t % self.time_deltas.size]
         if self.delta_xygrid[loc] in self.cell_code2delta:
             delta += self.cell_code2delta[self.delta_xygrid[loc]]
+        if t == self.max_episode_length and self.xygrid[loc] != 'G':
+            delta += self.timeout_delta
         return {(successor, delta): (1, True)}
 
     # reset() and step() are inherited from MDPWorldModel and use the above transition_distribution():
 
+    def initial_state(self):
+        return self._make_state()
+    
     def reset(self, seed = None, options = None): 
         ret = super().reset(seed = seed, options = options)
         if self.render_mode == "human":
@@ -449,6 +466,7 @@ class SimpleGridworld(MDPWorldModel):
 
     def _render_frame(self):
         if self._window is None and self.render_mode == "human":
+            os.environ['SDL_VIDEO_WINDOW_POS'] = "%d,%d" % (900,0)
             pygame.init()
             pygame.display.init()
             self._window = pygame.display.set_mode(

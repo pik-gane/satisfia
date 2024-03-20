@@ -1,8 +1,13 @@
 import json
 
 from world_model import SimpleGridworld
+from satisfia.util.helper import *
 
 def make_simple_gridworld(gw="GW1", time=None, **kwargs):
+
+    delta_grid = None
+    time_deltas = [0]
+    timeout_delta = -10
 
     if gw == "GW1":
         grid = [
@@ -112,6 +117,58 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         aleph0 = 2
         totalTime = time or 10
 
+    elif gw == "GW22":
+        grid = [
+          ['#', '#', '#', '#', '#'],
+          ['#', ' ', ' ', 'G', '#'],
+          ['#', 'A', '^', ' ', '#'],
+          ['#', ' ', ' ', ' ', '#'],
+          ['#', '#', '#', '#', '#']
+        ]
+        delta_grid = [
+          [' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' ']
+        ]
+        expectedDeltaTable = { }
+        time_deltas = [-1]
+        totalTime = 10
+        timeout_delta = -10
+        aleph0 = [-4,0]
+
+    elif gw == "GW23":
+        grid = [
+          ['#', '#', '#', '#', '#', '#', '#', '#', '#'],
+          ['#', ' ', ' ', ',', 'A', ' ', ' ', ' ', '#'],
+          ['#', '#', '#', '#', '#', '#', '#', '#', '#']
+        ]
+        delta_grid = [
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
+        ]
+        expectedDeltaTable = { }
+        totalTime = 3
+        aleph0 = [0,0]
+
+    elif gw == "GW24":
+        grid = [
+          [' ', ',', ' ', ',', ' ', ',', ' ', ',', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+          [',', ' ', ',', ' ', ',', ' ', ',', ' ', ','],
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', ',', ' ', ',', 'A', ',', ' ', ',', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+          [',', ' ', ',', ' ', ',', ' ', ',', ' ', ','],
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', ',', ' ', ',', ' ', ',', ' ', ',', ' '],
+        ]
+        expectedDeltaTable = { }
+        totalTime = 10
+        aleph0 = [0,0]
+
     elif gw == "test_box":
         grid = [
             [' ', 'X', ' ', 'X', 'A', 'X', 'G', ' ', ' ']
@@ -142,7 +199,8 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         ]
         expectedDeltaTable = { 'G': 1 }
         aleph0 = 1
-        totalTime = time or 15
+        totalTime = time or 12
+
     else:
         world = None
         with open(gw, "r") as file:
@@ -155,5 +213,6 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
 
     return (SimpleGridworld(grid=grid, delta_grid=delta_grid,
                             cell_code2delta=expectedDeltaTable, max_episode_length=totalTime,
+                            time_deltas=time_deltas, timeout_delta=timeout_delta,
                             **kwargs), 
-            aleph0)
+            Interval(aleph0))

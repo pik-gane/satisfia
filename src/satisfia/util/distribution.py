@@ -52,7 +52,7 @@ class categorical(_distribution):
 			if categories[name] <= 0:
 				raise ValueError("Invalid category weight")
 
-		self._categories = categories.copy()
+		self._category2weight = categories.copy()
 
 		self._weight_total = sum([categories[name] for name in categories])
 		self._order_sticky = True
@@ -61,41 +61,41 @@ class categorical(_distribution):
 		if weight <= 0:
 			raise ValueError("Invalid category weight")
 
-		if name in self._categories:
-			self._weight_total -= self._categories[name]
+		if name in self._category2weight:
+			self._weight_total -= self._category2weight[name]
 		self._weight_total += weight
 		self._order_sticky = True
 
-		self._categories[name] = weight
+		self._category2weight[name] = weight
 
 	def category_del(self, name):
-		if name in self._categories:
-			self._weight_total -= self._categories[name]
+		if name in self._category2weight:
+			self._weight_total -= self._category2weight[name]
 		self._order_sticky = True
 
-		del self._categories[name]
+		del self._category2weight[name]
 
 	def _select(self, chance):
 		def priority(name):
-			return - self._categories[name]
+			return - self._category2weight[name]
 
-		if len(self._categories) == 0:
+		if len(self._category2weight) == 0:
 			raise ValueError("No categories")
 
 		if self._order_sticky:
 			self._order_sticky = False
 
-			self._order = sorted(self._categories.keys(), key=priority)
+			self._order = sorted(self._category2weight.keys(), key=priority)
 
 		# Iterate from most to the least probable to reduce expected time.
 		# Probability is distributed proportionally to weight.
 		for name in self._order:
-			weight = self._categories[name]
+			weight = self._category2weight[name]
 			chance -= weight
 			if chance < 0:
 				return name
 
-		return self._categories[-1] # this line is reachable due to precision errors
+		return self._category2weight[-1] # this line is reachable due to precision errors
 
 	def _sample_single(self):
 		return self._select(random.uniform(0, self._weight_total))
@@ -105,22 +105,35 @@ class categorical(_distribution):
 		return [self._select(self._weight_total / 2.0)]
 
 	def E(self):
-		return sum([float(name) * self._categories[name] for name in self._categories]) / self._weight_total
+		return sum([float(name) * self._category2weight[name] for name in self._category2weight]) / self._weight_total
+
+	def expectation(self, f, additional_args = ()):
+		"""Return the expected value of f(x, *additional_args) for x ~ this distribution."""
+		return sum([weight * f(name, *additional_args) 
+			        for name, weight in self._category2weight.items()]) / self._weight_total
+
+	def expectation_of_fct_of_probability(self, f, additional_args = ()):
+		"""Return the expected value of f(x, probability(x), *additional_args) for x ~ this distribution."""
+		return sum([weight * f(name, weight / self._weight_total, *additional_args)
+                    for name, weight in self._category2weight.items()]) / self._weight_total
 
 	def var(self):
 		E = self.E()
-		moment2 = sum([float(name) ** 2 * self._categories[name] for name in self._categories]) / self._weight_total
+		moment2 = sum([float(name) ** 2 * self._category2weight[name] for name in self._category2weight]) / self._weight_total
 		return moment2 - E ** 2 # population variance
 
 	def support(self):
-		return self._categories.keys()
+		return self._category2weight.keys()
 
 	def score(self, name):
-		return math.log(self._categories[name] / self._weight_total)
+		return math.log(self._category2weight[name] / self._weight_total)
+	
+	def probability(self, name):
+		return self._category2weight[name] / self._weight_total
 
 	def categories(self):
-		for category in self._categories:
-			yield (category, self._categories[category] / self._weight_total)
+		for category in self._category2weight:
+			yield (category, self._category2weight[category] / self._weight_total)
 
 class uniform_discrete(_distribution):
 	def __init__(self, low, high):

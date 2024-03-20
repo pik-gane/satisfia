@@ -47,16 +47,31 @@ class WorldModel(Env):
         space = self.action_space
         return range(space.start, space.start + space.n)
     
-    def possible_successors(self, state, action, n_samples = None):
+    def possible_successors(self, state, action=None, n_samples = None):
         """Return a list of possible successor states after performing action in state,
         or, if state and action are None, a list of possible initial states."""
-        return self.transition_distribution(state, action, n_samples).keys()
+        if action is None:
+            res = set()
+            for action in self.possible_actions(state):
+                res.update(self.transition_distribution(state, action, n_samples).keys())
+        else:
+            res = self.transition_distribution(state, action, n_samples).keys()
+        return list(res)
     
+    def reachable_states(self, state):
+        """Return a list of all states that can be reached from the given state by taking any sequence of actions."""
+        res = set([state])
+        if not self.is_terminal(state):
+            for action in self.possible_actions(state):
+                for successor in self.possible_successors(state, action):
+                    res.update(self.reachable_states(successor))
+        return list(res)
+
     def transition_probability(self, state, action, successor, n_samples = None):
         """Return the probability of the successor state after performing action in state,
         or, if state and action are None, of successor being the initial state,
         and a boolean flag indicating whether the probability is exact."""
-        return self.transition_distribution(state, action, n_samples)[successor]
+        return self.transition_distribution(state, action, n_samples).get(successor, (0, True))
     
     def transition_distribution(self, state, action, n_samples = None):
         """Return a dictionary mapping possible successor states after performing action in state,
@@ -110,13 +125,13 @@ class WorldModel(Env):
     def possible_results(self, history, action, n_samples = None):
         """Return a list of possible results of calling step(action) after the given history,
         or, if history and action are None, of calling reset()."""
-        return self.result_distribution(history, action, n_samples).keys()
+        return list(self.result_distribution(history, action, n_samples).keys())
     
     def result_probability(self, history, action, result, n_samples = None):
         """Return the probability of the given result of calling step(action) after the given history,
         or, if history and action are None, of calling reset(),
         and a boolean flag indicating whether the probability is exact."""
-        return self.result_distribution(history, action, n_samples)[result]
+        return self.result_distribution(history, action, n_samples).get(result, (0, True))
     
     def result_distribution(self, history, action, n_samples = None):
         """Return a dictionary mapping results of calling step(action) after the given history,
