@@ -125,6 +125,12 @@ class AgentMDPDQN(AspirationAgent):
     def agencyChange_action(self, *args, **kwargs):
         assert False
 
+    def stateDistance_action(self, *args, **kwargs):
+        assert False
+    
+    def trajectoryEntropy_action(self, *args, **kwargs):
+        assert False
+
 def test_agent(agent, env, aleph):
     observation, _ = env.reset()
     total = 0.
@@ -148,7 +154,7 @@ params = { "maxLambda": 1.,
            "lossCoeff4KLdiv": 0,
            "lossCoeff4KLdiv1": 0,
            "lossCoeff4Variance": 0,
-           "lossCoeff4Fourth": 0,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+           "lossCoeff4Fourth": 0,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
            "lossCoeff4Cup": 0,
            "lossCoeff4LRA": 0,
            "lossCoeff4OtherLoss": 0,
@@ -166,7 +172,7 @@ for unbias in [False]: # [True, False]
     total_means = []
     total_stdevs = []
     for aleph in alephs:
-        totals = [test_agent(agent, env, aleph=aleph) for _ in tqdm(range(5_000), desc=f"{aleph=}")]
+        totals = [test_agent(agent, env, aleph=aleph) for _ in tqdm(range(50_000), desc=f"{aleph=}")]
         print(f"mean aspiration agent total for aspiration {aleph}: mean:", mean(totals), "stdev:", stdev(totals))
         total_means.append(mean(totals))
         total_stdevs.append(stdev(totals))
