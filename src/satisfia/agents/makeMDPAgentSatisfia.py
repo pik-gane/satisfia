@@ -768,16 +768,10 @@ class AspirationAgent(ABC):
 			lDeltaVariation = expr_params(lambda l: l * (self.Q_DeltaSquare(s, a, al4a) / q_ones - self.Q2(s, a, al4a) / (q_ones ** 2)) if l != 0 else 0, "lossCoeff4DeltaVariation") # recursion
 
 		# randomization-related criteria:
-<<<<<<< Updated upstream
-		lEntropy = expr_params(lambda l: l * self.behaviorEntropy_action(s, p, a, al4a), "lossCoeff4Entropy") # recursion
-		lKLdiv = expr_params(lambda l: l * self.behaviorKLdiv_action(s, p, a, al4a), "lossCoeff4KLdiv") # recursion
-		lTrajectoryEntropy = expr_params(lambda l: l * self.trajectoryEntropy_action(s, p, a, al4a), "lossCoeff4TrajectoryEntropy") # recursion
-		lStateDistance = expr_params(lambda l: l * self.stateDistance_action(s, a, al4a), "lossCoeff4StateDistance") # recursion
-=======
 		lEntropy = expr_params(lambda l: l * self.behaviorEntropy_action(s, p, a, al4a) if l != 0 else 0, "lossCoeff4Entropy") # recursion
 		lKLdiv = expr_params(lambda l: l * self.behaviorKLdiv_action(s, p, a, al4a) if l != 0 else 0, "lossCoeff4KLdiv") # recursion
 		lTrajectoryEntropy = expr_params(lambda l: l * self.trajectoryEntropy_action(s, p, a, al4a) if l != 0 else 0, "lossCoeff4TrajectoryEntropy") # recursion
->>>>>>> Stashed changes
+		lStateDistance = expr_params(lambda l: l * self.stateDistance_action(s, a, al4a) if l != 0 else 0, "lossCoeff4StateDistance") # recursion
 
 		lOther = 0
 		if "otherLocalLoss" in self.params:
