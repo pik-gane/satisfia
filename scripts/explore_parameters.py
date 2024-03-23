@@ -63,7 +63,7 @@ verbose_checkbox = sg.Checkbox("Verbose", default=False, key='verbose_checkbox')
 debug_checkbox = sg.Checkbox("Debug", default=False, key='debug_checkbox')
 
 # Create a "reset" button for resetting all parameter values to their defaults:
-reset_button = sg.Button("Reset", key='reset_button')
+reset_button = sg.Button("Reset all", key='reset_button')
 
 # Create sliders for setting the parametersers
 parameter_sliders = {}
@@ -118,6 +118,8 @@ def restart():
         parameter_sliders['aleph0_low'].update(aleph[0])
         parameter_sliders['aleph0_high'].update(aleph[1])
     parameter_values = { pd[0]: values[pd[0]] for pd in parameter_data }
+    if parameter_values['lossTemperature'] == 0:
+        parameter_values['lossTemperature'] = 1e-6
     parameter_values.update({
         'verbose': values['verbose_checkbox'],
         'debug': values['debug_checkbox'],
