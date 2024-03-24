@@ -1335,13 +1335,16 @@ class AgentMDPPlanning(AspirationAgent):
 		# because it is the negative (!) of a KL divergence. 
 		if self.debug:
 			print(pad(state),"| | | trajectoryEntropy_action", prettyState(state), actionProbability, action, aleph4action, '...')
+		if not self.default_transition:
+			self._compute_default_transition(state)
 		Edel = self.world.raw_moment_of_delta(state, action)
 		def entropy(nextState, transitionProbability):
-			priorScore = self["defaultTransition"](state).score(nextState)
+			priorScore = self.default_transition(state).score(nextState)
 			localEntropy = priorScore \
 							- math.log(actionProbability) \
 							- math.log(transitionProbability) \
 							+ (self["internalTrajectoryEntropy"](state, action) if ("internalTrajectoryEntropy" in self.params) else 0)
+			# TODO: decide whether the priorScore should really be used as it leads to completely opposite behavior in GW25: with the priorScore in place, penalizing trajectoryEntropy makes the agent *avoid* destroying the moving object, which should be considered a *non-reduction* in entropy, while destroying it should be considered a reduction in entropy...
 			if self.world.is_terminal(nextState) or aleph4action is None:
 				return localEntropy
 			else:
