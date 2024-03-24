@@ -49,6 +49,7 @@ class WorldModel(Env):
     
     def possible_successors(self, state, action=None, n_samples = None):
         """Return a list of possible successor states after performing action in state,
+        or, if action is None, of all possible successor states after any action in state,
         or, if state and action are None, a list of possible initial states."""
         if action is None:
             res = set()
@@ -185,7 +186,10 @@ class WorldModel(Env):
         transition_distribution = self.transition_distribution(None if action is None else self._state, action)
         successors = list(transition_distribution.keys())
         succ_probs = list(transition_distribution.values())
-        drawn_succ_index = choice(len(successors), p = [succ_prob for (succ_prob, _) in succ_probs])
+        try:
+            drawn_succ_index = choice(len(successors), p = [succ_prob for (succ_prob, _) in succ_probs])
+        except:
+            print("!", successors, succ_probs)
         successor = successors[drawn_succ_index]
         succ_prob, succ_prob_exact = succ_probs[drawn_succ_index] 
         # draw an observation and reward according to the observation and reward distribution:
