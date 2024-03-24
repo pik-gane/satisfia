@@ -92,7 +92,9 @@ class WorldModel(Env):
         """Return the expected value of f(reward, *additional_args) after taking action in state."""
         return np.sum([successor_probability * reward_probability * f(reward, *additional_args)
                        for (successor, (successor_probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()
+                       if successor_probability > 0
                        for ((observation, reward), (reward_probability, _)) in self.observation_and_reward_distribution(state, action, successor, n_samples = n_samples).items()
+                       if reward_probability > 0
                        ])
     
     expectation_of_fct_of_delta = expectation_of_fct_of_reward
@@ -112,13 +114,15 @@ class WorldModel(Env):
     def expectation(self, state, action, f, additional_args = (), n_samples = None):
         """Return the expected value of f(successor, *additional_args) after taking action in state."""
         return np.sum([probability * f(successor, *additional_args)
-                       for (successor, (probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()])
+                       for (successor, (probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()
+                       if probability > 0])
 
     def expectation_of_fct_of_probability(self, state, action, f, additional_args = (), n_samples = None):
         """Return the expected value of f(successor, probability, *additional_args) after taking action in state,
         where probability is the probability of reaching successor after taking action in state."""
         return np.sum([probability * f(successor, probability, *additional_args)
-                       for (successor, (probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()])
+                       for (successor, (probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()
+                       if probability > 0])
 
     # methods for enquiring observation probabilities given histories:
 
@@ -148,7 +152,8 @@ class WorldModel(Env):
     def expectation_of_fct_of_reward_after_history(self, history, action, f, additional_args = (), n_samples = None):
         """Return the expected value of f(reward, *additional_args) when calling step(action) after the given history."""
         return np.sum([probability * f(self._result2reward(result), *additional_args)
-                       for (result, (probability, _)) in self.result_distribution(history, action, n_samples = None)])
+                       for (result, (probability, _)) in self.result_distribution(history, action, n_samples = None)
+                       if probability > 0])
     
     expectation_of_fct_of_delta_after_history = expectation_of_fct_of_reward_after_history
 
@@ -168,7 +173,8 @@ class WorldModel(Env):
         """Return the expected value of f(step(action), *additional_args) after the giving history."""
         return np.sum([probability * f(result, *additional_args)
                        for (result, (probability, _)) in self.result_distribution(history, action, n_samples = 
-                       None)])
+                       None)
+                       if probability > 0])
 
     # Our default implementation of standard gymnasium.Env methods uses sampling from the above distribution:
 
