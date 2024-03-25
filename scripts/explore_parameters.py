@@ -18,12 +18,14 @@ parameter_data = [
     ('lossCoeff4Fourth', -100, 100, 0, 1), 
     ('lossCoeff4Cup', -100, 100, 0, 1), 
 
+    ('lossCoeff4WassersteinTerminalState', -100, 100, 0, 1), 
+    ('lossCoeff4Random', -100, 100, 0, 1), 
+
     ('lossCoeff4StateDistance', -100, 100, 0, 1), 
     ('lossCoeff4Causation', -100, 100, 0, 1), 
 
     ('lossCoeff4AgencyChange', -100, 100, 0, 1), 
     ('lossCoeff4CausationPotential', -100, 100, 0, 1), 
-#    ('lossCoeff4Random', -100, 100, 0, 1), 
 
     ('lossCoeff4FeasibilityPower', -100, 100, 0, 1), 
     ('lossCoeff4DP', -100, 100, 0, 1), 
@@ -133,6 +135,12 @@ def restart():
     print("\n\nRESTART gridworld", gridworld, parameter_values)
     state, delta, terminated, _, info = env.reset()
     agent = AgentMDPPlanning(parameter_values, world=env)
+    print("Initial state:", env.state_embedding(state), ", initial aleph:", aleph)
+    print("default ETerminalState_state(s0):", agent.ETerminalState_state(state, aleph, "default"))
+    print("default ETerminalState2_state(s0):", agent.ETerminalState2_state(state, aleph, "default"))
+    print("actual  ETerminalState_state(s0):", agent.ETerminalState_state(state, aleph, "actual"))
+    print("actual  ETerminalState2_state(s0):", agent.ETerminalState2_state(state, aleph, "actual"))
+    print("Wasserstein distance:", agent.wassersteinTerminalState_action(state, 4, aleph))
     t = 0
     total = delta
     running = True

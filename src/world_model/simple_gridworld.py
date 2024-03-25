@@ -1,6 +1,7 @@
 from functools import cache, lru_cache
 import os
 
+from satisfia.util import distribution
 from . import MDPWorldModel
 
 # based in large part on https://gymnasium.farama.org/tutorials/gymnasium_basics/environment_creation/
@@ -238,7 +239,7 @@ class SimpleGridworld(MDPWorldModel):
             )
 
         # We have 4 actions, corresponding to "right", "up", "left", "down"
-        self.action_space = spaces.Discrete(4)
+        self.action_space = spaces.Discrete(5)
 
         """
         The following dictionary maps abstract actions from `self.action_space` to
@@ -249,6 +250,7 @@ class SimpleGridworld(MDPWorldModel):
             1: np.array([1, 0]), # right
             2: np.array([0, 1]), # down
             3: np.array([-1, 0]), # left
+            4: np.array([0, 0]), # stay in place
         }
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
@@ -301,8 +303,13 @@ class SimpleGridworld(MDPWorldModel):
 
     def opposite_action(self, action):
         """Return the opposite action to the given action."""
-        return (action + 2) % 4
+        return 4 if action == 4 else (action + 2) % 4
         
+    def state_embedding(self, state):
+        res = np.array(state, dtype=np.float32)[1:]
+        res[2:4] = 0  # make previous position irrelevant
+        return res
+
     @lru_cache(maxsize=None)
     def possible_actions(self, state):
         """Return a list of possible actions from the given state."""
@@ -312,6 +319,10 @@ class SimpleGridworld(MDPWorldModel):
         if len(actions) == 0:
             raise ValueError(f"No possible actions from state {state}") # FIXME: raise a more specific exception
         return actions
+
+    def default_policy(self, state):
+        """Return a default action, if any"""
+        return distribution.categorical([4], [1])  # staying in place
 
     def _extract_state_attributes(self, state):
         """Return the individual attributes of a state."""
