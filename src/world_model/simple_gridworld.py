@@ -13,7 +13,8 @@ import pygame
 import gymnasium as gym
 from gymnasium import spaces
 
-unenterable_cell_types = ['#']
+unenterable_immobile_cell_types = ['#']  # can't run into walls
+unenterable_mobile_object_types = ['A']  # can't run into agents
 unsteady_cell_types = ['~', '^', '-']
 
 immobile_object_types = [',']
@@ -41,8 +42,8 @@ def get_loc(locs, index):
     return (locs[2*index], locs[2*index+1])
 
 def state_embedding_for_distance(state):
-    """return an embedding of state where all entries -2 are replaced by -100"""
-    return tuple(-100 if x == -2 else x for x in state)
+    """return an embedding of state where all entries -2 are replaced by -10000"""
+    return tuple(-10000 if x == -2 else x for x in state)
 
 class MultiDiscreteRanged(spaces.MultiDiscrete):
     def __init__(self, nvec, start=None):
@@ -280,7 +281,7 @@ class SimpleGridworld(MDPWorldModel):
         """Return True if the agent can move from the given location to the given target_location."""
         if not (0 <= to_loc[0] < self.xygrid.shape[0]
                 and 0 <= to_loc[1] < self.xygrid.shape[1]
-                and not self.xygrid[to_loc] in unenterable_cell_types):
+                and not self.xygrid[to_loc] in unenterable_immobile_cell_types):
             return False
         # TODO: add other conditions for not being able to move, e.g. because of other objects
         t, agent_loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
@@ -291,9 +292,11 @@ class SimpleGridworld(MDPWorldModel):
         # loop through all mobile objects and see if they hinder the movement:
         for i, object_type in enumerate(self.mobile_constant_object_types):
             if (mc_locs[2*i],mc_locs[2*i+1]) == to_loc:
+                if object_type in unenterable_mobile_object_types:
+                    return False
                 if object_type == 'X':  # a box
-                    if who == 'X':
-                        return False  # agent can only push one box!
+                    if who != 'A':
+                        return False  # only the agent can push a box, no box can push another box!
                     # see if it can be pushed:
                     box_target_loc = tuple(2*np.array(to_loc) - np.array(from_loc))
                     if not self._can_move(to_loc, box_target_loc, state, who='X'):
@@ -304,9 +307,9 @@ class SimpleGridworld(MDPWorldModel):
     def opposite_action(self, action):
         """Return the opposite action to the given action."""
         return 4 if action == 4 else (action + 2) % 4
-        
+
     def state_embedding(self, state):
-        res = np.array(state, dtype=np.float32)[3:]  # make time and previous position irrelevant
+        res = np.array(state_embedding_for_distance(state), dtype=np.float32)[3:]  # make time and previous position irrelevant
         return res
 
     @lru_cache(maxsize=None)
@@ -555,13 +558,23 @@ class SimpleGridworld(MDPWorldModel):
                         (0, 255, 0),
                         (x * pix_square_size, y * pix_square_size, pix_square_size, pix_square_size),
                     )
+                elif (cell_type == "," and self._immobile_object_states[self.immobile_object_indices[x, y]] != 1):
+                    pygame.draw.rect(
+                        canvas,
+                        (64, 64, 64),
+                        ((x+.3) * pix_square_size, (y+.8) * pix_square_size, .4*pix_square_size, .1*pix_square_size),
+                    )
                 elif cell_type in render_as_char_types:
                     canvas.blit(self._cell_font.render(cell_type, True, (0, 0, 0)),
                                       ((x+.3) * pix_square_size, (y+.3) * pix_square_size))
                 cell_code = self.delta_xygrid[x, y]
                 if cell_code in self.cell_code2delta:
-                    canvas.blit(self._delta_font.render(cell_code + f" {self.cell_code2delta[cell_code]}", True, (0, 0, 0)),
-                                      ((x+.1) * pix_square_size, (y+.1) * pix_square_size))
+                    canvas.blit(self._delta_font.render(
+                        cell_code + f" {self.cell_code2delta[cell_code]}", True, (0, 0, 0)),
+                        ((x+.1) * pix_square_size, (y+.1) * pix_square_size))
+                canvas.blit(self._delta_font.render(
+                    f"{x},{y}", True, (128, 128, 128)),
+                    ((x+.8) * pix_square_size, (y+.1) * pix_square_size))
 
         # Render all mobile objects:
         for i, object_type in enumerate(self.mobile_constant_object_types):

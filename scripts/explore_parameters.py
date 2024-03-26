@@ -7,7 +7,7 @@ import PySimpleGUI as sg
 from environments.very_simple_gridworlds import make_simple_gridworld
 from satisfia.agents.makeMDPAgentSatisfia import AgentMDPPlanning
 
-gridworlds = ["AISG2", "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW24", "GW25", "GW27", "test_box"]
+gridworlds = ["AISG2", "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW24", "GW25", "GW27", "GW28", "test_box"]
 parameter_data = [
     ("aleph0_low", -10, 10, 0, 0.1),
     ("aleph0_high", -10, 10, 0, 0.1),
@@ -114,7 +114,7 @@ stepping = False
 terminated = False
 
 def restart():
-    global gridworld, parameter_values, env, agent, running, stepping, terminated, t, state, total, aleph, delta
+    global gridworld, parameter_values, env, agent, running, stepping, terminated, t, state, total, aleph, delta, initialMu0, initialMu20
     gridworld = values['gridworld_dropdown']
     env, aleph = make_simple_gridworld(gw=gridworld, render_mode="human", fps=values['speed_slider'])
     if values['override_aleph_checkbox']:
@@ -136,8 +136,10 @@ def restart():
     state, delta, terminated, _, info = env.reset()
     agent = AgentMDPPlanning(parameter_values, world=env)
     print("Initial state:", env.state_embedding(state), ", initial aleph:", aleph)
-    print("default ETerminalState_state(s0):", agent.ETerminalState_state(state, aleph, "default"))
-    print("default ETerminalState2_state(s0):", agent.ETerminalState2_state(state, aleph, "default"))
+    initialMu0 = list(agent.ETerminalState_state(state, aleph, "default"))
+    initialMu20 = list(agent.ETerminalState2_state(state, aleph, "default"))
+    print("default ETerminalState_state(s0):", initialMu0)
+    print("default ETerminalState2_state(s0):", initialMu20)
     print("actual  ETerminalState_state(s0):", agent.ETerminalState_state(state, aleph, "actual"))
     print("actual  ETerminalState2_state(s0):", agent.ETerminalState2_state(state, aleph, "actual"))
     print("Wasserstein distance:", agent.wassersteinTerminalState_action(state, 4, aleph))
@@ -181,6 +183,17 @@ while True:
     if env and (running or stepping) and not terminated:
         env._fps = values['speed_slider']
         action, aleph4action = agent.localPolicy(state, aleph).sample()[0]
+        if values['lossCoeff4WassersteinTerminalState'] != 0:
+            print("  in state", state)
+            for a in agent.world.possible_actions(state):
+                al4a = agent.aspiration4action(state, a, aleph)
+                print("    taking action", a, "gives:")
+                print("      default ETerminalState_state (s0):", initialMu0)
+                print("      default ETerminalState2_state(s0):", initialMu20)
+                print("      actual  ETerminalState_state (s) :", list(agent.ETerminalState_action(state, a, al4a, "actual")))
+                print("      actual  ETerminalState2_state(s) :", list(agent.ETerminalState2_action(state, a, al4a, "actual")))
+                print("      --> Wasserstein distance", agent.wassersteinTerminalState_action(state, a, al4a))
+            print("    so we take action", action)
         if parameter_values['verbose'] or parameter_values['debug']:
             print("t:", t, ", last delta:" ,delta, ", total:", total, ", s:", state, ", aleph4s:", aleph, ", a:", action, ", aleph4a:", aleph4action)
         nextState, delta, terminated, _, info = env.step(action)
