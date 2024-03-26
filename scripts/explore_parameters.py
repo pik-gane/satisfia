@@ -18,7 +18,7 @@ parameter_data = [
     ('lossCoeff4Fourth', -100, 100, 0, 1), 
     ('lossCoeff4Cup', -100, 100, 0, 1), 
 
-    ('lossCoeff4WassersteinTerminalState', -100, 100, 0, 1), 
+    ('lossCoeff4WassersteinTerminalState', -100, 100, 100, 1), 
     ('lossCoeff4Random', -100, 100, 0, 1), 
 
     ('lossCoeff4StateDistance', -100, 100, 0, 1), 
@@ -59,7 +59,7 @@ class policy():
 uninformedPolicy = policy()
 
 # Create a drop down for selecting the gridworld
-gridworld_dropdown = sg.DropDown(gridworlds, default_value=gridworlds[0], key='gridworld_dropdown')
+gridworld_dropdown = sg.DropDown(gridworlds, default_value="GW27", key='gridworld_dropdown')
 
 override_aleph_checkbox = sg.Checkbox("Override aleph0", default=False, key='override_aleph_checkbox', enable_events = True)
 

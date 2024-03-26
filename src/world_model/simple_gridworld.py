@@ -64,8 +64,8 @@ class SimpleGridworld(MDPWorldModel):
     each one encoded as one or two integers:
 
     - position 0: the current time step
-    - positions 1+2: the current location x,y of the agent
-    - positions 3+4: the previous location x,y of the agent
+    - positions 1+2: the previous location x,y of the agent
+    - positions 3+4: the current location x,y of the agent
     - positions 5...4+k: for each of k immobile objects with variable state, its state
     - positions 5+k..4+k+2*l: for each of l mobile objects without a variable state, its location x,y 
     - positions 5+k+2*l...4+k+2*l+2*m: for each of m mobile objects with a variable state, its location x,y
@@ -222,8 +222,8 @@ class SimpleGridworld(MDPWorldModel):
         nx, ny = xygrid.shape[0], xygrid.shape[1]
         self.observation_space = MultiDiscreteRanged(
             [max_episode_length,  # current time step
-             nx, ny,  # current location
-             nx, ny]  # previous location
+             nx, ny,  # previous location
+             nx, ny]  # current location
             + [max_n_object_states] * self.n_immobile_objects 
             + [nx, ny] * self.n_mobile_constant_objects 
             + [nx, ny] * self.n_mobile_variable_objects
@@ -306,16 +306,15 @@ class SimpleGridworld(MDPWorldModel):
         return 4 if action == 4 else (action + 2) % 4
         
     def state_embedding(self, state):
-        res = np.array(state, dtype=np.float32)[1:]
-        res[2:4] = 0  # make previous position irrelevant
+        res = np.array(state, dtype=np.float32)[3:]  # make time and previous position irrelevant
         return res
 
     @lru_cache(maxsize=None)
     def possible_actions(self, state):
         """Return a list of possible actions from the given state."""
-        location = (state[1], state[2])
+        t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
         actions = [action for action in range(4) 
-                    if self._can_move(location, self._get_target_location(location, action), state)]
+                    if self._can_move(loc, self._get_target_location(loc, action), state)]
         if len(actions) == 0:
             raise ValueError(f"No possible actions from state {state}") # FIXME: raise a more specific exception
         return actions
@@ -327,8 +326,8 @@ class SimpleGridworld(MDPWorldModel):
     def _extract_state_attributes(self, state):
         """Return the individual attributes of a state."""
         return (state[0],  # time step
-                (state[1], state[2]),  # current location
-                (state[3], state[4]),  # previous location
+                (state[3], state[4]),  # current location
+                (state[1], state[2]),  # previous location
                 state[5 
                       : 5+self.n_immobile_objects],  # immobile object states
                 state[5+self.n_immobile_objects 
@@ -367,8 +366,8 @@ class SimpleGridworld(MDPWorldModel):
         if mv_states is None:
             mv_states = np.zeros(self.n_mobile_variable_objects, dtype = int)
         return (t, 
-                loc[0], loc[1],
                 prev_loc[0], prev_loc[1],
+                loc[0], loc[1],
                 *imm_states,
                 *mc_locs,
                 *mv_locs,
@@ -461,18 +460,22 @@ class SimpleGridworld(MDPWorldModel):
                                     default_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, succ_mc_locs, set_loc(succ_mv_locs, i, (-2,-2)), succ_mv_states)
                                 else:  # it stays in place
                                     default_successor = successor
-                                new_trans_dist[default_successor] = probability * (1 - self.move_probability_F)
-                                p = probability * self.move_probability_F / 4
-                                for direction in range(4):
-                                    obj_target_loc = self._get_target_location(object_loc, direction)
-                                    if self._can_move(object_loc, obj_target_loc, successor, who='F'):
+                                direction_locs = [(direction, self._get_target_location(object_loc, direction)) 
+                                                   for direction in range(4)]
+                                direction_locs = [(direction, loc) for (direction, loc) in direction_locs 
+                                                  if self._can_move(object_loc, loc, successor, who='F')]
+                                n_directions = len(direction_locs)
+                                if n_directions == 0:
+                                    new_trans_dist[default_successor] = probability
+                                else:
+                                    new_trans_dist[default_successor] = probability * (1 - self.move_probability_F)
+                                    p = probability * self.move_probability_F / n_directions
+                                    for (direction, obj_target_loc) in direction_locs:
                                         if obj_target_loc == target_loc:  # object is destroyed
                                             new_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, succ_mc_locs, set_loc(succ_mv_locs, i, (-2,-2)), succ_mv_states)
                                         else:  # it moves
                                             new_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, succ_mc_locs, set_loc(succ_mv_locs, i, obj_target_loc), succ_mv_states)
                                         new_trans_dist[new_successor] = p
-                                    else:
-                                        new_trans_dist[default_successor] += p  # stay in place instead
                             trans_dist = new_trans_dist
                             
                 # TODO: update object states and/or object locations, e.g. if the agent picks up an object or moves an object
