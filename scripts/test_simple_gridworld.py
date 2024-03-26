@@ -23,11 +23,12 @@ import pylab as plt
 from satisfia.agents.makeMDPAgentSatisfia import AgentMDPPlanning
 
 def move_randomly(env):
-	state, delta, terminated, _, info = env.reset()
+	state, info = env.reset()
+	delta = terminated = 0
 	for t in range(1000):
 		actions = env.possible_actions(state)
 		action = random.choice(actions)
-		print(t, state, delta, terminated, _, info, actions, action)
+		print(t, state, delta, terminated, info, actions, action)
 		state, delta, terminated, _, info = env.step(action)
 		if terminated:
 			print(t, state, delta, terminated)
@@ -45,7 +46,7 @@ def move_agent(env, aleph):
 		def score(self, action):
 			return 1
 
-	state, delta, terminated, _, info = env.reset()
+	state, info = env.reset()
 	agent = AgentMDPPlanning({
 		# admissibility parameters:
 		"maxLambda": 1, # upper bound on local relative aspiration in each step (must be minLambda...1)	# TODO: rename to lambdaHi

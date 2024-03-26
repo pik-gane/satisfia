@@ -20,6 +20,11 @@ tested with:
 python scripts/test_simple_gridworld.py
 ```
 
+### A GUI for exploring parameters:
+```
+python scripts/explore_parameters.py
+```
+
 ### Adding more gridworlds:
 Open `src/environments/very_simple_gridworlds.py` and add another `elif` section.
  
