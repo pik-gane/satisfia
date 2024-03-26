@@ -7,12 +7,15 @@ import PySimpleGUI as sg
 from environments.very_simple_gridworlds import make_simple_gridworld
 from satisfia.agents.makeMDPAgentSatisfia import AgentMDPPlanning
 
-gridworlds = ["AISG2", "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW24", "GW25", "GW27", "GW28", "test_box"]
+gridworlds = ["AISG2", "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW24", "GW25", "GW27", "GW28", 
+              "GW29", "GW30", "test_box"]
+default_gridworld = "GW30"
+
 parameter_data = [
     ("aleph0_low", -10, 10, 0, 0.1),
     ("aleph0_high", -10, 10, 0, 0.1),
 
-    ("lossTemperature", 0, 100, 1, 1),
+    ("lossTemperature", 0, 100, 0, 1),
     ("lossCoeff4Variance", -100, 100, 0, 1),
 
     ('lossCoeff4Fourth', -100, 100, 0, 1), 
@@ -59,7 +62,7 @@ class policy():
 uninformedPolicy = policy()
 
 # Create a drop down for selecting the gridworld
-gridworld_dropdown = sg.DropDown(gridworlds, default_value="GW27", key='gridworld_dropdown')
+gridworld_dropdown = sg.DropDown(gridworlds, default_value=default_gridworld, key='gridworld_dropdown')
 
 override_aleph_checkbox = sg.Checkbox("Override aleph0", default=False, key='override_aleph_checkbox', enable_events = True)
 
@@ -142,7 +145,7 @@ def reset_env(start=False):
     state, info = env.reset()
     print("Initial state:", env.state_embedding(state), ", initial aleph:", aleph)
     agent = AgentMDPPlanning(parameter_values, world=env)
-    agent.localPolicy(state, aleph)  # call it once to precompute tables and save time for later
+    # agent.localPolicy(state, aleph)  # call it once to precompute tables and save time for later
     initialMu0 = list(agent.ETerminalState_state(state, aleph, "default"))
     initialMu20 = list(agent.ETerminalState2_state(state, aleph, "default"))
     t = 0

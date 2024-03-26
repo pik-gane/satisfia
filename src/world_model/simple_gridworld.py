@@ -16,6 +16,7 @@ from gymnasium import spaces
 unenterable_immobile_cell_types = ['#']  # can't run into walls
 unenterable_mobile_object_types = ['A']  # can't run into agents
 unsteady_cell_types = ['~', '^', '-']
+what_can_move_into_agent = []
 
 immobile_object_types = [',']
 mobile_constant_object_types = ['X']
@@ -290,9 +291,11 @@ class SimpleGridworld(MDPWorldModel):
             # can only move there if it hasn't turned into a wall yet:
             if imm_states[self.immobile_object_indices[to_loc]] > 0:
                 return False
+        if to_loc == agent_loc and who not in what_can_move_into_agent:
+            return False   
         # loop through all mobile objects and see if they hinder the movement:
         for i, object_type in enumerate(self.mobile_constant_object_types):
-            if (mc_locs[2*i],mc_locs[2*i+1]) == to_loc:
+            if to_loc == (mc_locs[2*i],mc_locs[2*i+1]):
                 if object_type in unenterable_mobile_object_types:
                     return False
                 if object_type == 'X':  # a box
