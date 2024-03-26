@@ -68,7 +68,7 @@ verbose_checkbox = sg.Checkbox("Verbose", default=False, key='verbose_checkbox')
 debug_checkbox = sg.Checkbox("Debug", default=False, key='debug_checkbox')
 
 # Create a "reset" button for resetting all parameter values to their defaults:
-reset_button = sg.Button("Reset all", key='reset_button')
+reset_params_button = sg.Button("Reset parameters", key='reset_params_button')
 
 # Create sliders for setting the parametersers
 parameter_sliders = {}
@@ -77,10 +77,11 @@ for pd in parameter_data:
                                          disabled = pd[0] in ['aleph0_low', 'aleph0_high'])
 
 # Create buttons for starting, pausing, stepping, and continuing the simulation
-restart_button = sg.Button("(Re)start", key='restart_button')
+reset_env_button = sg.Button("Reset", key='reset_env_button')
+restart_button = sg.Button("Restart", key='restart_button')
 pause_button = sg.Button("Pause", key='pause_button')
 step_button = sg.Button("Step", key='step_button')
-continue_button = sg.Button("Continue", key='continue_button')
+continue_button = sg.Button("Start/Continue", key='continue_button')
 
 autorestart_checkbox = sg.Checkbox("Auto restart", default=True, key='autorestart_checkbox')
 
@@ -89,7 +90,7 @@ speed_slider = sg.Slider(range=(1, 20), default_value=10, orientation='h', key='
 # Create the layout
 s = max([len(pd[0]) for pd in parameter_data])
 layout = [
-    [sg.Text("Gridworld"), gridworld_dropdown, override_aleph_checkbox, verbose_checkbox, debug_checkbox, reset_button],
+    [sg.Text("Gridworld"), gridworld_dropdown, override_aleph_checkbox, verbose_checkbox, debug_checkbox, reset_params_button],
     [sg.Column([
         [
             sg.Text(parameter_data[2*r][0], size=(s,None), justification="right"), parameter_sliders[parameter_data[2*r][0]],
@@ -97,7 +98,8 @@ layout = [
         ]
         for r in range(len(parameter_data) // 2)
         ], element_justification='r')],
-    [restart_button, pause_button, step_button, continue_button], 
+    [sg.Text("Simulation:"),
+     reset_env_button, restart_button, pause_button, step_button, continue_button], 
     [autorestart_checkbox, sg.Text("Speed"), speed_slider]
 ]
 
@@ -113,7 +115,7 @@ running = False
 stepping = False
 terminated = False
 
-def restart():
+def reset_env(start=False):
     global gridworld, parameter_values, env, agent, running, stepping, terminated, t, state, total, aleph, delta, initialMu0, initialMu20
     gridworld = values['gridworld_dropdown']
     env, aleph = make_simple_gridworld(gw=gridworld, render_mode="human", fps=values['speed_slider'])
@@ -134,18 +136,14 @@ def restart():
     })
     print("\n\nRESTART gridworld", gridworld, parameter_values)
     state, delta, terminated, _, info = env.reset()
-    agent = AgentMDPPlanning(parameter_values, world=env)
     print("Initial state:", env.state_embedding(state), ", initial aleph:", aleph)
+    agent = AgentMDPPlanning(parameter_values, world=env)
+    agent.localPolicy(state, aleph)  # call it once to precompute tables and save time for later
     initialMu0 = list(agent.ETerminalState_state(state, aleph, "default"))
     initialMu20 = list(agent.ETerminalState2_state(state, aleph, "default"))
-    print("default ETerminalState_state(s0):", initialMu0)
-    print("default ETerminalState2_state(s0):", initialMu20)
-    print("actual  ETerminalState_state(s0):", agent.ETerminalState_state(state, aleph, "actual"))
-    print("actual  ETerminalState2_state(s0):", agent.ETerminalState2_state(state, aleph, "actual"))
-    print("Wasserstein distance:", agent.wassersteinTerminalState_action(state, 4, aleph))
     t = 0
     total = delta
-    running = True
+    running = start
     stepping = False
 
 while True:
@@ -154,11 +152,13 @@ while True:
         event, values = window.read(timeout=0)
         if event == sg.WINDOW_CLOSED:
             break
-        elif event == 'reset_button':
+        elif event == 'reset_params_button':
             for pd in parameter_data:
                 window[pd[0]].update(pd[3])
+        elif event == 'reset_env_button':
+            reset_env(False)
         elif event == 'restart_button':
-            restart()
+            reset_env(True)
         elif event == 'pause_button':
             print("\n\nPAUSE")
             running = False
@@ -206,7 +206,7 @@ while True:
                 print("Terminated.")
             running = stepping = False
             if values['autorestart_checkbox']:
-                restart()
+                reset_env()
         else:
             t += 1
             if stepping: stepping = False
