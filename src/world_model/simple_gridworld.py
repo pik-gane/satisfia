@@ -317,8 +317,10 @@ class SimpleGridworld(MDPWorldModel):
         return res
 
     @lru_cache(maxsize=None)
-    def possible_actions(self, state):
+    def possible_actions(self, state=None):
         """Return a list of possible actions from the given state."""
+        if state is None:
+            state = self._state
         t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
         actions = [action for action in range(5) 
                     if self._can_move(loc, self._get_target_location(loc, action), state)]
