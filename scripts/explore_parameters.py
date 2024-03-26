@@ -209,12 +209,13 @@ while True:
         aleph = agent.propagateAspiration(state, action, aleph4action, delta, nextState)
         state = nextState
         if terminated:
-            print("t:",t, ", last delta:",delta, ", final total:", total, ", final s:",state, ", aleph4s:", aleph)
+            print("t:",t, ", last delta:",delta, ", final total:", total, ", final s:", state, ", aleph4s:", aleph)
             print("Terminated.")
             running = stepping = False
             if values['autorestart_checkbox']:
                 reset_env(True)
         else:
+            print("t:",t, ", delta:",delta, ", total:", total, ", s:", state, ", aleph4s:", aleph)
             t += 1
             if stepping: stepping = False
     else:

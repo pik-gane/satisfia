@@ -232,6 +232,7 @@ class WorldModel(Env):
     def step(self, action):
         """Perform the given action and return a tuple 
         (observation, reward, terminated, False, {})."""
+        assert action in self.possible_actions(self._state), f"{action} not possible in {self._state}"
         assert self.action_space.contains(action), f"{action} not in {self.action_space.__dict__}"
         if self.is_terminal(self._state):  # episode was already terminated!
             raise Exception() # TODO: ResetNeeded() no longer available?
