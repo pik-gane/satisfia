@@ -28,7 +28,7 @@ class MultiArmedBandit(Env):
     def step(self, action):
         assert self.action_space.contains(action)
         self.action_history.append(action)
-        reward = np.random.normal(self.biases[action])
+        reward = self.biases[action] + np.random.normal()
         self.reward_history.append(reward)
         observation = np.array(   self.action_history + [-1] * (self.num_steps - len(self.action_history))
                                 + self.reward_history + [0.] * (self.num_steps - len(self.reward_history)) )

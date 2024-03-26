@@ -196,6 +196,7 @@ class SimplifiedCheckersAgainstRandomPlayer(Env):
 
         observation = board_to_ids(self.board)
         assert self.observation_space.contains(observation)
+        print(observation.shape)
         return observation, {}
 
     def step(self, action):
@@ -241,6 +242,7 @@ class SimplifiedCheckersAgainstRandomPlayer(Env):
         assert self.observation_space.contains(observation)
         done = False
         truncated = False
+        print(observation.shape)
         return observation, reward, done, truncated, {}
 
     def render(self, mode="human", close=False):

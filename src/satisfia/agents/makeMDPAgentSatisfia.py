@@ -4,6 +4,7 @@ import math
 import json
 import random
 
+"""
 from functools import wraps
 
 def dummy_decorator(*decorator_args, **decorator_kwargs):
@@ -17,10 +18,12 @@ def dummy_decorator(*decorator_args, **decorator_kwargs):
         return decorator(decorator_args[0])
     else:
         return decorator
-	
-# from functools import cache, lru_cache
-cache = dummy_decorator
-lru_cache = dummy_decorator
+		
+# cache = dummy_decorator
+# lru_cache = dummy_decorators
+"""
+
+from functools import cache, lru_cache
 
 from satisfia.util import distribution
 from satisfia.util.helper import *

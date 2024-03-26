@@ -26,9 +26,9 @@ from joblib import Parallel, delayed
 # env = gym.make("SimplifiedCheckersAgainstRandomPlayer-v0", board_height=4, board_width=4, num_rows_with_pieces_initially=1)
 # env = TimeLimit(env, 500)
 # env = gym.make("CartPole-v1")
-env = gym.make("MultiArmedBandit-v0")
+env = gym.make("MultiArmedBandit-v0", biases=np.array([1., 0.]), num_steps=2)
 # save_to = "temp-checkers-model.pickle"
-save_to = "multi-armed-bandit-model-lambda-1.pickle"
+save_to = "multi-armed-bandit-model-lambda-1-num-steps-2.pickle"
 if not isfile(save_to):
     model = Sequential(Linear(prod(env.observation_space.shape), 128), ReLU(), Linear(128, 128), ReLU(), MinMaxUnbiasLinear(128, env.action_space.n))
     stats = train_dqn( model,
@@ -155,7 +155,7 @@ params = { "maxLambda": 1.,
            "lossCoeff4KLdiv": 0,
            "lossCoeff4KLdiv1": 0,
            "lossCoeff4Variance": 0,
-           "lossCoeff4Fourth": 0,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+           "lossCoeff4Fourth": 0,
            "lossCoeff4Cup": 0,
            "lossCoeff4LRA": 0,
            "lossCoeff4OtherLoss": 0,
@@ -173,7 +173,7 @@ for unbias in [False]: # [True, False]
     total_means = []
     total_stdevs = []
     for aleph in alephs:
-        totals = [test_agent(agent, env, aleph=aleph) for _ in tqdm(range(1_000), desc=f"{aleph=}")]
+        totals = [test_agent(agent, env, aleph=aleph) for _ in tqdm(range(10_000), desc=f"{aleph=}")]
         print(f"mean aspiration agent total for aspiration {aleph}: mean:", mean(totals), "stdev:", stdev(totals))
         total_means.append(mean(totals))
         total_stdevs.append(stdev(totals))

@@ -270,17 +270,20 @@ class MinMaxUnbiasLinear(nn.Module):
 """
 
 class MinMaxLinear(nn.Module):
-    def __init__(self, in_features, out_features):
+    def __init__(self, in_features, out_features, eps=1e-5):
         super().__init__()
         self.average_linear = nn.Linear(in_features, out_features)
-        self.log_half_length_linear = nn.Linear(in_features, out_features)
+        # self.log_half_length_linear = nn.Linear(in_features, out_features)
+        self.half_length = nn.Linear(in_features, out_features)
+        self.eps = eps
 
     def forward(self, x):
         average = self.average_linear(x)
-        log_half_length = self.log_half_length_linear(x)
-        half_length = log_half_length.exp()
-        return { "max": average + half_length,
-                 "min": average - half_length }
+        half_length = self.half_length(x).abs()
+        # log_half_length = self.log_half_length_linear(x)
+        # half_length = log_half_length.exp()
+        return { "max": average + half_length + self.eps,
+                 "min": average - half_length - self.eps }
     
 class MinMaxUnbiasLinear(nn.Module):
     def __init__(self, in_features, out_fetaures):
@@ -328,9 +331,11 @@ def train_dqn(model: nn.Module, env: gym.Env, cfg: DQNConfig) -> DQNTrainingStat
             if random.random() < epsilon:
                 action = env[max_or_min].action_space.sample()
             else:
-                q_values = q_network(torch.tensor(observation[max_or_min]).float().to(device))[max_or_min]
+                q_values = q_network(torch.tensor(observation[max_or_min]).to(device))[max_or_min]
                 action = torch_argmax_or_argmin[max_or_min](q_values).item()
 
+            print(f"{action=}")
+            print(f"{env[max_or_min].env.env.env.env.possible_actions(tuple(observation[max_or_min]))=}")
             next_observation, reward, termination, truncation, info = env[max_or_min].step(action)
             rewards_this_episode[max_or_min].append(reward)
 
@@ -442,8 +447,8 @@ class ReplayBuffer:
 
     def add(self, observation, next_observation, action, reward, termination):
         if self.observations is None:
-            self.observations      = np.empty((self.size, *observation.shape), dtype=np.float32)
-            self.next_observations = np.empty((self.size, *next_observation.shape), dtype=np.float32)
+            self.observations      = np.empty((self.size, *observation.shape), dtype=observation.dtype)
+            self.next_observations = np.empty((self.size, *next_observation.shape), dtype=next_observation.dtype)
             self.actions           = np.empty(self.size, dtype=int)
             self.rewards           = np.empty(self.size, dtype=np.float32)
             self.terminations      = np.empty(self.size, dtype=bool)
@@ -498,7 +503,7 @@ def dqn_training_statistics_plot(maximizer_statistics: DQNTrainingStatistics, mi
             ("episodic return", statistics[max_or_min].episodic_returns, "markers"),
             ("episodic length", statistics[max_or_min].episodic_lengths, "markers"),
             ("td loss",         statistics[max_or_min].td_losses,        "markers"),
-            ("predictor loss",  statistics[max_or_min].predictor_losses,   "markers")
+            ("predictor loss",  statistics[max_or_min].predictor_losses, "markers")
         ]):
 
             fig.add_trace( Scatter( x     = list(statistic.keys()),
