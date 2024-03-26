@@ -139,14 +139,15 @@ def reset_env(start=False):
         'referenceState': env.initial_state()
     })
     print("\n\nRESTART gridworld", gridworld, parameter_values)
-    state, delta, terminated, _, info = env.reset()
+    state, info = env.reset()
     print("Initial state:", env.state_embedding(state), ", initial aleph:", aleph)
     agent = AgentMDPPlanning(parameter_values, world=env)
     agent.localPolicy(state, aleph)  # call it once to precompute tables and save time for later
     initialMu0 = list(agent.ETerminalState_state(state, aleph, "default"))
     initialMu20 = list(agent.ETerminalState2_state(state, aleph, "default"))
     t = 0
-    total = delta
+    total = 0
+    terminated = False
     running = start
     stepping = False
 

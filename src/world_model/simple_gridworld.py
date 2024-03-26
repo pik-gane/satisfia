@@ -45,19 +45,6 @@ def state_embedding_for_distance(state):
     """return an embedding of state where all entries -2 are replaced by -10000"""
     return tuple(-10000 if x == -2 else x for x in state)
 
-class MultiDiscreteRanged(spaces.MultiDiscrete):
-    def __init__(self, nvec, start=None):
-        if start == None:
-            start = [0] * len(nvec)
-        assert len(nvec) == len(start)
-        self.start = start
-
-        super().__init__(nvec)
-
-    def sample(self):
-        result = super().sample()
-        return [value + offset for value, offset in zip(result, self.start)]
-
 class SimpleGridworld(MDPWorldModel):
     """A world model of a simple MDP-type Gridworld environment.
     
@@ -221,13 +208,13 @@ class SimpleGridworld(MDPWorldModel):
         # The observation returned for reinforcement learning equals state, as described above.
         # TODO how to specify start range of each dimension for MultiDiscrete?
         nx, ny = xygrid.shape[0], xygrid.shape[1]
-        self.observation_space = MultiDiscreteRanged(
-            [max_episode_length,  # current time step
-             nx, ny,  # previous location
-             nx, ny]  # current location
+        self.observation_space = spaces.MultiDiscrete(
+            [max_episode_length+1,  # current time step
+             nx+2, ny+2,  # previous location
+             nx+2, ny+2]  # current location
             + [max_n_object_states] * self.n_immobile_objects 
-            + [nx, ny] * self.n_mobile_constant_objects 
-            + [nx, ny] * self.n_mobile_variable_objects
+            + [nx+2, ny+2] * self.n_mobile_constant_objects 
+            + [nx+2, ny+2] * self.n_mobile_variable_objects
             + [max_n_object_states] * self.n_mobile_variable_objects
             , start = 
             [0,  # current time step
@@ -238,6 +225,20 @@ class SimpleGridworld(MDPWorldModel):
             + [-2, -2] * self.n_mobile_variable_objects
             + [0] * self.n_mobile_variable_objects
             )
+        
+        """
+        return (state[0],  # time step
+                (state[3], state[4]),  # current location
+                (state[1], state[2]),  # previous location
+                state[5 
+                      : 5+self.n_immobile_objects],  # immobile object states
+                state[5+self.n_immobile_objects 
+                      : 5+self.n_immobile_objects+2*self.n_mobile_constant_objects],  # mobile constant object locations
+                state[5+self.n_immobile_objects+2*self.n_mobile_constant_objects
+                      : 5+self.n_immobile_objects+2*self.n_mobile_constant_objects+2*self.n_mobile_variable_objects],  # mobile variable object locations
+                state[5+self.n_immobile_objects+2*self.n_mobile_constant_objects+2*self.n_mobile_variable_objects
+                      : 5+self.n_immobile_objects+2*self.n_mobile_constant_objects+3*self.n_mobile_variable_objects]  # mobile variable object states
+        """
 
         # We have 4 actions, corresponding to "right", "up", "left", "down"
         self.action_space = spaces.Discrete(5)

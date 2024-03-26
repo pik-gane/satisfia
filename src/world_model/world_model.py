@@ -226,13 +226,16 @@ class WorldModel(Env):
             random.seed(seed)
         successor, observation, reward, info = self._sample_successor_observation_reward()
         self._set_state(successor)
-        return observation, reward, self.is_terminal(successor), False, {}
+        assert self.observation_space.contains(observation), f"{observation} not in {self.observation_space.__dict__}"
+        return observation, {}
     
     def step(self, action):
         """Perform the given action and return a tuple 
         (observation, reward, terminated, False, {})."""
+        assert self.action_space.contains(action), f"{action} not in {self.action_space.__dict__}"
         if self.is_terminal(self._state):  # episode was already terminated!
             raise Exception() # TODO: ResetNeeded() no longer available?
         successor, observation, reward, info = self._sample_successor_observation_reward(action)
         self._set_state(successor)
+        assert self.observation_space.contains(observation), f"{observation} not in {self.observation_space.__dict__}"
         return observation, reward, self.is_terminal(successor), False, {}
