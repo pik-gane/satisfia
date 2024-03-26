@@ -4,6 +4,7 @@ import math
 from functools import cache, lru_cache
 import json
 import random
+import numpy as np
 
 from satisfia.util import distribution
 from satisfia.util.helper import *
@@ -22,6 +23,8 @@ class AspirationAgent(ABC):
 
 	reachable_states = None
 	default_transition = None
+	terminalMu0 = None
+	terminalMu20 = None
 
 	def __init__(self, params):
 		"""
@@ -65,6 +68,7 @@ class AspirationAgent(ABC):
 			"lossCoeff4DP": 0, # weight of disordering potential in loss function, must be >= 0
 			"lossCoeff4AgencyChange": 0, # weight of expected absolute agency change in loss function, must be >= 0
 
+			"uninformedStatePriorScore": lambda s: 0,
 			"defaultTransitionScore": {},
 			"internalTransitionEntropy": 0,
 
@@ -77,6 +81,7 @@ class AspirationAgent(ABC):
 			"lossCoeff4LRA": 0, # weight of deviation of LRA from 0.5 in loss function, must be >= 0
 			"lossCoeff4Time": 0, # weight of time in loss function, must be >= 0
 			"lossCoeff4DeltaVariation": 0, # weight of variation of Delta in loss function, must be >= 0
+			"lossCoeff4WassersteinTerminalState": 0, # weight of Wasserstein distance to default terminal state distribution in loss function, must be >= 0
 			"lossCoeff4Entropy": 0, # weight of action entropy in loss function, must be >= 0
 			"lossCoeff4KLdiv": 0, # weight of KL divergence in loss function, must be >= 0
 			"lossCoeff4TrajectoryEntropy": 0, # weight of trajectory entropy in loss function, must be >= 0
@@ -119,6 +124,7 @@ class AspirationAgent(ABC):
 		assert self.params["allowNegativeCoeffs"] or self.params["lossCoeff4LRA"] >= 0, "lossCoeff4LRA must be >= 0"
 		assert self.params["allowNegativeCoeffs"] or self.params["lossCoeff4Time"] >= 0, "lossCoeff4time must be >= 0"
 		assert self.params["allowNegativeCoeffs"] or self.params["lossCoeff4DeltaVariation"] >= 0, "lossCoeff4DeltaVariation must be >= 0"
+		assert self.params["allowNegativeCoeffs"] or self.params["lossCoeff4WassersteinTerminalState"] >= 0, "lossCoeff4WassersteinTerminalState must be >= 0"
 		assert self.params["allowNegativeCoeffs"] or self.params["lossCoeff4Entropy"] >= 0, "lossCoeff4entropy must be >= 0"
 		assert self.params["allowNegativeCoeffs"] or self.params["lossCoeff4KLdiv"] >= 0, "lossCoeff4KLdiv must be >= 0"
 		assert self.params["allowNegativeCoeffs"] or self.params["lossCoeff4TrajectoryEntropy"] >= 0, "lossCoeff4TrajectoryEntropy must be >= 0"
@@ -127,6 +133,8 @@ class AspirationAgent(ABC):
 		assert self.params["allowNegativeCoeffs"] or self.params["lossCoeff4CausationPotential"] >= 0, "lossCoeff4CausationPotential must be >= 0"
 		assert self.params["allowNegativeCoeffs"] or self.params["lossCoeff4OtherLoss"]	 >= 0, "lossCoeff4OtherLoss must be >= 0"
 
+		if not "defaultPolicy" in self.params:
+			self.params["defaultPolicy"] = self.world.default_policy
 		assert self.params["lossCoeff4Entropy"] == 0 or self.params["lossCoeff4DP"] == 0 or ("uninformedPolicy" in self.params), "uninformedPolicy must be provided if lossCoeff4DP > 0 or lossCoeff4Entropy > 0"
 		assert self.params["lossCoeff4StateDistance"] == 0 or ("referenceState" in self.params), "referenceState must be provided if lossCoeff4StateDistance > 0"
 
@@ -660,6 +668,48 @@ class AspirationAgent(ABC):
 		return vDsq
 
 	@lru_cache(maxsize=None)
+	def ETerminalState_state(self, state, aleph4state, policy="actual"): # recursive
+		"""expected value of (vector-embedded) terminal state"""
+		if self.debug:
+			print(pad(state),"ETerminalState_state", prettyState(state), aleph4state, "...")
+
+		if self.world.is_terminal(state):
+			res = self.world.state_embedding(state)
+		elif policy=="actual":
+			def X(actionAndAleph):
+				return self.ETerminalState_action(state, actionAndAleph[0], actionAndAleph[1], policy) # recursion
+			res = self.localPolicy(state, aleph4state).expectation(X)
+		else:
+			def X(action):
+				return self.ETerminalState_action(state, action, None, policy) # recursion
+			res = self["defaultPolicy"](state).expectation(X)
+
+		if self.debug or self.verbose:
+			print(pad(state),"╰ ETerminalState_state", prettyState(state), aleph4state, ":", res)
+		return res
+
+	@lru_cache(maxsize=None)
+	def ETerminalState2_state(self, state, aleph4state, policy="actual"): # recursive
+		"""expected value of entrywise squared (vector-embedded) terminal state"""
+		if self.debug:
+			print(pad(state),"ETerminalState2_state", prettyState(state), aleph4state, "...")
+
+		if self.world.is_terminal(state):
+			res = self.world.state_embedding(state)**2
+		elif policy=="actual":
+			def X(actionAndAleph):
+				return self.ETerminalState2_action(state, actionAndAleph[0], actionAndAleph[1], policy) # recursion
+			res = self.localPolicy(state, aleph4state).expectation(X)
+		else:
+			def X(action):
+				return self.ETerminalState2_action(state, action, None, policy) # recursion
+			res = self["defaultPolicy"](state).expectation(X)
+
+		if self.debug or self.verbose:
+			print(pad(state),"╰ ETerminalState2_state", prettyState(state), aleph4state, ":", res)
+		return res
+
+	@lru_cache(maxsize=None)
 	def behaviorEntropy_state(self, state, aleph4state): # recursive
 		if self.debug:
 			print(pad(state),"behaviorEntropy_state", prettyState(state), aleph4state, "...")
@@ -794,6 +844,9 @@ class AspirationAgent(ABC):
 		if q_ones != 0:
 			lDeltaVariation = expr_params(lambda l: l * (self.Q_DeltaSquare(s, a, al4a) / q_ones - self.Q2(s, a, al4a) / (q_ones ** 2)), "lossCoeff4DeltaVariation") # recursion
 
+		# change-related criteria:
+		lWassersteinTerminalState = expr_params(lambda l: l * self.wassersteinTerminalState_action(s, a, al4a), "lossCoeff4WassersteinTerminalState") #		
+
 		# randomization-related criteria:
 		lEntropy = expr_params(lambda l: l * self.behaviorEntropy_action(s, p, a, al4a), "lossCoeff4Entropy") # recursion
 		lKLdiv = expr_params(lambda l: l * self.behaviorKLdiv_action(s, p, a, al4a), "lossCoeff4KLdiv") # recursion
@@ -810,6 +863,7 @@ class AspirationAgent(ABC):
 		 	+ lAgencyChange + lLRA1 + self["lossCoeff4Time1"] + lEntropy1 + lKLdiv1
 			+ lVariance + lFourth + lCup + lLRA
 			+ lTime + lDeltaVariation
+			+ lWassersteinTerminalState
 			+ lEntropy + lKLdiv + lTrajectoryEntropy + lStateDistance 
 			+ lCausation + lCausationPotential
 			+ lOther)
@@ -829,6 +883,7 @@ class AspirationAgent(ABC):
 				"lLRA": lLRA,
 				"lTime": lTime,
 				"lDeltaVariation": lDeltaVariation,
+				"lWassersteinTerminalState": lWassersteinTerminalState,
 				"lEntropy": lEntropy,
 				"lKLdiv": lKLdiv,
 				"lTrajectoryEntropy": lTrajectoryEntropy,
@@ -891,6 +946,11 @@ class AspirationAgent(ABC):
 	def Q_DeltaSquare(self, state, action, aleph4action): pass
 
 	@abstractmethod
+	def ETerminalState_action(self, state, action, aleph4action, policy="actual"): pass
+	@abstractmethod
+	def ETerminalState2_action(self, state, action, aleph4action, policy="actual"): pass
+
+	@abstractmethod
 	def possible_actions(self, state, action): pass
 
 class AgentMDPLearning(AspirationAgent):
@@ -904,6 +964,7 @@ class AgentMDPLearning(AspirationAgent):
 			causationPotential_action=None,
 			otherLoss_action=None,
 			Q=None, Q2=None, Q3=None, Q4=None, Q5=None, Q6=None,
+			ETerminalState_action=None, ETerminalState2_action=None,
 			possible_actions=None):
 		super().__init__(params)
 
@@ -930,6 +991,9 @@ class AgentMDPLearning(AspirationAgent):
 
 		self.Q_ones = Q_ones
 		self.Q_DeltaSquare = Q_DeltaSquare
+
+		self.ETerminalState_action = ETerminalState_action
+		self.ETerminalState2_action = ETerminalState2_action
 
 		self.possible_actions = possible_actions
 
@@ -1268,6 +1332,64 @@ class AgentMDPPlanning(AspirationAgent):
 		qDsq = self.world.expectation(state, action, d)
 		return qDsq
 
+
+	# Methods to calculate the approximate Wasserstein distance (in state embedding space) between policy-induced and default distribution of terminal states:
+
+	@lru_cache(maxsize=None)
+	def ETerminalState_action(self, state, action, aleph4action, policy="actual"): # recursive
+		if self.debug:
+			print(pad(state),"| | | | | ETerminalState_action", prettyState(state), action, aleph4action, policy, '...')
+
+		Edel = self.world.raw_moment_of_delta(state, action)
+		if policy=="actual":
+			def X(nextState):
+				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
+				return self.ETerminalState_state(nextState, nextAleph4state, policy) # recursion
+			res = self.world.expectation(state, action, X)
+		else:
+			def X(nextState):
+				return self.ETerminalState_state(nextState, None, policy) # recursion
+			res = self.world.expectation(state, action, X)
+
+		if self.debug or self.verbose:
+			print(pad(state),"| | | | | ╰ ETerminalState_action", prettyState(state), action, aleph4action, policy, ":", res)
+		return res
+
+	@lru_cache(maxsize=None)
+	def ETerminalState2_action(self, state, action, aleph4action, policy="actual"): # recursive
+		if self.debug:
+			print(pad(state),"| | | | | ETerminalState2_action", prettyState(state), action, aleph4action, policy, '...')
+
+		Edel = self.world.raw_moment_of_delta(state, action)
+		if policy=="actual":
+			def X(nextState):
+				nextAleph4state = self.propagateAspiration(state, action, aleph4action, Edel, nextState)
+				return self.ETerminalState2_state(nextState, nextAleph4state, policy) # recursion
+			res = self.world.expectation(state, action, X)
+		else:
+			def X(nextState):
+				return self.ETerminalState2_state(nextState, None, policy) # recursion
+			res = self.world.expectation(state, action, X)
+
+		if self.debug or self.verbose:
+			print(pad(state),"| | | | | ╰ ETerminalState2_action", prettyState(state), action, aleph4action, policy, ":", res)
+		return res
+
+	def wassersteinTerminalState_action(self, state, action, aleph4action):
+		if self.debug:
+			print(pad(state),"| | | | wassersteinTerminalState_action", prettyState(state), action, aleph4action, '...')
+		if self.terminalMu0 is None:
+			self.terminalMu0 = self.ETerminalState_state(state, None, "default")
+			self.terminalMu20 = self.ETerminalState2_state(state, None, "default")
+		muPi = self.ETerminalState_action(state, action, aleph4action, "actual")
+		mu2Pi = self.ETerminalState2_action(state, action, aleph4action, "actual")
+		sigma0 = np.maximum(self.terminalMu20 - self.terminalMu0**2, 0)**0.5
+		sigmaPi = np.maximum(mu2Pi - muPi**2, 0)**0.5
+		res = ((self.terminalMu0 - muPi)**2).sum() + ((sigma0 - sigmaPi)**2).sum()
+		if self.debug or self.verbose:
+			print(pad(state),"| | | | ╰ wassersteinTerminalState_action", prettyState(state), action, aleph4action, ":", res)
+		return res
+
 	# Other safety criteria:
 
 	# Shannon entropy of behavior
@@ -1333,13 +1455,16 @@ class AgentMDPPlanning(AspirationAgent):
 		# because it is the negative (!) of a KL divergence. 
 		if self.debug:
 			print(pad(state),"| | | trajectoryEntropy_action", prettyState(state), actionProbability, action, aleph4action, '...')
+		if not self.default_transition:
+			self._compute_default_transition(state)
 		Edel = self.world.raw_moment_of_delta(state, action)
 		def entropy(nextState, transitionProbability):
-			priorScore = self["defaultTransition"](state).score(nextState)
+			priorScore = self["uninformedStatePriorScore"](nextState)
 			localEntropy = priorScore \
 							- math.log(actionProbability) \
 							- math.log(transitionProbability) \
 							+ (self["internalTrajectoryEntropy"](state, action) if ("internalTrajectoryEntropy" in self.params) else 0)
+			# TODO: decide whether the priorScore should really be used as it leads to completely opposite behavior in GW25: with the priorScore in place, penalizing trajectoryEntropy makes the agent *avoid* destroying the moving object, which should be considered a *non-reduction* in entropy, while destroying it should be considered a reduction in entropy...
 			if self.world.is_terminal(nextState) or aleph4action is None:
 				return localEntropy
 			else:

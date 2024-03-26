@@ -34,6 +34,13 @@ class WorldModel(Env):
 
     # methods for enquiring transition probabilities between states:
 
+    def state_embedding(self, state):
+        """vector representation of state"""
+        try:
+            return np.array(state, dtype=np.float32)
+        except:
+            raise ValueError("state must be an iterable of numbers")
+
     def is_terminal(self, state):
         """Return whether the given state is terminal, i.e., 
         an episode ends and the agent can no longer perform actions when reaching this state."""
@@ -47,8 +54,13 @@ class WorldModel(Env):
         space = self.action_space
         return range(space.start, space.start + space.n)
     
+    def default_policy(self, state):
+        """Return a default action, if any"""
+        return None
+
     def possible_successors(self, state, action=None, n_samples = None):
         """Return a list of possible successor states after performing action in state,
+        or, if action is None, of all possible successor states after any action in state,
         or, if state and action are None, a list of possible initial states."""
         if action is None:
             res = set()
@@ -95,7 +107,7 @@ class WorldModel(Env):
                        if successor_probability > 0
                        for ((observation, reward), (reward_probability, _)) in self.observation_and_reward_distribution(state, action, successor, n_samples = n_samples).items()
                        if reward_probability > 0
-                       ])
+                       ], axis=0)
     
     expectation_of_fct_of_delta = expectation_of_fct_of_reward
 
@@ -115,14 +127,14 @@ class WorldModel(Env):
         """Return the expected value of f(successor, *additional_args) after taking action in state."""
         return np.sum([probability * f(successor, *additional_args)
                        for (successor, (probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()
-                       if probability > 0])
+                       if probability > 0], axis=0)
 
     def expectation_of_fct_of_probability(self, state, action, f, additional_args = (), n_samples = None):
         """Return the expected value of f(successor, probability, *additional_args) after taking action in state,
         where probability is the probability of reaching successor after taking action in state."""
         return np.sum([probability * f(successor, probability, *additional_args)
                        for (successor, (probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()
-                       if probability > 0])
+                       if probability > 0], axis=0)
 
     # methods for enquiring observation probabilities given histories:
 
@@ -153,7 +165,7 @@ class WorldModel(Env):
         """Return the expected value of f(reward, *additional_args) when calling step(action) after the given history."""
         return np.sum([probability * f(self._result2reward(result), *additional_args)
                        for (result, (probability, _)) in self.result_distribution(history, action, n_samples = None)
-                       if probability > 0])
+                       if probability > 0], axis=0)
     
     expectation_of_fct_of_delta_after_history = expectation_of_fct_of_reward_after_history
 
@@ -174,7 +186,7 @@ class WorldModel(Env):
         return np.sum([probability * f(result, *additional_args)
                        for (result, (probability, _)) in self.result_distribution(history, action, n_samples = 
                        None)
-                       if probability > 0])
+                       if probability > 0], axis=0)
 
     # Our default implementation of standard gymnasium.Env methods uses sampling from the above distribution:
 
@@ -185,7 +197,10 @@ class WorldModel(Env):
         transition_distribution = self.transition_distribution(None if action is None else self._state, action)
         successors = list(transition_distribution.keys())
         succ_probs = list(transition_distribution.values())
-        drawn_succ_index = choice(len(successors), p = [succ_prob for (succ_prob, _) in succ_probs])
+        try:
+            drawn_succ_index = choice(len(successors), p = [succ_prob for (succ_prob, _) in succ_probs])
+        except:
+            print("!", successors, succ_probs)
         successor = successors[drawn_succ_index]
         succ_prob, succ_prob_exact = succ_probs[drawn_succ_index] 
         # draw an observation and reward according to the observation and reward distribution:
@@ -211,13 +226,17 @@ class WorldModel(Env):
             random.seed(seed)
         successor, observation, reward, info = self._sample_successor_observation_reward()
         self._set_state(successor)
-        return observation, reward, self.is_terminal(successor), False, {}
+        assert self.observation_space.contains(observation), f"{observation} not in {self.observation_space.__dict__}"
+        return observation, {}
     
     def step(self, action):
         """Perform the given action and return a tuple 
         (observation, reward, terminated, False, {})."""
+        assert action in self.possible_actions(self._state), f"{action} not possible in {self._state}"
+        assert self.action_space.contains(action), f"{action} not in {self.action_space.__dict__}"
         if self.is_terminal(self._state):  # episode was already terminated!
             raise Exception() # TODO: ResetNeeded() no longer available?
         successor, observation, reward, info = self._sample_successor_observation_reward(action)
         self._set_state(successor)
+        assert self.observation_space.contains(observation), f"{observation} not in {self.observation_space.__dict__}"
         return observation, reward, self.is_terminal(successor), False, {}
