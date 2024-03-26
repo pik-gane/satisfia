@@ -107,7 +107,7 @@ layout = [
 
 window = sg.Window("SatisfIA Control Panel", layout, location=(0,0))
 
-gridworld = gridworlds[0]
+gridworld = None
 parameter_values = { pd[0]: pd[3] for pd in parameter_data }
 env = None
 agent = None
@@ -116,12 +116,16 @@ stepping = False
 terminated = False
 
 def reset_env(start=False):
-    global gridworld, parameter_values, env, agent, running, stepping, terminated, t, state, total, aleph, delta, initialMu0, initialMu20
+    # TODO: only regenerate env if different from before!
+    global gridworld, parameter_values, env, agent, running, stepping, terminated, t, state, total, aleph, aleph0, delta, initialMu0, initialMu20
+    old_gridworld = gridworld
     gridworld = values['gridworld_dropdown']
-    env, aleph = make_simple_gridworld(gw=gridworld, render_mode="human", fps=values['speed_slider'])
+    if gridworld != old_gridworld:
+        env, aleph0 = make_simple_gridworld(gw=gridworld, render_mode="human", fps=values['speed_slider'])
     if values['override_aleph_checkbox']:
         aleph = (values['aleph0_low'], values['aleph0_high'])
     else:
+        aleph = aleph0
         parameter_sliders['aleph0_low'].update(aleph[0])
         parameter_sliders['aleph0_high'].update(aleph[1])
     parameter_values = { pd[0]: values[pd[0]] for pd in parameter_data }
@@ -201,12 +205,11 @@ while True:
         aleph = agent.propagateAspiration(state, action, aleph4action, delta, nextState)
         state = nextState
         if terminated:
-            if parameter_values['verbose'] or parameter_values['debug']:
-                print("t:",t, ", last delta:",delta, ", final total:", total, ", final s:",state, ", aleph4s:", aleph)
-                print("Terminated.")
+            print("t:",t, ", last delta:",delta, ", final total:", total, ", final s:",state, ", aleph4s:", aleph)
+            print("Terminated.")
             running = stepping = False
             if values['autorestart_checkbox']:
-                reset_env()
+                reset_env(True)
         else:
             t += 1
             if stepping: stepping = False

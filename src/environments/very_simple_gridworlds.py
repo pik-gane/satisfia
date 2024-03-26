@@ -195,9 +195,9 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         ]
         expectedDeltaTable = { 'G': 1 }
         aleph0 = 1
-        totalTime = time or 6
-        move_probability_F = 0.1
-
+        totalTime = time or 7
+        move_probability_F = 0.5
+        
     elif gw == "GW26":
         """
         Avoid unnecessary causation / irreversible changes
