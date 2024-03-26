@@ -8,8 +8,8 @@ from environments.very_simple_gridworlds import make_simple_gridworld
 from satisfia.agents.makeMDPAgentSatisfia import AgentMDPPlanning
 
 gridworlds = ["AISG2", "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW24", "GW25", "GW27", "GW28", 
-              "GW29", "GW30", "test_box"]
-default_gridworld = "GW30"
+              "GW29", "GW30", "GW31", "test_box"]
+default_gridworld = "GW31"
 
 parameter_data = [
     ("aleph0_low", -10, 10, 0, 0.1),
@@ -149,7 +149,7 @@ def reset_env(start=False):
     initialMu0 = list(agent.ETerminalState_state(state, aleph, "default"))
     initialMu20 = list(agent.ETerminalState2_state(state, aleph, "default"))
     t = 0
-    total = 0
+    delta = total = 0
     terminated = False
     running = start
     stepping = False
@@ -201,6 +201,7 @@ while True:
                 print("      actual  ETerminalState_state (s) :", list(agent.ETerminalState_action(state, a, al4a, "actual")))
                 print("      actual  ETerminalState2_state(s) :", list(agent.ETerminalState2_action(state, a, al4a, "actual")))
                 print("      --> Wasserstein distance", agent.wassersteinTerminalState_action(state, a, al4a))
+                print("      expected Total (state aleph):", agent.Q(state, a, al4a), f"({aleph})")
             print("    so we take action", action)
         if parameter_values['verbose'] or parameter_values['debug']:
             print("t:", t, ", last delta:" ,delta, ", total:", total, ", s:", state, ", aleph4s:", aleph, ", a:", action, ", aleph4a:", aleph4action)

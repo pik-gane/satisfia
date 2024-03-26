@@ -338,6 +338,29 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         totalTime = time or 7
         move_probability_F = 1
 
+    elif gw == "GW31":
+        """
+        Get Delta and get back to origin
+        """
+        grid = [
+          ['#', '#', '#', '#', '#'],
+          ['#', 'A', ' ', ' ', '#'],
+          ['#', ' ', ' ', ' ', '#'],
+          ['#', ' ', ' ', 'Δ', '#'],
+          ['#', '#', '#', '#', '#']
+        ]
+        delta_grid = [
+          [' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', 'Δ', ' '],
+          [' ', ' ', ' ', ' ', ' ']
+        ]
+        expectedDeltaTable = { 'Δ': 1 }
+        timeout_delta = 0
+        aleph0 = 1
+        totalTime = time or 9
+
     elif gw == "test_box":
         grid = [
             [' ', 'X', ' ', 'X', 'A', 'X', 'G', ' ', ' ']

@@ -16,7 +16,7 @@ from gymnasium import spaces
 unenterable_immobile_cell_types = ['#']  # can't run into walls
 unenterable_mobile_object_types = ['A']  # can't run into agents
 unsteady_cell_types = ['~', '^', '-']
-what_can_move_into_agent = []
+what_can_move_into_agent = ['A']
 
 immobile_object_types = [',']
 mobile_constant_object_types = ['X']
@@ -552,6 +552,16 @@ class SimpleGridworld(MDPWorldModel):
         for x in range(self.xygrid.shape[0]):
             for y in range(self.xygrid.shape[1]):
                 cell_type = self.xygrid[x, y]
+                cell_code = self.delta_xygrid[x, y]
+                if cell_code in self.cell_code2delta:
+                    pygame.draw.rect(
+                        canvas,
+                        (255, 255, 240),
+                        (x * pix_square_size, y * pix_square_size, pix_square_size, pix_square_size),
+                    )
+                    canvas.blit(self._delta_font.render(
+                        cell_code + f" {self.cell_code2delta[cell_code]}", True, (0, 0, 0)),
+                        ((x+.1) * pix_square_size, (y+.1) * pix_square_size))
                 if cell_type == "#" or (cell_type == "," and self._immobile_object_states[self.immobile_object_indices[x, y]] == 1):
                     pygame.draw.rect(
                         canvas,
@@ -573,11 +583,6 @@ class SimpleGridworld(MDPWorldModel):
                 elif cell_type in render_as_char_types:
                     canvas.blit(self._cell_font.render(cell_type, True, (0, 0, 0)),
                                       ((x+.3) * pix_square_size, (y+.3) * pix_square_size))
-                cell_code = self.delta_xygrid[x, y]
-                if cell_code in self.cell_code2delta:
-                    canvas.blit(self._delta_font.render(
-                        cell_code + f" {self.cell_code2delta[cell_code]}", True, (0, 0, 0)),
-                        ((x+.1) * pix_square_size, (y+.1) * pix_square_size))
                 canvas.blit(self._delta_font.render(
                     f"{x},{y}", True, (128, 128, 128)),
                     ((x+.8) * pix_square_size, (y+.1) * pix_square_size))
