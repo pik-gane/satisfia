@@ -1022,7 +1022,6 @@ class AgentMDPPlanning(AspirationAgent):
 
 		Edel = self.world.raw_moment_of_delta(state, action)
 		# Bellman equation
-		if self.world.is_terminal(state): print("fail")
 		q = Edel + self.world.expectation(state, action, self.maxAdmissibleV) # recursion
 
 		if self.verbose or self.debug:
@@ -1040,7 +1039,6 @@ class AgentMDPPlanning(AspirationAgent):
 
 		Edel = self.world.raw_moment_of_delta(state, action)
 		# Bellman equation
-		if self.world.is_terminal(state): print("fail")
 		q = Edel + self.world.expectation(state, action, self.minAdmissibleV) # recursion
 
 		if self.verbose or self.debug:
