@@ -8,8 +8,8 @@ from environments.very_simple_gridworlds import make_simple_gridworld
 from satisfia.agents.makeMDPAgentSatisfia import AgentMDPPlanning
 
 gridworlds = ["AISG2", "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW24", "GW25", "GW27", "GW28", 
-              "GW29", "GW30", "GW31", "test_box"]
-default_gridworld = "GW31"
+              "GW29", "GW30", "GW31", "test_return", "test_box"]
+default_gridworld = "test_return"
 
 parameter_data = [
     ("aleph0_low", -10, 10, 0, 0.1),
