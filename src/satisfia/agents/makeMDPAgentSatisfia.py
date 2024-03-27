@@ -229,7 +229,7 @@ class AspirationAgent(ABC):
 			print(pad(state),"| | ╰ aspiration4state, state",prettyState(state),"unclippedAleph",unclippedAleph,":",res)
 		return res
 
-	# When constructing the local policy, we first use an estimated action aspiration interval
+	# When constructing the local policy, we use an action aspiration interval
 	# that does not depend on the local policy but is simply based on the state's aspiration interval,
 	# moved from the admissibility interval of the state to the admissibility interval of the action.
 	@lru_cache(maxsize=None)
@@ -237,49 +237,45 @@ class AspirationAgent(ABC):
 		if self.debug:
 			print(pad(state),"| | aspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,"...")
 
-		res = interpolate(self.minAdmissibleQ(state, action),
-						  relativePosition(self.minAdmissibleV(state), aleph4state, self.maxAdmissibleV(state)),
-						  self.maxAdmissibleQ(state, action));
-		if self.verbose or self.debug:
-			print(pad(state),"| | ╰ aspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,":",res,"(rescaled)") 
-		return res
-
-		# DISABLED:
 		phi = self.admissibility4action(state, action)
-		if isSubsetOf(phi, aleph4state):
-			if self.verbose or self.debug:
-				print(pad(state),"| | ╰ estAspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,":",phi,"(subset of aleph4state)")
-			return phi
-		else:
-			""" DISBLED:
-				// if rescaling4Actions == 1, we use a completely rescaled version:
-				var rescaled = interpolate(minAdmissibleQ(state, action),
-																	 relativePosition(minAdmissibleV(state), aleph4state, maxAdmissibleV(state)),
-																	 maxAdmissibleQ(state, action));
-				// if rescaling4Actions == 0, we
-			"""
 
-			# We use a steadfast version that does make sure that aleph(a) is no wider than aleph(s):
-			# - If phi(a) contains aleph(s), then aleph(a) = aleph(s)
-			# - If aleph(s) contains phi(a), then aleph(a) = phi(a)
-			# - If phiLo(a) < alephLo(s) and phiHi(a) < alephHi(s), then aleph(a) = [max(phiLo(a), phiHi(a) - alephW(s)), phiHi(a)]
-			# - If phiHi(a) > alephHi(s) and phiLo(a) > alephLo(s), then aleph(a) = [phiLo(a), min(phiHi(a), phiLo(a) + alephW(s))]
+		# We use a steadfast version that does make sure that 
+		# - aleph(a) is no wider than aleph(s)
+		# - one can mix the midpoint of aleph(s) from midpoints of alephs(a)
+		# - hence one can mix an interval inside aleph(s) from alephs(a).
+		# The rule finds the largest subinterval of phi(a) (the admissibility interval of a)
+		# that is no wider than aleph(s) and is closest to aleph(s).
+		# More precisely:
+		# - If phi(a) contains aleph(s), then aleph(a) = aleph(s)
+		# - If aleph(s) contains phi(a), then aleph(a) = phi(a)
+		# - If phiLo(a) < alephLo(s) and phiHi(a) < alephHi(s), then aleph(a) = [max(phiLo(a), phiHi(a) - alephW(s)), phiHi(a)]
+		# - If phiHi(a) > alephHi(s) and phiLo(a) > alephLo(s), then aleph(a) = [phiLo(a), min(phiHi(a), phiLo(a) + alephW(s))]
+
+		if isSubsetOf(phi, aleph4state):  # case (1)
+			res = phi
+			# this case has no guarantee for the relationship between midpoint(res) and midpoint(aleph4state),
+			# but that's fine since there will always either be an action with case (2) below,
+			# or both an action with case (3) and another with case (4),
+			# so that the midpoint of aleph4state can always be mixed from midpoints of alephs4action
+		elif isSubsetOf(aleph4state, phi):  # case (2)
+			res = aleph4state
+			# as a consequence, midpoint(res) = midpoint(aleph4state)
+		else:
 			phiLo, phiHi = phi
 			alephLo, alephHi = aleph4state
 			w = alephHi - alephLo
-			steadfast = phi
-			if isSubsetOf(aleph4state, phi):
-				steadfast = aleph4state
-			elif phiLo < alephLo and phiHi < alephHi:
-				steadfast = Interval(max(phiLo, phiHi - w), phiHi)
-			elif phiHi > alephHi and phiLo > alephLo:
-				steadfast = Interval(phiLo, min(phiHi, phiLo + w))
-			# DISABLED: We interpolate between the two versions according to rescaling4Actions:
-			res = steadfast # WAS: interpolate(steadfast, rescaling4Actions, rescaled);
+			if phiLo < alephLo and phiHi < alephHi:  # case (3)
+				res = Interval(max(phiLo, phiHi - w), phiHi)
+				# as a consequence, midpoint(res) < midpoint(aleph4state)
+			elif phiHi > alephHi and phiLo > alephLo:  # case (4)
+				res = Interval(phiLo, min(phiHi, phiLo + w))
+				# as a consequence, midpoint(res) > midpoint(aleph4state)
+			else:
+				raise ValueError("impossible relationship between phi and aleph4state")
 
-			if self.verbose or self.debug:
-				print(pad(state),"| | ╰ estAspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,":",res,"(steadfast)") # WAS: "(steadfast/rescaled)")
-			return res
+		if self.verbose or self.debug:
+			print(pad(state),"| | ╰ aspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,":",res,"(steadfast)") 
+		return res
 
 	@lru_cache(maxsize=None)
 	def disorderingPotential_state(self, state): # recursive
@@ -405,7 +401,7 @@ class AspirationAgent(ABC):
 				probability_add(p_effective, (a1, adm1), p1)
 			else:
 				# For the second action, restrict actions so that the the midpoint of aleph4state can be mixed from
-				# those of estAlephs4action of the first and second action:
+				# those of aleph4action of the first and second action:
 				midTarget = midpoint(aleph4state)
 				aleph1 = alephs[i1]
 				mid1 = midpoint(aleph1)
