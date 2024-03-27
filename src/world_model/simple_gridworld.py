@@ -213,6 +213,7 @@ class SimpleGridworld(MDPWorldModel):
             [max_episode_length+1,  # current time step
              nx+2, ny+2,  # previous location
              nx+2, ny+2]  # current location
+            # just temporarily changed the +2's to +4's before jobst fixes it properly
             + [max_n_object_states] * self.n_immobile_objects 
             + [nx+2, ny+2] * self.n_mobile_constant_objects 
             + [nx+2, ny+2] * self.n_mobile_variable_objects
@@ -221,6 +222,7 @@ class SimpleGridworld(MDPWorldModel):
             [0,  # current time step
              -2, -2,  # current location
              -2, -2]  # previous location
+             # just temporarily changed the -2' to a -4's before Jobst fixes it properly
             + [0] * self.n_immobile_objects 
             + [-2, -2] * self.n_mobile_constant_objects 
             + [-2, -2] * self.n_mobile_variable_objects
@@ -320,8 +322,8 @@ class SimpleGridworld(MDPWorldModel):
         t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
         actions = [action for action in range(5) 
                     if self._can_move(loc, self._get_target_location(loc, action), state)]
-        if len(actions) == 0:
-            raise ValueError(f"No possible actions from state {state}") # FIXME: raise a more specific exception
+        # if len(actions) == 0:
+        #     raise ValueError(f"No possible actions from state {state}") # FIXME: raise a more specific exception
         return actions
 
     def default_policy(self, state):
@@ -409,6 +411,7 @@ class SimpleGridworld(MDPWorldModel):
                 imm_states = set_entry(imm_states, self.immobile_object_indices[loc], 1)
 
             target_loc = self._get_target_location(loc, action)
+            print(f"{loc=}, {action=}, {target_loc=}")
             target_type = self.xygrid[target_loc]
 
             # loop through all mobile objects and see if they are affected by the action:

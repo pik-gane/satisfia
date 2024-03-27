@@ -326,16 +326,23 @@ def train_dqn(model: nn.Module, env: gym.Env, cfg: DQNConfig) -> DQNTrainingStat
 
     rewards_this_episode = {"max": [], "min": []}
     for global_step in tqdm(range(cfg.total_timesteps)) if cfg.tqdm else range(cfg.total_timesteps):
+        possible_actions = env[max_or_min].env.env.possible_actions(tuple(observation[max_or_min]))
+        # assert possible_actions != []
+        STAY_IN_PLACE_ACTION = 4
+        if STAY_IN_PLACE_ACTION not in possible_actions:
+            possible_actions.append(STAY_IN_PLACE_ACTION)
+
         epsilon = cfg.eps_scheduler(global_step / cfg.total_timesteps)
         for max_or_min in ["max", "min"]:
             if random.random() < epsilon:
-                action = env[max_or_min].action_space.sample()
+                # action = env[max_or_min].action_space.sample()
+                action = random.choice(possible_actions)
             else:
                 q_values = q_network(torch.tensor(observation[max_or_min]).to(device))[max_or_min]
-                action = torch_argmax_or_argmin[max_or_min](q_values).item()
+                mask = torch.full_like(q_values, float("-inf"))
+                mask[possible_actions] = 0
+                action = torch_argmax_or_argmin[max_or_min](q_values + mask).item()
 
-            print(f"{action=}")
-            print(f"{env[max_or_min].env.env.env.env.possible_actions(tuple(observation[max_or_min]))=}")
             next_observation, reward, termination, truncation, info = env[max_or_min].step(action)
             rewards_this_episode[max_or_min].append(reward)
 

@@ -110,6 +110,18 @@ class AgentMDPDQN(AspirationAgent):
     def trajectoryEntropy_action(self, *args, **kwargs):
         assert False
 
+    def ETerminalState_action(self, *args, **kwargs):
+        assert False
+
+    def ETerminalState2_action(self, *args, **kwargs):
+        assert False
+
+    def causationPotential_action(self, *args, **kwargs):
+        assert False
+
+    def causation_action(self, *args, **kwargs):
+        assert False
+
 def test_agent(agent, env, aleph):
     observation, _ = env.reset()
     total = 0.
@@ -150,6 +162,7 @@ params = { "maxLambda": 1.,
            "lossCoeff4LRA": 0,
            "lossCoeff4OtherLoss": 0,
            "lossCoeff4AgencyChange": 0,
+           "defaultPolicy": None,
            "debug": False }
 
 class MultiEmbedding(Module):
@@ -159,29 +172,11 @@ class MultiEmbedding(Module):
         self.embeddings = ModuleList(Embedding(n, dim) for n in vocab_sizes)
 
     def forward(self, x):
-        print("embedding", x)
         if isinstance(x, tuple):
             x = np.array(list(x))
         return sum(embedding(x[..., i] - self.vocab_starts[i]) for i, embedding in enumerate(self.embeddings))
         
-class DummyResetWrapper(gym.Env):
-    def __init__(self, env: gym.Env):
-        self.env = env
-        self.observation_space = env.observation_space
-        self.action_space = env.action_space
-
-    def reset(self, seed=None, options=None):
-        self.first_step = True
-        return tuple(self.observation_space.sample()), {}
-    
-    def step(self, action, options=None):
-        if self.first_step:
-            self.first_step = False
-            return self.env.reset()
-        else:
-            return self.env.step(action)
-
-class ToNumpyArrayWrappr(gym.Env):
+class ToNumpyArrayWrapper(gym.Env):
     def __init__(self, env: gym.Env):
         self.env = env
         self.observation_space = env.observation_space
@@ -205,7 +200,6 @@ class ToNumpyArrayWrappr(gym.Env):
 
 for gridword_name in ["GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW24", "test_box", "AISG2"]:
     env, aleph0 = make_simple_gridworld(gridword_name)
-    env = TimeLimit(DummyResetWrapper(env), 100)
     print(f"{aleph0=}")
     print(env.action_space)
     print(env.observation_space.nvec)
@@ -216,14 +210,14 @@ for gridword_name in ["GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", 
 
     save_filename = f"{gridword_name}-model.pickle"
     if not isfile(save_filename):
-        model = Sequential( MultiEmbedding( vocab_sizes=env.observation_space.nvec+1,
+        model = Sequential( MultiEmbedding( vocab_sizes=env.observation_space.nvec,
                                             vocab_starts=env.observation_space.start,
                                             dim=16 ),
                             ReLU(),
                             MinMaxLinear(16, env.action_space.n) )
 
         train_dqn( model,
-                ToNumpyArrayWrappr(env),
+                ToNumpyArrayWrapper(env),
                 DQNConfig( lambda_high = 1.,
                             lambda_low = 0.,
                             double_q_learning = True,

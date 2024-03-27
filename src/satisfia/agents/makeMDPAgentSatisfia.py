@@ -873,6 +873,10 @@ class AspirationAgent(ABC):
 		lTrajectoryEntropy = expr_params(lambda l: l * self.trajectoryEntropy_action(s, p, a, al4a) if l != 0 else 0, "lossCoeff4TrajectoryEntropy") # recursion
 		lStateDistance = expr_params(lambda l: l * self.stateDistance_action(s, a, al4a) if l != 0 else 0, "lossCoeff4StateDistance") # recursion
 
+		# added this, i have absolutely no clue what those are but they are used without never being assigned to
+		lCausation = 0
+		lCausationPotential = 0
+
 		lOther = 0
 		if "otherLocalLoss" in self.params:
 			lOther = expr_params(lambda l: l * self.otherLoss_action(s, a, al4a) if l != 0 else 0, "lossCoeff4OtherLoss") # recursion
