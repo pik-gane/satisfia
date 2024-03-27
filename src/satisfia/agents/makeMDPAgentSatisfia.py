@@ -251,15 +251,15 @@ class AspirationAgent(ABC):
 		# - If phiLo(a) < alephLo(s) and phiHi(a) < alephHi(s), then aleph(a) = [max(phiLo(a), phiHi(a) - alephW(s)), phiHi(a)]
 		# - If phiHi(a) > alephHi(s) and phiLo(a) > alephLo(s), then aleph(a) = [phiLo(a), min(phiHi(a), phiLo(a) + alephW(s))]
 
-		if isSubsetOf(phi, aleph4state):  # case (1)
-			res = phi
-			# this case has no guarantee for the relationship between midpoint(res) and midpoint(aleph4state),
-			# but that's fine since there will always either be an action with case (2) below,
-			# or both an action with case (3) and another with case (4),
-			# so that the midpoint of aleph4state can always be mixed from midpoints of alephs4action
-		elif isSubsetOf(aleph4state, phi):  # case (2)
+		if isSubsetOf(aleph4state, phi):  # case (1)
 			res = aleph4state
 			# as a consequence, midpoint(res) = midpoint(aleph4state)
+		elif isSubsetOf(phi, aleph4state):  # case (2)
+			res = phi
+			# this case has no guarantee for the relationship between midpoint(res) and midpoint(aleph4state),
+			# but that's fine since there will always either be an action with case (1) above,
+			# or both an action with case (3) and another with case (4) below,
+			# so that the midpoint of aleph4state can always be mixed from midpoints of alephs4action
 		else:
 			phiLo, phiHi = phi
 			alephLo, alephHi = aleph4state
