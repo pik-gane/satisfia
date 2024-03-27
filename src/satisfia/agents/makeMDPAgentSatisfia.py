@@ -370,7 +370,7 @@ class AspirationAgent(ABC):
 
 	@lru_cache(maxsize=None)
 	def localPolicyData(self, state, aleph):
-		if self.verbose or self.debug:
+		if True or self.verbose or self.debug:
 			print(pad(state), "| localPolicyData, state",prettyState(state),"aleph",aleph,"...")
 
 		# Clip aspiration interval to admissibility interval of state:
@@ -379,6 +379,7 @@ class AspirationAgent(ABC):
 		# Estimate aspiration intervals for all possible actions in a way
 		# independent from the local policy that we are about to construct,
 		actions = self.possible_actions(state)
+		print(state, actions)
 		assert actions != []
 		alephs = [self.aspiration4action(state, action, aleph4state) for action in actions]
 

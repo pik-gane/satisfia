@@ -162,7 +162,8 @@ class SimpleGridworld(MDPWorldModel):
                  timeout_delta = 0,
                  uneven_ground_prob = 0.25,
                  move_probability_F = 0,
-                 fps = 4
+                 fps = 4,
+                 replace_impossible_actions_by_default = True,
                  ):
 
         self.xygrid = xygrid = np.array(grid).T
@@ -174,6 +175,8 @@ class SimpleGridworld(MDPWorldModel):
         self.move_probability_F = move_probability_F
         self.uneven_ground_prob = uneven_ground_prob
         self._fps = fps
+        self.replace_impossible_actions_by_default = replace_impossible_actions_by_default
+        self.default_action = 4
 
         self._window_shape = 800 * np.array(xygrid.shape) / np.max(xygrid.shape)  # The size of the PyGame window in pixels
 
@@ -317,13 +320,13 @@ class SimpleGridworld(MDPWorldModel):
         return res
 
     @lru_cache(maxsize=None)
-    def possible_actions(self, state):
+    def possible_actions(self, state=None):
         """Return a list of possible actions from the given state."""
+        if state is None: state = self._state
         t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
-        actions = [action for action in range(5) 
+        actions = [4] + [action for action in range(4) 
                     if self._can_move(loc, self._get_target_location(loc, action), state)]
-        # if len(actions) == 0:
-        #     raise ValueError(f"No possible actions from state {state}") # FIXME: raise a more specific exception
+        assert len(actions) > 0, f"No possible actions from state {state}"
         return actions
 
     def default_policy(self, state):
@@ -399,6 +402,8 @@ class SimpleGridworld(MDPWorldModel):
         if state is None and action is None:
             successor = self._make_state()
             return {successor: (1, True)}
+        if self.replace_impossible_actions_by_default and not action in self.possible_actions(state):
+            action = self.default_action
         t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
         cell_type = self.xygrid[loc]
         at_goal = cell_type == 'G'
@@ -497,6 +502,8 @@ class SimpleGridworld(MDPWorldModel):
         """
         if state is None and action is None:
             return {(self._make_state(), 0): (1, True)}
+        if self.replace_impossible_actions_by_default and not action in self.possible_actions(state):
+            action = self.default_action
         t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(successor)
         delta = self.time_deltas[t % self.time_deltas.size]
         if self.delta_xygrid[loc] in self.cell_code2delta:
@@ -517,6 +524,8 @@ class SimpleGridworld(MDPWorldModel):
         return ret
 
     def step(self, action):
+        if self.replace_impossible_actions_by_default and not action in self.possible_actions(self._state):
+            action = self.default_action
         ret = super().step(action)
         if self.render_mode == "human":
             self._render_frame()

@@ -339,7 +339,7 @@ def train_dqn(model: nn.Module, env: gym.Env, cfg: DQNConfig) -> DQNTrainingStat
                 action = random.choice(possible_actions)
             else:
                 q_values = q_network(torch.tensor(observation[max_or_min]).to(device))[max_or_min]
-                mask = torch.full_like(q_values, float("-inf"))
+                mask = torch.full_like(q_values, float("-inf") if max_or_min=="max" else float("inf"))
                 mask[possible_actions] = 0
                 action = torch_argmax_or_argmin[max_or_min](q_values + mask).item()
 

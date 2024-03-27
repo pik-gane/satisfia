@@ -126,7 +126,7 @@ def test_agent(agent, env, aleph):
     observation, _ = env.reset()
     total = 0.
     while True:
-        action, aleph4action = agent.localPolicy(tuple(observation), aleph=aleph).sample()[0]
+        action, aleph4action = agent.localPolicy(observation, aleph=aleph).sample()[0]
         next_observation, reward, done, truncated, _ = env.step(action)
         total += reward
         agent.propagateAspiration(observation, action, aleph4action, reward, next_observation)
@@ -222,6 +222,7 @@ for gridword_name in ["GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", 
                             lambda_low = 0.,
                             double_q_learning = True,
                             unbias = False,
+                            total_timesteps = 10,
                             eps_scheduler=PiecewiseLinearScheduler([(0., 1.), (0.2, 0.05), (0.7, 0.), (1., 0.)]) ) )
 
         with open(save_filename, "wb") as f:
