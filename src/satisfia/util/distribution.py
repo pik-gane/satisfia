@@ -2,10 +2,8 @@
 
 import math
 import random
-import types
 import numpy as np
 
-import torch
 
 """Each distribution derives from the base class _distribution. The base class implements all necessary methods except for the constructor and a method for sampling an element from the distribution (_sample_single). At minimum, the derived class must implement those. The derived class can override additional methods to get more accurate and faster implementations for the specific distribution in question (e.g. exact expected value instead of estimation from sampling; population variance instead of sample variance)."""
 
@@ -40,7 +38,7 @@ class _distribution():
 		return sum((samples - E) ** 2) / (precision - 1) # sample variance
 
 	def stddev(self, *, precision=64):
-		return torch.sqrt(self.var(precision))
+		return math.sqrt(self.var(precision))
 
 class categorical(_distribution):
 	def __init__(self, a, b=None):
