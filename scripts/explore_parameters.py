@@ -120,7 +120,7 @@ terminated = False
 
 def reset_env(start=False):
     # TODO: only regenerate env if different from before!
-    global gridworld, parameter_values, env, agent, running, stepping, terminated, t, state, total, aleph, aleph0, delta, initialMu0, initialMu20
+    global gridworld, parameter_values, env, agent, running, stepping, terminated, t, state, total, aleph, aleph0, delta, initialMu0, initialMu20, visited_state_alephs, visited_action_alephs
     old_gridworld = gridworld
     gridworld = values['gridworld_dropdown']
     if gridworld != old_gridworld:
@@ -151,6 +151,8 @@ def reset_env(start=False):
     t = 0
     delta = total = 0
     terminated = False
+    visited_state_alephs = set()
+    visited_action_alephs = set()
     running = start
     stepping = False
 
@@ -192,6 +194,8 @@ while True:
         print()
         env._fps = values['speed_slider']
         action, aleph4action = agent.localPolicy(state, aleph).sample()[0]
+        visited_state_alephs.add((state, aleph))
+        visited_action_alephs.add((state, action, aleph4action))
         if values['lossCoeff4WassersteinTerminalState'] != 0:
             print("  in state", state)
             for a in agent.world.possible_actions(state):
@@ -217,15 +221,18 @@ while True:
             if values['autorestart_checkbox']:
                 time.sleep(0.2)
                 reset_env(True)
-            elif values['debug_checkbox']:
+            elif values['debug_checkbox'] or values['verbose_checkbox']:
+                if values['debug_checkbox']:
+                    visited_state_alephs = agent.seen_state_alephs
+                    visited_action_alephs = agent.seen_action_alephs
                 Vs = {}
-                for state, aleph in agent.seen_state_alephs:
+                for state, aleph in visited_state_alephs:
                     t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = env._extract_state_attributes(state)
                     if loc not in Vs:
                         Vs[loc] = []
                     Vs[loc].append(f"{aleph[0]},{aleph[1]}:{agent.V(state, aleph)}")  # expected Total
                 Qs = {}
-                for state, action, aleph in agent.seen_action_alephs:
+                for state, action, aleph in visited_action_alephs:
                     t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = env._extract_state_attributes(state)
                     key = (*loc, action)
                     if key not in Qs:
