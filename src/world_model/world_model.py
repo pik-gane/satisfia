@@ -2,6 +2,7 @@ import numpy as np
 from numpy import random
 from numpy.random import choice
 from gymnasium import Env #, ResetNeeded # TODO: replace ResetNeeded with a custom exception?
+from functools import cache, lru_cache
 
 # TODO: add typing
 
@@ -34,6 +35,7 @@ class WorldModel(Env):
 
     # methods for enquiring transition probabilities between states:
 
+    @lru_cache(maxsize=None)
     def state_embedding(self, state):
         """vector representation of state"""
         try:
@@ -46,6 +48,7 @@ class WorldModel(Env):
         an episode ends and the agent can no longer perform actions when reaching this state."""
         raise NotImplementedError()
     
+    @lru_cache(maxsize=None)
     def possible_actions(self, state = None):
         """Return the list of all actions possible in a given state or in the current state if state is None.
         
@@ -58,6 +61,7 @@ class WorldModel(Env):
         """Return a default action, if any"""
         return None
 
+    @lru_cache(maxsize=None)
     def possible_successors(self, state, action=None, n_samples = None):
         """Return a list of possible successor states after performing action in state,
         or, if action is None, of all possible successor states after any action in state,
@@ -70,6 +74,7 @@ class WorldModel(Env):
             res = self.transition_distribution(state, action, n_samples).keys()
         return list(res)
     
+    @lru_cache(maxsize=None)
     def reachable_states(self, state):
         """Return a list of all states that can be reached from the given state by taking any sequence of actions."""
         res = set([state])
@@ -79,12 +84,14 @@ class WorldModel(Env):
                     res.update(self.reachable_states(successor))
         return list(res)
 
+    @lru_cache(maxsize=None)
     def transition_probability(self, state, action, successor, n_samples = None):
         """Return the probability of the successor state after performing action in state,
         or, if state and action are None, of successor being the initial state,
         and a boolean flag indicating whether the probability is exact."""
         return self.transition_distribution(state, action, n_samples).get(successor, (0, True))
     
+    @lru_cache(maxsize=None)
     def transition_distribution(self, state, action, n_samples = None):
         """Return a dictionary mapping possible successor states after performing action in state,
         or, if state and action are None, of possible initial states,
@@ -111,12 +118,14 @@ class WorldModel(Env):
     
     expectation_of_fct_of_delta = expectation_of_fct_of_reward
 
+    @lru_cache(maxsize=None)
     def raw_moment_of_reward(self, state, action, degree = 1, n_samples = None):
         """Return a raw moment of reward after taking action in state."""
         return self.expectation_of_fct_of_reward(state, action, lambda reward: reward**degree, n_samples = n_samples)
     
     raw_moment_of_delta = raw_moment_of_reward
 
+    @lru_cache(maxsize=None)
     def expected_reward(self, state, action, n_samples = None):
         """Return the expected reward after taking action in state."""
         return self.raw_moment_of_reward(state, action, 1, n_samples = n_samples)
@@ -138,17 +147,20 @@ class WorldModel(Env):
 
     # methods for enquiring observation probabilities given histories:
 
+    @lru_cache(maxsize=None)
     def possible_results(self, history, action, n_samples = None):
         """Return a list of possible results of calling step(action) after the given history,
         or, if history and action are None, of calling reset()."""
         return list(self.result_distribution(history, action, n_samples).keys())
     
+    @lru_cache(maxsize=None)
     def result_probability(self, history, action, result, n_samples = None):
         """Return the probability of the given result of calling step(action) after the given history,
         or, if history and action are None, of calling reset(),
         and a boolean flag indicating whether the probability is exact."""
         return self.result_distribution(history, action, n_samples).get(result, (0, True))
     
+    @lru_cache(maxsize=None)
     def result_distribution(self, history, action, n_samples = None):
         """Return a dictionary mapping results of calling step(action) after the given history,
         or, if action is None, of calling reset(history[0] or None),
@@ -169,12 +181,14 @@ class WorldModel(Env):
     
     expectation_of_fct_of_delta_after_history = expectation_of_fct_of_reward_after_history
 
+    @lru_cache(maxsize=None)
     def raw_moment_of_reward_after_history(self, history, action, degree, n_samples = None):
         """Return a raw moment of the reward of the given result of calling step(action) after the given history."""
         return self.expectation_of_fct_of_reward_after_history(history, action, lambda reward: reward**degree, n_samples = None)
 
     raw_moment_of_delta_after_history = raw_moment_of_reward_after_history
 
+    @lru_cache(maxsize=None)
     def expected_reward_after_history(self, history, action, n_samples = None):
         """Return the expected reward of the given result of calling step(action) after the given history."""
         return self.raw_moment_of_reward_after_history(history, action, 1, n_samples = None)

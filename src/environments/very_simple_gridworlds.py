@@ -361,6 +361,26 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         aleph0 = 1
         totalTime = time or 9
 
+    elif gw == "GW32":
+        grid = [
+          ['#', '#', 'G', '#', '#'],
+          ['#', ' ', ' ', ' ', '#'],
+          ['#', ' ', 'A', ' ', '#'],
+          [' ', 'X', ' ', ',', '#'],
+          ['#', 'G', '#', 'G', '#']
+        ]
+        delta_grid = [
+          [' ', ' ','Gd', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' '],
+          [' ','Gb', ' ','Gc', ' ']
+        ]
+        expectedDeltaTable = { 'Gb': 11, 'Gc': 9, 'Gd': 20 } ## TODO: show Delta in plot, fix variance
+        aleph0 = 10
+        totalTime = time or 3
+        timeout_delta = 0
+
     elif gw == "test_return":
         """
         Get Delta and get back to origin
