@@ -1,5 +1,6 @@
 from functools import cache, lru_cache
 import os
+from sre_parse import State
 
 from satisfia.util import distribution
 from . import MDPWorldModel
@@ -523,17 +524,19 @@ class SimpleGridworld(MDPWorldModel):
             self._render_frame()
         return ret
 
-    def render(self):
-        if self.render_mode == "rgb_array":
-            return self._render_frame()
+    def render(self, additional_data=None):
+#        if self.render_mode == "rgb_array":
+            return self._render_frame(additional_data=additional_data)
 
     def _init_human_rendering(self):
         pygame.font.init() # you have to call this at the start, 
                    # if you want to use this module.
         self._cell_font = pygame.font.SysFont('Helvetica', 30)
         self._delta_font = pygame.font.SysFont('Helvetica', 10)
+        self._cell_data_font = pygame.font.SysFont('Helvetica', 10)
+        self._action_data_font = pygame.font.SysFont('Helvetica', 10)
 
-    def _render_frame(self):
+    def _render_frame(self, additional_data=None):
         if self._window is None and self.render_mode == "human":
             os.environ['SDL_VIDEO_WINDOW_POS'] = "%d,%d" % (900,0)
             pygame.init()
@@ -559,9 +562,6 @@ class SimpleGridworld(MDPWorldModel):
                         (255, 255, 240),
                         (x * pix_square_size, y * pix_square_size, pix_square_size, pix_square_size),
                     )
-                    canvas.blit(self._delta_font.render(
-                        cell_code + f" {self.cell_code2delta[cell_code]}", True, (0, 0, 0)),
-                        ((x+.1) * pix_square_size, (y+.1) * pix_square_size))
                 if cell_type == "#" or (cell_type == "," and self._immobile_object_states[self.immobile_object_indices[x, y]] == 1):
                     pygame.draw.rect(
                         canvas,
@@ -586,6 +586,10 @@ class SimpleGridworld(MDPWorldModel):
                 canvas.blit(self._delta_font.render(
                     f"{x},{y}", True, (128, 128, 128)),
                     ((x+.8) * pix_square_size, (y+.1) * pix_square_size))
+                if cell_code in self.cell_code2delta:
+                    canvas.blit(self._delta_font.render(
+                        cell_code + f" {self.cell_code2delta[cell_code]}", True, (0, 0, 0)),
+                        ((x+.1) * pix_square_size, (y+.1) * pix_square_size))
 
         # Render all mobile objects:
         for i, object_type in enumerate(self.mobile_constant_object_types):
@@ -622,11 +626,38 @@ class SimpleGridworld(MDPWorldModel):
             pix_square_size / 3,
         )
 
+        # Optionally print some additional data:
+        if additional_data is not None:
+            if 'cell' in additional_data:  # draw some list of values onto each cell 
+                for x in range(self.xygrid.shape[0]):
+                    for y in range(self.xygrid.shape[1]):
+                        values = set(additional_data['cell'].get((x,y), [])) 
+                        if len(values) > 0:  # then it is a list
+                            surf = self._cell_data_font.render(
+                                "|".join([str(v) for v in values]), True, 
+                                (0,0,255))
+                            canvas.blit(surf,
+                                ((x+.5) * pix_square_size - .5 * surf.get_width(), 
+                                 (y+.35) * pix_square_size - .5 * surf.get_height()))
+            if 'action' in additional_data:  # draw some list of values next to each cell boundary
+                for x in range(self.xygrid.shape[0]):
+                    for y in range(self.xygrid.shape[1]):
+                        for action in range(4):
+                            values = set(additional_data['action'].get((x,y,action), [])) 
+                            if len(values) > 0:  # then it is a list
+                                dx,dy = self._action_to_direction[action] if action < 4 else (0,0)
+                                surf = self._action_data_font.render(
+                                    "|".join([str(v) for v in values]), 
+                                    True, (0,0,255))
+                                canvas.blit(surf,
+                                    ((x+.5+dx*.48) * pix_square_size - [.5,1,.5,0,.5][action] * surf.get_width(), 
+                                     (y+.5+dx*0.04+dy*.48) * pix_square_size - [0,0.5,1,0.5,.5][action] * surf.get_height()))
+
         # Finally, add some gridlines
         for x in range(self.xygrid.shape[0] + 1):
             pygame.draw.line(
                 canvas,
-                0,
+                (128, 128, 128),
                 (pix_square_size * x, 0),
                 (pix_square_size * x, self._window_shape[1]),
                 width=3,
@@ -634,7 +665,7 @@ class SimpleGridworld(MDPWorldModel):
         for y in range(self.xygrid.shape[1] + 1):
             pygame.draw.line(
                 canvas,
-                0,
+                (128, 128, 128),
                 (0, pix_square_size * y),
                 (self._window_shape[0], pix_square_size * y),
                 width=3,

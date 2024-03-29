@@ -141,6 +141,9 @@ class AspirationAgent(ABC):
 		self.debug = DEBUG if self.params["debug"] is None else self.params["debug"]
 		self.verbose = VERBOSE if self.params["verbose"] is None else self.params["verbose"] 
 
+		self.seen_state_alephs = set()
+		self.seen_action_alephs = set()
+
 		if self.verbose or self.debug:
 			print("makeMDPAgentSatisfia with parameters", self.params)
 
@@ -273,6 +276,9 @@ class AspirationAgent(ABC):
 			else:
 				raise ValueError("impossible relationship between phi and aleph4state")
 
+		# memorize that we encountered this state, action, aleph4action:
+		self.seen_action_alephs.add((state, action, res))
+
 		if self.verbose or self.debug:
 			print(pad(state),"| | ╰ aspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,":",res,"(steadfast)") 
 		return res
@@ -348,6 +354,9 @@ class AspirationAgent(ABC):
 	def localPolicyData(self, state, aleph):
 		if self.verbose or self.debug:
 			print(pad(state), "| localPolicyData, state",prettyState(state),"aleph",aleph,"...")
+
+		# memorize that we encountered this state, aleph:
+		self.seen_state_alephs.add((state, aleph))
 
 		# Clip aspiration interval to admissibility interval of state:
 		alephLo, alephHi = aleph4state = self.aspiration4state(state, aleph)

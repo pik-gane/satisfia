@@ -91,13 +91,13 @@ autorestart_checkbox = sg.Checkbox("Auto restart", default=True, key='autorestar
 speed_slider = sg.Slider(range=(1, 20), default_value=10, orientation='h', key='speed_slider')
 
 # Create the layout
-s = max([len(pd[0]) for pd in parameter_data])
+state = max([len(pd[0]) for pd in parameter_data])
 layout = [
     [sg.Text("Gridworld"), gridworld_dropdown, override_aleph_checkbox, verbose_checkbox, debug_checkbox, reset_params_button],
     [sg.Column([
         [
-            sg.Text(parameter_data[2*r][0], size=(s,None), justification="right"), parameter_sliders[parameter_data[2*r][0]],
-            sg.Text(parameter_data[2*r+1][0], size=(s,None), justification="right"), parameter_sliders[parameter_data[2*r+1][0]],
+            sg.Text(parameter_data[2*r][0], size=(state,None), justification="right"), parameter_sliders[parameter_data[2*r][0]],
+            sg.Text(parameter_data[2*r+1][0], size=(state,None), justification="right"), parameter_sliders[parameter_data[2*r+1][0]],
         ]
         for r in range(len(parameter_data) // 2)
         ], element_justification='r')],
@@ -215,7 +215,28 @@ while True:
             print("Terminated.")
             running = stepping = False
             if values['autorestart_checkbox']:
+                time.sleep(0.2)
                 reset_env(True)
+            elif values['debug_checkbox']:
+                Vs = {}
+                for state, aleph in agent.seen_state_alephs:
+                    t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = env._extract_state_attributes(state)
+                    if loc not in Vs:
+                        Vs[loc] = []
+                    Vs[loc].append(f"{aleph[0]},{aleph[1]}:{agent.V(state, aleph)}")  # expected Total
+                Qs = {}
+                for state, action, aleph in agent.seen_action_alephs:
+                    t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = env._extract_state_attributes(state)
+                    key = (*loc, action)
+                    if key not in Qs:
+                        Qs[key] = []
+#                    Qs[key].append(agent.Q(state, action, aleph))
+                    Qs[key].append(f"{aleph[0]},{aleph[1]}:{agent.relativeQ2(state, action, aleph, agent.Q(state, action, aleph))}")  # variance of Total
+                
+                env.render(additional_data={
+                    'cell': Vs,
+                    'action' : Qs
+                })
         else:
             print("t:",t, ", delta:",delta, ", total:", total, ", s:", state, ", aleph4s:", aleph)
             t += 1
