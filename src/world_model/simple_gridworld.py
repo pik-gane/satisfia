@@ -673,6 +673,7 @@ class SimpleGridworld(MDPWorldModel):
                 elif cell_type in render_as_char_types:
                     canvas.blit(self._cell_font.render(cell_type, True, (0, 0, 0)),
                                       ((x+.3) * pix_square_size, (y+.3) * pix_square_size))
+                if self._window is None and self.render_mode == "human":
                 canvas.blit(self._delta_font.render(
                     f"{x},{y}", True, (128, 128, 128)),
                     ((x+.8) * pix_square_size, (y+.1) * pix_square_size))

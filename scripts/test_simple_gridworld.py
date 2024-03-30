@@ -74,7 +74,7 @@ def move_agent(env, aleph):
 		"lossCoeff4OtherLoss": 0, # weight of other loss components specified by otherLossIncrement, must be >= 0
 		"uninformedPolicy": policy()
 		}, world=env)
-	total = delta
+	total = delta = 0
 	for t in range(1000):
 		action, aleph4action = agent.localPolicy(state, aleph).sample()[0]
 		print("t:",t, ", last delta:",delta, ", total:", total, ", s:",state, ", aleph4s:", aleph, ", a:", action, ", aleph4a:", aleph4action)
