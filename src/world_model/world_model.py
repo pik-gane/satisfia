@@ -62,27 +62,26 @@ class WorldModel(Env):
         return None
 
     @lru_cache(maxsize=None)
-    def possible_successors(self, state, action=None, n_samples = None):
-        """Return a list of possible successor states after performing action in state,
+    def possible_successors(self, state, action=None, n_samples = None) -> set:
+        """Return the of possible successor states after performing action in state,
         or, if action is None, of all possible successor states after any action in state,
         or, if state and action are None, a list of possible initial states."""
-        if action is None:
-            res = set()
-            for action in self.possible_actions(state):
-                res.update(self.transition_distribution(state, action, n_samples).keys())
-        else:
-            res = self.transition_distribution(state, action, n_samples).keys()
-        return list(res)
+        return {succs
+                for act in ((action,) if action is not None else self.possible_actions(state))
+                for succs in self.possible_successors(state, act, n_samples)
+              }
     
     @lru_cache(maxsize=None)
     def reachable_states(self, state):
         """Return a list of all states that can be reached from the given state by taking any sequence of actions."""
-        res = set([state])
+        res = {state}
         if not self.is_terminal(state):
-            for action in self.possible_actions(state):
-                for successor in self.possible_successors(state, action):
-                    res.update(self.reachable_states(successor))
-        return list(res)
+            res |= { ns 
+                for action in self.possible_actions(state)
+                for successor in self.possible_successors(state, action)
+                for ns in self.reachable_states(successor)
+             }
+        return res
 
     @lru_cache(maxsize=None)
     def transition_probability(self, state, action, successor, n_samples = None):

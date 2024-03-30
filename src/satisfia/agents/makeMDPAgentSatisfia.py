@@ -293,9 +293,10 @@ class AspirationAgent(ABC):
 			print(pad(state),"| | ╰ disorderingPotential_state", prettyState(state), ":", res)
 		return res
 
+	@cache
 	def _compute_default_transition(self, state):
 		if not self.reachable_states:
-			self.reachable_states = self.world.reachable_states(state)
+			self.reachable_states = list(self.world.reachable_states(state))
 			if self.debug or self.verbose:
 				print("no. of reachable states:", len(self.reachable_states))
 		scores = self.params["defaultTransitionScore"]
@@ -304,7 +305,7 @@ class AspirationAgent(ABC):
 			targets = list(the_scores.keys())
 			if len(targets) == 0:  # use a uniform distribution over all possible successors
 				targets = self.world.possible_successors(source)
-				return distribution.categorical(targets, [1 for target in targets])
+				return distribution.categorical(list(targets), [1 for target in targets])
 			else:
 				return distribution.categorical(targets, [math.exp(the_scores[target]) for target in targets])
 		self.default_transition = default_transition
@@ -625,6 +626,7 @@ class AspirationAgent(ABC):
 		if self.debug or self.verbose:
 			print(pad(state),"| | | ╰ cupLoss_action", prettyState(state), action, aleph4state, ":", res)
 		return res
+
 	@lru_cache(maxsize=None)
 	def cupLoss_state(self, state, unclippedAleph): # recursive
 		if self.debug:
@@ -816,54 +818,57 @@ class AspirationAgent(ABC):
 	# now we can combine all of the above quantities to a combined (safety) loss function:
 
 	# state, action, aleph4state, aleph4action, estActionProbability
-	#@lru_cache(maxsize=None)
+	@lru_cache(maxsize=None)
 	def combinedLoss(self, s, a, al4s, al4a, p): # recursive
-		def expr_params(expr, *params, default=0):
-			args = [self.params[param] for param in params]
-			return expr(*args) if any(args) else default
+		def expr_params(expr, param):
+			if arg := self.params[param]:
+				return expr() * arg
+			return 0
 
 		if self.debug:
 			print(pad(s),"| | combinedLoss, state",prettyState(s),"action",a,"aleph4state",al4s,"aleph4action",al4a,"estActionProbability",p,"...")
 
 		# cheap criteria, including some myopic versions of the more expensive ones:
-		lRandom = expr_params(lambda l: l * self.randomTieBreaker(s, a), "lossCoeff4Random")
-		lFeasibilityPower = expr_params(lambda l: l * (self.maxAdmissibleQ(s, a) - self.minAdmissibleQ(s, a)) ** 2, "lossCoeff4FeasibilityPower")
-		lDP = expr_params(lambda l: l * self.disorderingPotential_action(s, a), "lossCoeff4DP")
-		lAgencyChange = expr_params(lambda l: l * self.agencyChange_action(s, a), "lossCoeff4AgencyChange")
-		lLRA1 = expr_params(lambda l: l * self.LRAdev_action(s, a, al4a, True), "lossCoeff4LRA1")
-		lEntropy1 = expr_params(lambda l: l * self.behaviorEntropy_action(s, p, a), "lossCoeff4Entropy1")
-		lKLdiv1 = expr_params(lambda l: l * self.behaviorKLdiv_action(s, p, a), "lossCoeff4KLdiv1")
+		lRandom = expr_params(lambda: self.randomTieBreaker(s, a), "lossCoeff4Random")
+		lFeasibilityPower = expr_params(lambda: (self.maxAdmissibleQ(s, a) - self.minAdmissibleQ(s, a)) ** 2, "lossCoeff4FeasibilityPower")
+		lDP = expr_params(lambda: self.disorderingPotential_action(s, a), "lossCoeff4DP")
+		lAgencyChange = expr_params(lambda: self.agencyChange_action(s, a), "lossCoeff4AgencyChange")
+		lLRA1 = expr_params(lambda: self.LRAdev_action(s, a, al4a, True), "lossCoeff4LRA1")
+		lEntropy1 = expr_params(lambda: self.behaviorEntropy_action(s, p, a), "lossCoeff4Entropy1")
+		lKLdiv1 = expr_params(lambda: self.behaviorKLdiv_action(s, p, a), "lossCoeff4KLdiv1")
 
 		# moment-based criteria:
 		# (To compute expected powers of deviation from V(s), we cannot use the actual V(s) 
 		# because we don't know the local policy at s yet. Hence we use a simple estimate based on aleph4state)
 		estVs = midpoint(al4s)
-		lVariance = expr_params(lambda l: l * self.relativeQ2(s, a, al4a, estVs), "lossCoeff4Variance") # recursion
-		lFourth = expr_params(lambda l: l * self.relativeQ4(s, a, al4a, estVs), "lossCoeff4Fourth") # recursion
-		lCup = expr_params(lambda l: l * self.cupLoss_action(s, a, al4s, al4a), "lossCoeff4Cup") # recursion
-		lLRA = expr_params(lambda l: l * self.LRAdev_action(s, a, al4a), "lossCoeff4LRA") # recursion
+		lVariance = expr_params(lambda: self.relativeQ2(s, a, al4a, estVs), "lossCoeff4Variance") # recursion
+		lFourth = expr_params(lambda: self.relativeQ4(s, a, al4a, estVs), "lossCoeff4Fourth") # recursion
+		lCup = expr_params(lambda: self.cupLoss_action(s, a, al4s, al4a), "lossCoeff4Cup") # recursion
+		lLRA = expr_params(lambda: self.LRAdev_action(s, a, al4a), "lossCoeff4LRA") # recursion
 
 		# timing-related criteria:
-		q_ones = expr_params(lambda x, y: self.Q_ones(s, a, al4a), "lossCoeff4DeltaVariation", "lossCoeff4Time")
-		lTime = expr_params(lambda l: l * q_ones, "lossCoeff4Time")
-		lDeltaVariation = 0
-		if q_ones != 0:
-			lDeltaVariation = expr_params(lambda l: l * (self.Q_DeltaSquare(s, a, al4a) / q_ones - self.Q2(s, a, al4a) / (q_ones ** 2)), "lossCoeff4DeltaVariation") # recursion
+		if any(self.params[p] != 0 for p in ("lossCoeff4DeltaVariation", "lossCoeff4Time")) and (
+		    q_ones := self.Q_ones(s, a, al4a)
+		) != 0:
+		    lTime = expr_params(lambda: q_ones, "lossCoeff4Time")
+		    lDeltaVariation = expr_params(lambda: (self.Q_DeltaSquare(s, a, al4a) / q_ones - self.Q2(s, a, al4a) / (q_ones ** 2)), "lossCoeff4DeltaVariation") # recursion
+		else:
+		    lTime = lDeltaVariation = 0
 
 		# change-related criteria:
-		lWassersteinTerminalState = expr_params(lambda l: l * self.wassersteinTerminalState_action(s, a, al4a), "lossCoeff4WassersteinTerminalState") #		
+		lWassersteinTerminalState = expr_params(lambda: self.wassersteinTerminalState_action(s, a, al4a), "lossCoeff4WassersteinTerminalState") #		
 
 		# randomization-related criteria:
-		lEntropy = expr_params(lambda l: l * self.behaviorEntropy_action(s, p, a, al4a), "lossCoeff4Entropy") # recursion
-		lKLdiv = expr_params(lambda l: l * self.behaviorKLdiv_action(s, p, a, al4a), "lossCoeff4KLdiv") # recursion
-		lTrajectoryEntropy = expr_params(lambda l: l * self.trajectoryEntropy_action(s, p, a, al4a), "lossCoeff4TrajectoryEntropy") # recursion
-		lStateDistance = expr_params(lambda l: l * self.stateDistance_action(s, a, al4a), "lossCoeff4StateDistance") # recursion
-		lCausation = expr_params(lambda l: l * self.causation_action(s, al4s, a, al4a), "lossCoeff4Causation") # recursion
-		lCausationPotential = expr_params(lambda l: l * self.causationPotential_action(s, al4s, a, al4a), "lossCoeff4CausationPotential") # recursion
+		lEntropy = expr_params(lambda: self.behaviorEntropy_action(s, p, a, al4a), "lossCoeff4Entropy") # recursion
+		lKLdiv = expr_params(lambda: self.behaviorKLdiv_action(s, p, a, al4a), "lossCoeff4KLdiv") # recursion
+		lTrajectoryEntropy = expr_params(lambda: self.trajectoryEntropy_action(s, p, a, al4a), "lossCoeff4TrajectoryEntropy") # recursion
+		lStateDistance = expr_params(lambda: self.stateDistance_action(s, a, al4a), "lossCoeff4StateDistance") # recursion
+		lCausation = expr_params(lambda: self.causation_action(s, al4s, a, al4a), "lossCoeff4Causation") # recursion
+		lCausationPotential = expr_params(lambda: self.causationPotential_action(s, al4s, a, al4a), "lossCoeff4CausationPotential") # recursion
 
 		lOther = 0
 		if "otherLocalLoss" in self.params:
-			lOther = expr_params(lambda l: l * self.otherLoss_action(s, a, al4a), "lossCoeff4OtherLoss") # recursion
+			lOther = expr_params(lambda: self.otherLoss_action(s, a, al4a), "lossCoeff4OtherLoss") # recursion
 
 		res = (lRandom + lFeasibilityPower + lDP 
 		 	+ lAgencyChange + lLRA1 + self["lossCoeff4Time1"] + lEntropy1 + lKLdiv1
@@ -1381,6 +1386,7 @@ class AgentMDPPlanning(AspirationAgent):
 			print(pad(state),"| | | | | ╰ ETerminalState2_action", prettyState(state), action, aleph4action, policy, ":", res)
 		return res
 
+	@cache
 	def wassersteinTerminalState_action(self, state, action, aleph4action):
 		if self.debug:
 			print(pad(state),"| | | | wassersteinTerminalState_action", prettyState(state), action, aleph4action, '...')
