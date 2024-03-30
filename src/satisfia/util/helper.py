@@ -43,6 +43,9 @@ def interpolate(x, l, y):
 	else:
 		return x + l * (y - x)
 
+def interpolateScalar(x, l, y):
+		return x + l * (y - x)
+
 def relativePosition(x, z, y):
 	# denoted	x \ z \ y in formulas
 
@@ -52,6 +55,12 @@ def relativePosition(x, z, y):
 		return Interval((z[0] - x[0]) / (y[0] - x[0]) if (y[0] != x[0]) else 0.5,
 					(z[1] - x[1]) / (y[1] - x[1]) if (y[1] != x[1]) else 0.5)
 	elif x == y:
+		return 0.5
+	else:
+		return (z - x) / (y - x)
+
+def relativePositionScalar(x, z, y):
+	if x == y:
 		return 0.5
 	else:
 		return (z - x) / (y - x)

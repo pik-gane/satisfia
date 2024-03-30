@@ -457,6 +457,13 @@ class AspirationAgent(ABC):
 		# compute the relative position of aleph4action in the expectation that we had of 
 		#	delta + next admissibility interval 
 		# before we knew which state we would land in:
+		if aleph4action[0] == aleph4action[1]:
+			aleph4action = aleph4action[0]
+			lam = relativePositionScalar(self.minAdmissibleQ(state, action), aleph4action, self.maxAdmissibleQ(state, action)) # TODO didn't we calculate the admissible Q when we chose the action?
+			# (this is two numbers between 0 and 1.)
+			# use it to rescale aleph4action to the admissibility interval of the state that we landed in:
+			rescaledAleph4nextState = interpolateScalar(self.minAdmissibleV(nextState), lam, self.maxAdmissibleV(nextState))
+		else:
 		lam = relativePosition(self.minAdmissibleQ(state, action), aleph4action, self.maxAdmissibleQ(state, action)) # TODO didn't we calculate the admissible Q when we chose the action?
 		# (this is two numbers between 0 and 1.)
 		# use it to rescale aleph4action to the admissibility interval of the state that we landed in:
