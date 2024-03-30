@@ -9,6 +9,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('-l', '--default', default=0, type=float)
 parser.add_argument('-w', '--world', default="GW26", type=str)
+parser.add_argument('--human', default=False, action='store_true')
 args = parser.parse_args()
 
 default = args.default 
@@ -80,7 +81,7 @@ class timeit:
 
 with timeit(f"{args.world} with default = {default}"):
     # pr.disable()
-    env, aleph0 = make_simple_gridworld(gw = args.world, render_mode = None, fps = 1)
+    env, aleph0 = make_simple_gridworld(gw = args.world, render_mode = 'human' if args.human else None, fps = 1)
     env.reset()
     move_agent(env, aleph0, default)
     env.render()
