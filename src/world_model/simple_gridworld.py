@@ -20,8 +20,8 @@ unsteady_cell_types = ['~', '^', '-']
 what_can_move_into_agent = ['A']
 
 immobile_object_types = [',']
-mobile_constant_object_types = ['X']
-mobile_variable_object_types = ['F']
+mobile_constant_object_types = ['X','|','F']
+mobile_variable_object_types = []
 
 render_as_char_types = unsteady_cell_types + immobile_object_types + ['G']
 
@@ -87,11 +87,13 @@ class SimpleGridworld(MDPWorldModel):
                a coin is tossed to decide whether we slide another tile, and this is repeated 
                until the coin shows heads or we hit an obstacle. All this motion takes place within a single time step.)
         - '%': Death trap (Episode ends when agent steps on it) 
+        - '|': A pane of glass, will break if anything moves into it from left or right, and can be pushed up or down 
         - 'B': Button (can be stepped on)
         - 'C': Collaborator (might move around)
         - 'D': Door (can only be entered after having collected a key)
         - 'E': Enemy (might move around on its own)
-        - 'F': A fragile object or organism (might move around on its own, is destroyed when stepped upon)
+        - 'F': A fragile object or organism (might move around on its own, is destroyed when stepped upon by the agent)
+        - 'f': A stationary even more fragile object that is destroyed when *anything* moves onto it
         - 'Δ': Delta (positive or negative, can be collected once, does not end the episode)
         - 'G': Goal or exit door (acting while on it ends the episode)
         - 'I': (Potential) interruption (agent might get stuck in forever)
@@ -281,7 +283,8 @@ class SimpleGridworld(MDPWorldModel):
         )
 
     def _can_move(self, from_loc, to_loc, state, who='A'):
-        """Return True if the agent can move from the given location to the given target_location."""
+        """Return True if the agent or other object (designated by the who parameter)
+        can move from the given location to the given target_location."""
         if not (0 <= to_loc[0] < self.xygrid.shape[0]
                 and 0 <= to_loc[1] < self.xygrid.shape[1]
                 and not self.xygrid[to_loc] in unenterable_immobile_cell_types):
@@ -299,12 +302,14 @@ class SimpleGridworld(MDPWorldModel):
             if to_loc == (mc_locs[2*i],mc_locs[2*i+1]):
                 if object_type in unenterable_mobile_object_types:
                     return False
-                if object_type == 'X':  # a box
-                    if who != 'A':
-                        return False  # only the agent can push a box, no box can push another box!
+                if object_type in ['X','|']:  # a box
+                    if who != 'A' and (object_type == 'X' or 
+                                       (object_type == '|' and from_loc[1]!=to_loc[1]) # attempt to push glass pane up or down
+                                       ):
+                        return False  # only the agent can push a box or glass pane!
                     # see if it can be pushed:
-                    box_target_loc = tuple(2*np.array(to_loc) - np.array(from_loc))
-                    if not self._can_move(to_loc, box_target_loc, state, who='X'):
+                    obj_target_loc = tuple(2*np.array(to_loc) - np.array(from_loc))
+                    if not self._can_move(to_loc, obj_target_loc, state, who=object_type):
                         return False
             # TODO: implement destroying an 'F' by pushing a 'X' onto it 
         return True
@@ -333,9 +338,10 @@ class SimpleGridworld(MDPWorldModel):
         """Return a default action, if any"""
         return distribution.categorical([4], [1])  # staying in place
 
-    def _extract_state_attributes(self, state):
+    def _extract_state_attributes(self, state, gridcontents=False):
         """Return the individual attributes of a state."""
-        return (state[0],  # time step
+        t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = (
+                state[0],  # time step
                 (state[3], state[4]),  # current location
                 (state[1], state[2]),  # previous location
                 state[5 
@@ -347,6 +353,15 @@ class SimpleGridworld(MDPWorldModel):
                 state[5+self.n_immobile_objects+2*self.n_mobile_constant_objects+2*self.n_mobile_variable_objects
                       : 5+self.n_immobile_objects+2*self.n_mobile_constant_objects+3*self.n_mobile_variable_objects]  # mobile variable object states
          )
+        if not gridcontents:
+            return t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states
+        gc = { get_loc(mc_locs, i): (self.mobile_constant_object_types[i], i) 
+               for i in range(self.n_mobile_constant_objects) }
+        gc.update(
+            { get_loc(mv_locs, i): (self.mobile_variable_object_types[i], i) 
+              for i in range(self.n_mobile_variable_objects) }
+        )
+        return t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states, gc
 
     def _set_state(self, state):
         """Set the current state to the provided one."""
@@ -416,7 +431,7 @@ class SimpleGridworld(MDPWorldModel):
             target_loc = self._get_target_location(loc, action)
             target_type = self.xygrid[target_loc]
 
-            # loop through all mobile objects and see if they are affected by the action:
+            # loop through all mobile constant objects and see if they are affected by the action:
             for i, object_type in enumerate(self.mobile_constant_object_types):
                 if (mc_locs[2*i],mc_locs[2*i+1]) == target_loc:
                     if object_type == 'X':  # a box
@@ -426,6 +441,17 @@ class SimpleGridworld(MDPWorldModel):
                             if self.xygrid[box_target_loc] in unsteady_cell_types:
                                 raise NotImplementedError("boxes cannot slide/fall yet")  # TODO: let boxes slide/fall like agents!
                             mc_locs = set_loc(mc_locs, i, box_target_loc)
+                    elif object_type == '|':  # a glass pane
+                        if action in [0,2]:
+                            # see if we can push it:
+                            pane_target_loc = self._get_target_location(target_loc, action)
+                            if self._can_move(target_loc, pane_target_loc, state):
+                                if self.xygrid[pane_target_loc] in unsteady_cell_types:
+                                    raise NotImplementedError("glass panes cannot slide/fall yet")  # TODO: let boxes slide/fall like agents!
+                                mc_locs = set_loc(mc_locs, i, pane_target_loc)
+                        else:
+                            # it will break
+                            mc_locs = set_loc(mc_locs, i, (-2,-2))
 
             if target_type in ['^', '~']:
                 # see what "falling-off" actions are possible:
@@ -458,16 +484,16 @@ class SimpleGridworld(MDPWorldModel):
                 # implement all probabilistic changes:
 
                 # again loop through all variable mobile objects encoded in mv_locs and mv_states:
-                for i, object_type in enumerate(self.mobile_variable_object_types):
-                    object_loc = get_loc(mv_locs, i) 
+                for i, object_type in enumerate(self.mobile_constant_object_types):
+                    object_loc = get_loc(mc_locs, i) 
                     if object_type == 'F':  # a fragile object
                         if object_loc != (-2,-2) and self.move_probability_F > 0:  # object may move
                             # loop through all possible successor states in trans_dist and split them into at most 5 depending on whether F moves and where:
                             new_trans_dist = {}
                             for (successor, probability) in trans_dist.items():
-                                succ_t, succ_loc, succ_prev_loc, succ_imm_states, succ_mc_locs, succ_mv_locs, succ_mv_states = self._extract_state_attributes(successor)
+                                succ_t, succ_loc, succ_prev_loc, succ_imm_states, succ_mc_locs, succ_mv_locs, succ_mv_states, gridcontents = self._extract_state_attributes(successor, gridcontents=True)
                                 if object_loc == target_loc:  # object is destroyed
-                                    default_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, succ_mc_locs, set_loc(succ_mv_locs, i, (-2,-2)), succ_mv_states)
+                                    default_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, set_loc(succ_mc_locs, i, (-2,-2)), succ_mv_locs, succ_mv_states)
                                 else:  # it stays in place
                                     default_successor = successor
                                 direction_locs = [(direction, self._get_target_location(object_loc, direction)) 
@@ -482,9 +508,15 @@ class SimpleGridworld(MDPWorldModel):
                                     p = probability * self.move_probability_F / n_directions
                                     for (direction, obj_target_loc) in direction_locs:
                                         if obj_target_loc == target_loc:  # object is destroyed
-                                            new_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, succ_mc_locs, set_loc(succ_mv_locs, i, (-2,-2)), succ_mv_states)
+                                            new_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, set_loc(succ_mc_locs, i, (-2,-2)), succ_mv_locs, succ_mv_states)
                                         else:  # it moves
-                                            new_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, succ_mc_locs, set_loc(succ_mv_locs, i, obj_target_loc), succ_mv_states)
+                                            new_mc_locs = set_loc(succ_mc_locs, i, obj_target_loc)
+                                            # see if there's a glass pane at obj_target_loc:
+                                            inhabitant_type, inhabitant_index = gridcontents.get(obj_target_loc, (None, None))
+                                            if inhabitant_type == '|':
+                                                # glass pane breaks
+                                                new_mc_locs = set_loc(new_mc_locs, inhabitant_index, (-2,-2))
+                                            new_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, new_mc_locs, succ_mv_locs, succ_mv_states)
                                         new_trans_dist[new_successor] = p
                             trans_dist = new_trans_dist
                             
@@ -600,16 +632,22 @@ class SimpleGridworld(MDPWorldModel):
                     (128, 128, 128),
                     ((x+.1) * pix_square_size, (y+.1) * pix_square_size, .8*pix_square_size, .8*pix_square_size),
                 )
-
-        for i, object_type in enumerate(self.mobile_variable_object_types):
-            x, y = get_loc(self._mobile_variable_object_locations, i)
-            if object_type == 'F':  # a fragile object
+            elif object_type == '|':  # a glass pane
+                pygame.draw.rect(
+                    canvas,
+                    (192, 192, 192),
+                    ((x+.45) * pix_square_size, (y+.1) * pix_square_size, .1*pix_square_size, .8*pix_square_size),
+                )
+            elif object_type == 'F':  # a fragile object
                 pygame.draw.circle(
                     canvas,
                     (255, 0, 0),
                     ((x+.5) * pix_square_size, (y+.5) * pix_square_size),
                     pix_square_size / 4,
                 )
+
+#        for i, object_type in enumerate(self.mobile_variable_object_types):
+#            x, y = get_loc(self._mobile_variable_object_locations, i)
 
         # Now we draw the agent and its previous location:
         pygame.draw.circle(
@@ -670,6 +708,10 @@ class SimpleGridworld(MDPWorldModel):
                 (self._window_shape[0], pix_square_size * y),
                 width=3,
             )
+        # And print the time left into the top-right cell:
+        canvas.blit(self._cell_font.render(
+            f"{self.max_episode_length - self.t}", True, (0, 0, 0)),
+            ((self.xygrid.shape[0]-1+.3) * pix_square_size, (.3) * pix_square_size))
 
         if self.render_mode == "human":
             # The following line copies our drawings from `canvas` to the visible window

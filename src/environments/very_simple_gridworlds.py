@@ -335,8 +335,8 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         ]
         expectedDeltaTable = { 'G': 1 }
         aleph0 = 1
-        totalTime = time or 7
-        move_probability_F = 1
+        totalTime = time or 8
+        move_probability_F = 0.5
 
     elif gw == "GW31":
         """
@@ -380,6 +380,33 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         aleph0 = 10
         totalTime = time or 3
         timeout_delta = 0
+
+    elif gw == "GW33":
+        """
+        """
+        grid = [
+          ['#', '#', '#', '#', '#', '#', '#', '#'],
+          ['#', '#', ' ', ' ', ' ', '#', '#', '#'],
+          ['#', '#', ' ', '#', ' ', '#', '#', '#'],
+          ['#', 'G', ' ', ' ', '|', ' ', 'F', '#'],
+          ['#', '#', '#', ' ', 'A', '#', '#', '#'],
+          ['#', '#', '#', '#', '#', '#', '#', '#']
+        ]
+        grid = ["".join(row) for row in grid]
+        print(grid)
+        delta_grid = [
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', 'G', ' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+          [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
+        ]
+        expectedDeltaTable = { 'G': 1 }
+        aleph0 = 1
+        totalTime = time or 12
+        move_probability_F = 1
+
 
     elif gw == "test_return":
         """
@@ -437,13 +464,16 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         world = None
         with open(gw, "r") as file:
             world = json.load(file)
-        grid = [list(line) for line in world["grid"]]
+        grid = world["grid"]
         delta_grid = [list(line) for line in world["delta_grid"]]
         expectedDeltaTable = world["expectedDeltaTable"]
         aleph0 = world["aleph0"]
         totalTime = time or world["defaultTime"]
+        time_deltas = world["time_deltas"] or time_deltas
+        timeout_delta = world["timeout_delta"] or timeout_delta
+        move_probability_F = world["move_probability_F"] or move_probability_F
 
-    return (SimpleGridworld(grid=grid, delta_grid=delta_grid,
+    return (SimpleGridworld(grid=[list(line) for line in grid], delta_grid=delta_grid,
                             cell_code2delta=expectedDeltaTable, max_episode_length=totalTime,
                             time_deltas=time_deltas, timeout_delta=timeout_delta,
                             move_probability_F=move_probability_F,
