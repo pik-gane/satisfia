@@ -22,13 +22,13 @@ parameter_data = [
     ('lossCoeff4Cup', -100, 100, 0, 1), 
 
     ('lossCoeff4WassersteinTerminalState', -100, 100, 100, 1), 
-    ('lossCoeff4Random', -100, 100, 0, 1), 
+    ('lossCoeff4AgencyChange', -100, 100, 0, 1), 
 
     ('lossCoeff4StateDistance', -100, 100, 0, 1), 
     ('lossCoeff4Causation', -100, 100, 0, 1), 
 
-    ('lossCoeff4AgencyChange', -100, 100, 0, 1), 
-    ('lossCoeff4CausationPotential', -100, 100, 0, 1), 
+ #   ('lossCoeff4CausationPotential', -100, 100, 0, 1), 
+#    ('lossCoeff4Random', -100, 100, 0, 1), 
 
     ('lossCoeff4FeasibilityPower', -100, 100, 0, 1), 
     ('lossCoeff4DP', -100, 100, 0, 1), 

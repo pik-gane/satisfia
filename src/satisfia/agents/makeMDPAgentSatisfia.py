@@ -764,14 +764,15 @@ class AspirationAgent(ABC):
 
 	@lru_cache(maxsize=None)
 	def causation_state(self, state, aleph4state): # recursive
+		"""Directed information from action sequence to state sequence"""
 		if self.debug:
 			print(pad(state),"causation_state", prettyState(state), aleph4state, "...")
-		if not self.default_transition:
-			self._compute_default_transition(state)
 		locPol = self.localPolicy(state, aleph4state)
 		def Y(nextState, action):
-			return math.log(self.world.transition_probability(state, action, nextState)[0]
-				    		/ self.default_transition(state).probability(nextState))
+			p = self.world.transition_probability(state, action, nextState)[0]
+			if p == 0: return float("-inf")
+			return math.log(p / locPol.expectation(lambda otherActionAndAleph: 
+							   	self.world.transition_probability(state, otherActionAndAleph[0], nextState)[0]))
 		def X(actionAndAleph):
 			action, aleph4action = actionAndAleph
 			return self.world.expectation(state, action, Y, (action,)) + self.causation_action(state, aleph4state, action, aleph4action) # recursion
@@ -782,14 +783,16 @@ class AspirationAgent(ABC):
 
 	@lru_cache(maxsize=None)
 	def causationPotential_state(self, state, aleph4state): # recursive
+		"""Maximal directed information from action sequence to state sequence over all possible policies"""
+		raise NotImplementedError("causationPotential_state is not yet implemented correctly")
 		if self.debug:
 			print(pad(state),"causationPotential_state", prettyState(state), aleph4state, "...")
-		if not self.default_transition:
-			self._compute_default_transition(state)
 		locPol = self.localPolicy(state, aleph4state)
 		def Y(nextState, action):
-			return math.log(self.world.transition_probability(state, action, nextState)[0]
-				    		/ self.default_transition(state).probability(nextState))
+			p = self.world.transition_probability(state, action, nextState)[0]
+			if p == 0: return float("-inf")
+			return math.log(p / locPol.expectation(lambda otherActionAndAleph: 
+							   	self.world.transition_probability(state, otherActionAndAleph[0], nextState)[0]))
 		res = max([self.world.expectation(state, action, Y, (action,)) 
 			 	   + self.causationPotential_action(state, aleph4state, action, self.aspiration4action(state, action, aleph4state))
 			 	   for action in self.world.possible_actions(state)]) 
