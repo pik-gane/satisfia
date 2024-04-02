@@ -17,5 +17,6 @@
 	  ],
 	"expected_deltas": { "G": 1 },
 	"aleph0": 1,
-	"totalTime": 12
+	"max_episode_length": 12,
+	"timeout_delta": -10
 }
