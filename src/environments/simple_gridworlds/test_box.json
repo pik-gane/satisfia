@@ -5,7 +5,8 @@
 	"delta_grid": [
 		"      G  "
 	],
-	"expectedDeltaTable": {"G": 1},
+	"expected_deltas": {"G": 1},
 	"aleph0": 1,
-	"defaultTime": 20
+	"max_episode_length": 20,
+	"timeout_delta": -10
 }

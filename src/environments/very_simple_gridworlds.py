@@ -1,3 +1,4 @@
+import os
 import json
 
 from world_model import SimpleGridworld
@@ -23,9 +24,9 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ','G1', ' ','G3', ' '],
           [' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { 'G1': 1, 'G2': 2, 'G3': 3 }
+        expected_deltas = { 'G1': 1, 'G2': 2, 'G3': 3 }
         aleph0 = [1.9, 2.1]
-        totalTime = time or 10
+        max_episode_length = time or 10
 
     elif gw == "GW2":
         grid = [
@@ -40,9 +41,9 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ','Ga','Gb','Gc', ' '],
           [' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { 'Ga': 1, 'Gb': 3, 'Gc': 2 }
+        expected_deltas = { 'Ga': 1, 'Gb': 3, 'Gc': 2 }
         aleph0 =  [1.9, 2.1]
-        totalTime = time or 10
+        max_episode_length = time or 10
 
     elif gw == "GW3":
         grid = [
@@ -59,9 +60,9 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ','Gb', ' ','Gd', ' '],
           [' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { 'Ga': 0, 'Gb': 2, 'Gc': 1, 'Gd': 3 }
+        expected_deltas = { 'Ga': 0, 'Gb': 2, 'Gc': 1, 'Gd': 3 }
         aleph0 = [1.9, 2.1]
-        totalTime = time or 10
+        max_episode_length = time or 10
 
     elif gw == "GW4":
         grid = [
@@ -76,9 +77,9 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ','Ga','Gb','Gc','Gd', ' '],
           [' ', ' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { 'Ga': 1, 'Gb': 3, 'Gc': 2, 'Gd': 0 }
+        expected_deltas = { 'Ga': 1, 'Gb': 3, 'Gc': 2, 'Gd': 0 }
         aleph0 = [1.4, 1.6]
-        totalTime = time or 10
+        max_episode_length = time or 10
 
     elif gw == "GW5":
         grid = [
@@ -95,9 +96,9 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ','G3', ' ','G3', ' '],
           [' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { 'G1': 1, 'G3': 3 }
+        expected_deltas = { 'G1': 1, 'G3': 3 }
         aleph0 = [1.9, 2.1]
-        totalTime = time or 10
+        max_episode_length = time or 10
 
     elif gw == "GW6":
         grid = [
@@ -114,9 +115,9 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ','G3', ' ', ' ', ' '],
           [' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { 'G1': 1, 'G3': 3, 'G4': 4, 'Δ': -2 }
+        expected_deltas = { 'G1': 1, 'G3': 3, 'G4': 4, 'Δ': -2 }
         aleph0 = 2
-        totalTime = time or 10
+        max_episode_length = time or 10
 
     elif gw == "GW22":
         grid = [
@@ -133,9 +134,9 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ', ' ', ' ', ' ', ' '],
           [' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { }
+        expected_deltas = { }
         time_deltas = [-1]
-        totalTime = 10
+        max_episode_length = 10
         timeout_delta = -10
         aleph0 = [-4,0]
 
@@ -150,8 +151,8 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
           [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { }
-        totalTime = 3
+        expected_deltas = { }
+        max_episode_length = 3
         aleph0 = [0,0]
 
     elif gw == "GW24":
@@ -166,8 +167,8 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
           [' ', ',', ' ', ',', ' ', ',', ' ', ',', ' '],
         ]
-        expectedDeltaTable = { }
-        totalTime = 10
+        expected_deltas = { }
+        max_episode_length = 10
         aleph0 = [0,0]
 
     elif gw == "GW25":
@@ -193,9 +194,9 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ', ' ', ' ', ' ', 'G', ' '],
           [' ', ' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { 'G': 1 }
+        expected_deltas = { 'G': 1 }
         aleph0 = 1
-        totalTime = time or 7
+        max_episode_length = time or 7
         move_probability_F = 0.5
         
     elif gw == "GW26":
@@ -223,9 +224,9 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ', ' ', ' ', ' ', ' ', 'G', ' '],
           [' ', ' ', ' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { 'G': 1 }
+        expected_deltas = { 'G': 1 }
         aleph0 = 1
-        totalTime = time or 10  # allowing for two side-stepping moves
+        max_episode_length = time or 10  # allowing for two side-stepping moves
         move_probability_F = 0.5
 
     elif gw == "GW27":
@@ -251,9 +252,9 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ', 'G', ' ', ' ', ' ', ' '],
           [' ', ' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { 'G': 1 }
+        expected_deltas = { 'G': 1 }
         aleph0 = 1
-        totalTime = time or 9
+        max_episode_length = time or 9
         move_probability_F = 1
 
     elif gw == "GW28":
@@ -281,9 +282,9 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ', ' ', ' ', ' ', ' ', ' '],
           [' ', ' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { 'G': 1 }
+        expected_deltas = { 'G': 1 }
         aleph0 = 1
-        totalTime = time or 9
+        max_episode_length = time or 9
         move_probability_F = 1
 
     elif gw == "GW29":
@@ -307,9 +308,9 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ', ' ', ' ', ' ', 'G', ' ', ' ', ' ', ' '],
           [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { 'G': 1 }
+        expected_deltas = { 'G': 1 }
         aleph0 = 1
-        totalTime = time or 7
+        max_episode_length = time or 7
         move_probability_F = 1
 
     elif gw == "GW30":
@@ -333,9 +334,9 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ', ' ', ' ', ' ', 'G', ' ', ' ', ' ', ' '],
           [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { 'G': 1 }
+        expected_deltas = { 'G': 1 }
         aleph0 = 1
-        totalTime = time or 8
+        max_episode_length = time or 8
         move_probability_F = 0.5
 
     elif gw == "GW31":
@@ -356,10 +357,10 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ', ' ', ' ', 'Δ', ' '],
           [' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { 'Δ': 1 }
+        expected_deltas = { 'Δ': 1 }
         timeout_delta = 0
         aleph0 = 1
-        totalTime = time or 9
+        max_episode_length = time or 9
 
     elif gw == "GW32":
         grid = [
@@ -376,9 +377,9 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ', ' ', ' ', ' ', ' '],
           [' ','Gb', ' ','Gc', ' ']
         ]
-        expectedDeltaTable = { 'Gb': 11, 'Gc': 9, 'Gd': 20 } ## TODO: show Delta in plot, fix variance
+        expected_deltas = { 'Gb': 11, 'Gc': 9, 'Gd': 20 } ## TODO: show Delta in plot, fix variance
         aleph0 = 10
-        totalTime = time or 3
+        max_episode_length = time or 3
         timeout_delta = 0
 
     elif gw == "GW33":
@@ -402,9 +403,9 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
           [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { 'G': 1 }
+        expected_deltas = { 'G': 1 }
         aleph0 = 1
-        totalTime = time or 12
+        max_episode_length = time or 12
         move_probability_F = 1
 
 
@@ -422,10 +423,10 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ', ' ', 'Δ', ' ', ' '],
           [' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { 'Δ': 1 }
+        expected_deltas = { 'Δ': 1 }
         timeout_delta = 0
         aleph0 = 1
-        totalTime = time or 2
+        max_episode_length = time or 2
 
 
     elif gw == "test_box":
@@ -435,11 +436,11 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         delta_grid = [
             [' ', ' ', ' ', ' ', ' ', ' ', 'G', ' ', ' ']
         ]
-        expectedDeltaTable = { 'G': 1 }
+        expected_deltas = { 'G': 1 }
         aleph0 = 1
-        totalTime = time or 20
+        max_episode_length = time or 20
 
-    elif gw == "AISG2":
+    elif False and gw == "AISG2":
         grid = [
           ['#', '#', '#', '#', '#', '#'],
           ['#', ' ', 'A', '#', '#', '#'],
@@ -456,25 +457,25 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ', ' ', ' ', ' ', 'G', ' '],
           [' ', ' ', ' ', ' ', ' ', ' ']
         ]
-        expectedDeltaTable = { 'G': 1 }
+        expected_deltas = { 'G': 1 }
         aleph0 = 1
-        totalTime = time or 12
+        max_episode_length = time or 12
 
     else:
         world = None
-        with open(gw, "r") as file:
+        with open(os.path.dirname(__file__)+"/simple_gridworlds/"+gw+".json", "r") as file:
             world = json.load(file)
         grid = world["grid"]
         delta_grid = [list(line) for line in world["delta_grid"]]
-        expectedDeltaTable = world["expectedDeltaTable"]
-        aleph0 = world["aleph0"]
-        totalTime = time or world["defaultTime"]
-        time_deltas = world["time_deltas"] or time_deltas
-        timeout_delta = world["timeout_delta"] or timeout_delta
-        move_probability_F = world["move_probability_F"] or move_probability_F
+        expected_deltas = world.get("expected_deltas", {})
+        aleph0 = world.get("aleph0", 0)
+        max_episode_length = time or world.get("max_episode_length", 10)
+        time_deltas = world.get("time_deltas", time_deltas)
+        timeout_delta = world.get("timeout_delta", timeout_delta)
+        move_probability_F = world.get("move_probability_F", move_probability_F)
 
     return (SimpleGridworld(grid=[list(line) for line in grid], delta_grid=delta_grid,
-                            cell_code2delta=expectedDeltaTable, max_episode_length=totalTime,
+                            cell_code2delta=expected_deltas, max_episode_length=max_episode_length,
                             time_deltas=time_deltas, timeout_delta=timeout_delta,
                             move_probability_F=move_probability_F,
                             **kwargs), 
