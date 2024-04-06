@@ -2,6 +2,9 @@
 
 import sys
 from time import perf_counter
+
+
+
 sys.path.insert(0,'./src/')
 
 import argparse
@@ -15,7 +18,9 @@ args = parser.parse_args()
 default = args.default 
 
 from environments.very_simple_gridworlds import make_simple_gridworld
-from satisfia.agents.makeMDPAgentSatisfia import AgentMDPPlanning
+from satisfia.agents.makeMDPAgentSatisfia import AgentMDPPlanning, AspirationAgent
+from world_model.simple_gridworld import SimpleGridworld, MDPWorldModel
+from world_model.world_model import WorldModel
 
 def move_agent(env, aleph, default=0):
 	class policy():
@@ -87,3 +92,13 @@ with timeit(f"{args.world} with default = {default}"):
     env.render()
     env.close()
     # pr.dump_stats("perf_eval.prof")
+
+import functools
+for c in (AspirationAgent, AgentMDPPlanning, SimpleGridworld, MDPWorldModel, WorldModel):
+    for m in c.__dict__.values():
+        if isinstance(m, functools._lru_cache_wrapper):
+            ci = m.cache_info()
+            if ci.hits or ci.misses:
+                print(f"{c.__name__}.{m.__name__}, hits={ci.hits}, "
+                      f"misses={ci.misses} ({(ci.hits/ci.misses*100):.0f}%)")
+
