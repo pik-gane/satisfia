@@ -1,14 +1,15 @@
+#!/usr/bin/env python3
+
 import sys
 sys.path.insert(0,'./src/')
 
 import time
 import PySimpleGUI as sg
 
-from environments.very_simple_gridworlds import make_simple_gridworld
+from environments.very_simple_gridworlds import make_simple_gridworld, all_worlds
 from satisfia.agents.makeMDPAgentSatisfia import AgentMDPPlanning
 
-gridworlds = ["AISG2", "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW24", "GW25", "GW27", "GW28", 
-              "GW29", "GW30", "GW31", "GW32", "GW33", "test_return", "test_box"]
+gridworlds = sorted(all_worlds())
 default_gridworld = "test_return"
 
 parameter_data = [
@@ -118,6 +119,67 @@ running = False
 stepping = False
 terminated = False
 
+def step():
+    global gridworld, parameter_values, env, agent, running, stepping, terminated, t, state, total, aleph, aleph0, delta, initialMu0, initialMu20, visited_state_alephs, visited_action_alephs
+    print()
+    env._fps = values['speed_slider']
+    action, aleph4action = agent.localPolicy(state, aleph).sample()[0]
+    visited_state_alephs.add((state, aleph))
+    visited_action_alephs.add((state, action, aleph4action))
+    if values['lossCoeff4WassersteinTerminalState'] != 0:
+        print("  in state", state)
+        for a in agent.world.possible_actions(state):
+            al4a = agent.aspiration4action(state, a, aleph)
+            print("    taking action", a, "gives:")
+            print("      default ETerminalState_state (s0):", initialMu0)
+            print("      default ETerminalState2_state(s0):", initialMu20)
+            print("      actual  ETerminalState_state (s) :", list(agent.ETerminalState_action(state, a, al4a, "actual")))
+            print("      actual  ETerminalState2_state(s) :", list(agent.ETerminalState2_action(state, a, al4a, "actual")))
+            print("      --> Wasserstein distance", agent.wassersteinTerminalState_action(state, a, al4a))
+            print("      expected Total (state aleph):", agent.Q(state, a, al4a), f"({aleph})")
+        print("    so we take action", action)
+    if parameter_values['verbose'] or parameter_values['debug']:
+        print("t:", t, ", last delta:" ,delta, ", total:", total, ", s:", state, ", aleph4s:", aleph, ", a:", action, ", aleph4a:", aleph4action)
+    nextState, delta, terminated, _, info = env.step(action)
+    total += delta
+    aleph = agent.propagateAspiration(state, action, aleph4action, delta, nextState)
+    state = nextState
+    if terminated:
+        print("t:",t, ", last delta:",delta, ", final total:", total, ", final s:", state, ", aleph4s:", aleph)
+        print("Terminated.")
+        running = stepping = False
+        if values['autorestart_checkbox']:
+            time.sleep(0.2)
+            reset_env(True)
+            env.render()
+        elif values['debug_checkbox'] or values['verbose_checkbox']:
+            if values['debug_checkbox']:
+                visited_state_alephs = agent.seen_state_alephs
+                visited_action_alephs = agent.seen_action_alephs
+            Vs = {}
+            for state, aleph in visited_state_alephs:
+                t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = env._extract_state_attributes(state)
+                if loc not in Vs:
+                    Vs[loc] = []
+                Vs[loc].append(f"{aleph[0]},{aleph[1]}:{agent.V(state, aleph)}")  # expected Total
+            Qs = {}
+            for state, action, aleph in visited_action_alephs:
+                t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = env._extract_state_attributes(state)
+                key = (*loc, action)
+                if key not in Qs:
+                    Qs[key] = []
+#                    Qs[key].append(agent.Q(state, action, aleph))
+                Qs[key].append(f"{aleph[0]},{aleph[1]}:{agent.relativeQ2(state, action, aleph, agent.Q(state, action, aleph))}")  # variance of Total
+            
+            env.render(additional_data={
+                'cell': Vs,
+                'action' : Qs
+            })
+    else:
+        print("t:",t, ", delta:",delta, ", total:", total, ", s:", state, ", aleph4s:", aleph)
+        t += 1
+        if stepping: stepping = False
+
 def reset_env(start=False):
     # TODO: only regenerate env if different from before!
     global gridworld, parameter_values, env, agent, running, stepping, terminated, t, state, total, aleph, aleph0, delta, initialMu0, initialMu20, visited_state_alephs, visited_action_alephs
@@ -156,103 +218,35 @@ def reset_env(start=False):
     running = start
     stepping = False
 
+wait = time.monotonic()
 while True:
-    parsed_events = False
-    while not parsed_events:
-        event, values = window.read(timeout=0)
-        if event == sg.WINDOW_CLOSED:
-            break
-        elif event == 'reset_params_button':
-            for pd in parameter_data:
-                window[pd[0]].update(pd[3])
-        elif event == 'reset_env_button':
-            reset_env(False)
-        elif event == 'restart_button':
-            reset_env(True)
-        elif event == 'pause_button':
-            print("\n\nPAUSE")
-            running = False
-            stepping = False
-        elif event == 'step_button':
-            print("\n\nSTEP")
-            running = False
-            stepping = True
-            env.render()
-        elif event == 'continue_button':
-            print("\n\nCONTINUE")
-            running = True
-            stepping = False
-            env.render()
-        elif event == 'override_aleph_checkbox':
-            parameter_sliders['aleph0_low'].update(disabled=not values['override_aleph_checkbox'])
-            parameter_sliders['aleph0_high'].update(disabled=not values['override_aleph_checkbox'])
-        elif event == '__TIMEOUT__':
-            parsed_events = True
-        else:
-            print("event:", event, ", values:", values)
-            parsed_events = True
-
-    if env and (running or stepping) and not terminated:
-        print()
-        env._fps = values['speed_slider']
-        action, aleph4action = agent.localPolicy(state, aleph).sample()[0]
-        visited_state_alephs.add((state, aleph))
-        visited_action_alephs.add((state, action, aleph4action))
-        if values['lossCoeff4WassersteinTerminalState'] != 0:
-            print("  in state", state)
-            for a in agent.world.possible_actions(state):
-                al4a = agent.aspiration4action(state, a, aleph)
-                print("    taking action", a, "gives:")
-                print("      default ETerminalState_state (s0):", initialMu0)
-                print("      default ETerminalState2_state(s0):", initialMu20)
-                print("      actual  ETerminalState_state (s) :", list(agent.ETerminalState_action(state, a, al4a, "actual")))
-                print("      actual  ETerminalState2_state(s) :", list(agent.ETerminalState2_action(state, a, al4a, "actual")))
-                print("      --> Wasserstein distance", agent.wassersteinTerminalState_action(state, a, al4a))
-                print("      expected Total (state aleph):", agent.Q(state, a, al4a), f"({aleph})")
-            print("    so we take action", action)
-        if parameter_values['verbose'] or parameter_values['debug']:
-            print("t:", t, ", last delta:" ,delta, ", total:", total, ", s:", state, ", aleph4s:", aleph, ", a:", action, ", aleph4a:", aleph4action)
-        nextState, delta, terminated, _, info = env.step(action)
-        total += delta
-        aleph = agent.propagateAspiration(state, action, aleph4action, delta, nextState)
-        state = nextState
-        if terminated:
-            print("t:",t, ", last delta:",delta, ", final total:", total, ", final s:", state, ", aleph4s:", aleph)
-            print("Terminated.")
-            running = stepping = False
-            if values['autorestart_checkbox']:
-                time.sleep(0.2)
-                reset_env(True)
-                env.render()
-            elif values['debug_checkbox'] or values['verbose_checkbox']:
-                if values['debug_checkbox']:
-                    visited_state_alephs = agent.seen_state_alephs
-                    visited_action_alephs = agent.seen_action_alephs
-                Vs = {}
-                for state, aleph in visited_state_alephs:
-                    t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = env._extract_state_attributes(state)
-                    if loc not in Vs:
-                        Vs[loc] = []
-                    Vs[loc].append(f"{aleph[0]},{aleph[1]}:{agent.V(state, aleph)}")  # expected Total
-                Qs = {}
-                for state, action, aleph in visited_action_alephs:
-                    t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = env._extract_state_attributes(state)
-                    key = (*loc, action)
-                    if key not in Qs:
-                        Qs[key] = []
-#                    Qs[key].append(agent.Q(state, action, aleph))
-                    Qs[key].append(f"{aleph[0]},{aleph[1]}:{agent.relativeQ2(state, action, aleph, agent.Q(state, action, aleph))}")  # variance of Total
-                
-                env.render(additional_data={
-                    'cell': Vs,
-                    'action' : Qs
-                })
-        else:
-            print("t:",t, ", delta:",delta, ", total:", total, ", s:", state, ", aleph4s:", aleph)
-            t += 1
-            if stepping: stepping = False
-    else:
-        print(".", end=None)
-        time.sleep(1.0)
+    event, values = window.read(timeout=0)
+    print(event)
+    if event == sg.WINDOW_CLOSED:
+        break
+    elif event == 'reset_params_button':
+        for pd in parameter_data:
+            window[pd[0]].update(pd[3])
+    elif event == 'reset_env_button':
+        reset_env(False)
+    elif event == 'restart_button':
+        reset_env(True)
+    elif event == 'pause_button':
+        print("\n\nPAUSE")
+        running = False
+    elif event == 'step_button':
+        print("\n\nSTEP")
+        step()
+    elif event == 'continue_button':
+        print("\n\nCONTINUE")
+        running = True
+    elif event == 'override_aleph_checkbox':
+        parameter_sliders['aleph0_low'].update(disabled=not values['override_aleph_checkbox'])
+        parameter_sliders['aleph0_high'].update(disabled=not values['override_aleph_checkbox'])
+    elif running and  (time.monotonic() - wait) > 1/values['speed_slider'] and not terminated:
+        step()
+        wait = time.monotonic()
+    elif event == '__TIMEOUT__':
+        time.sleep(.1)                         
 
 window.close()

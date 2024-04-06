@@ -4,6 +4,15 @@ import json
 from world_model import SimpleGridworld
 from satisfia.util.helper import *
 
+from pathlib import Path
+json_dir = Path(os.path.dirname(__file__)) / "simple_gridworlds"
+
+def all_worlds() -> set[str]:
+    hardcoded = {"AISG2", "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW24", "GW25", "GW27", "GW28", 
+              "GW29", "GW30", "GW31", "GW32", "test_return", "test_box"}
+    files = (f for f in json_dir.iterdir() if f.is_file() and f.name.endswith(".json"))
+    return hardcoded | { f.name.replace(".json", "") for f in files}
+
 def make_simple_gridworld(gw="GW1", time=None, **kwargs):
 
     delta_grid = None
@@ -463,7 +472,7 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
 
     else:
         world = None
-        with open(os.path.dirname(__file__)+"/simple_gridworlds/"+gw+".json", "r") as file:
+        with open(json_dir / f"{gw}.json", "r") as file:
             world = json.load(file)
         grid = world["grid"]
         delta_grid = [list(line) for line in world["delta_grid"]]
