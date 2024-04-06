@@ -768,11 +768,11 @@ class SimpleGridworld(MDPWorldModel):
                 width=3,
             )
         # And print the time left into the top-right cell:
+        if self.render_mode == "human":
         canvas.blit(self._cell_font.render(
             f"{self.max_episode_length - self.t}", True, (0, 0, 0)),
             ((self.xygrid.shape[0]-1+.3) * pix_square_size, (.3) * pix_square_size))
 
-        if self.render_mode == "human":
             # The following line copies our drawings from `canvas` to the visible window
             self._window.blit(canvas, canvas.get_rect())
             pygame.event.pump()

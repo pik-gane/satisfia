@@ -225,7 +225,7 @@ class AspirationAgent(ABC):
 	def aspiration4state(self, state, unclippedAleph):
 		if self.verbose or self.debug:
 			print(pad(state),"| | aspiration4state, state",prettyState(state),"unclippedAleph",unclippedAleph,"...")
-		res = clip(self.minAdmissibleV(state), Interval(unclippedAleph), self.maxAdmissibleV(state))
+		res = clip2(self.minAdmissibleV(state), Interval(unclippedAleph), self.maxAdmissibleV(state))
 		if self.verbose or self.debug:
 			print(pad(state),"| | ╰ aspiration4state, state",prettyState(state),"unclippedAleph",unclippedAleph,":",res)
 		return res
@@ -457,17 +457,10 @@ class AspirationAgent(ABC):
 		# compute the relative position of aleph4action in the expectation that we had of 
 		#	delta + next admissibility interval 
 		# before we knew which state we would land in:
-		if aleph4action[0] == aleph4action[1]:
-			aleph4action = aleph4action[0]
-			lam = relativePositionScalar(self.minAdmissibleQ(state, action), aleph4action, self.maxAdmissibleQ(state, action)) # TODO didn't we calculate the admissible Q when we chose the action?
+		lam = relativePosition2(self.minAdmissibleQ(state, action), aleph4action, self.maxAdmissibleQ(state, action)) # TODO didn't we calculate the admissible Q when we chose the action?
 			# (this is two numbers between 0 and 1.)
 			# use it to rescale aleph4action to the admissibility interval of the state that we landed in:
-			rescaledAleph4nextState = interpolateScalar(self.minAdmissibleV(nextState), lam, self.maxAdmissibleV(nextState))
-		else:
-		lam = relativePosition(self.minAdmissibleQ(state, action), aleph4action, self.maxAdmissibleQ(state, action)) # TODO didn't we calculate the admissible Q when we chose the action?
-		# (this is two numbers between 0 and 1.)
-		# use it to rescale aleph4action to the admissibility interval of the state that we landed in:
-		rescaledAleph4nextState = interpolate(self.minAdmissibleV(nextState), lam, self.maxAdmissibleV(nextState))
+		rescaledAleph4nextState = interpolate2(self.minAdmissibleV(nextState), lam, self.maxAdmissibleV(nextState))
 		# (only this part preserves aspiration in expectation)
 		res = rescaledAleph4nextState # WAS: interpolate(steadfastAleph4nextState, rescaling4Successors, rescaledAleph4nextState)
 		if self.verbose or self.debug:
