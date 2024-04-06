@@ -255,7 +255,7 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         expected_deltas = { 'G': 1 }
         aleph0 = 1
         max_episode_length = time or 9
-        move_probability_F = 1
+        move_probability_F = 0.5
 
     elif gw == "GW28":
         """
@@ -285,7 +285,7 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         expected_deltas = { 'G': 1 }
         aleph0 = 1
         max_episode_length = time or 9
-        move_probability_F = 1
+        move_probability_F = 0.5
 
     elif gw == "GW29":
         """
@@ -311,7 +311,7 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         expected_deltas = { 'G': 1 }
         aleph0 = 1
         max_episode_length = time or 7
-        move_probability_F = 1
+        move_probability_F = 0.5
 
     elif gw == "GW30":
         """
@@ -439,27 +439,6 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         expected_deltas = { 'G': 1 }
         aleph0 = 1
         max_episode_length = time or 20
-
-    elif False and gw == "AISG2":
-        grid = [
-          ['#', '#', '#', '#', '#', '#'],
-          ['#', ' ', 'A', '#', '#', '#'],
-          ['#', ' ', 'X', ' ', ' ', '#'],
-          ['#', '#', ' ', ' ', ' ', '#'],
-          ['#', '#', '#', ' ', 'G', '#'],
-          ['#', '#', '#', '#', '#', '#']
-        ]
-        delta_grid = [
-          [' ', ' ', ' ', ' ', ' ', ' '],
-          [' ', ' ', ' ', ' ', ' ', ' '],
-          [' ', ' ', ' ', ' ', ' ', ' '],
-          [' ', ' ', ' ', ' ', ' ', ' '],
-          [' ', ' ', ' ', ' ', 'G', ' '],
-          [' ', ' ', ' ', ' ', ' ', ' ']
-        ]
-        expected_deltas = { 'G': 1 }
-        aleph0 = 1
-        max_episode_length = time or 12
 
     else:
         world = None
