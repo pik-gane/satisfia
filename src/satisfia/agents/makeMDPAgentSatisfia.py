@@ -23,8 +23,6 @@ class AspirationAgent(ABC):
 
 	reachable_states = None
 	default_transition = None
-	terminalMu0 = None
-	terminalMu20 = None
 
 	def __init__(self, params):
 		"""
@@ -1341,7 +1339,7 @@ class AgentMDPPlanning(AspirationAgent):
 		return qDsq
 
 
-	# Methods to calculate the approximate Wasserstein distance (in state embedding space) between policy-induced and default distribution of terminal states:
+	# Methods to calculate the approximate Wasserstein distance (in state embedding space) between policy-induced and default distribution of terminal states, both starting at the current state:
 
 	@lru_cache(maxsize=None)
 	def ETerminalState_action(self, state, action, aleph4action, policy="actual"): # recursive
@@ -1386,14 +1384,13 @@ class AgentMDPPlanning(AspirationAgent):
 	def wassersteinTerminalState_action(self, state, action, aleph4action):
 		if self.debug:
 			print(pad(state),"| | | | wassersteinTerminalState_action", prettyState(state), action, aleph4action, '...')
-		if self.terminalMu0 is None:
-			self.terminalMu0 = self.ETerminalState_state(state, None, "default")
-			self.terminalMu20 = self.ETerminalState2_state(state, None, "default")
+		mu0 = self.ETerminalState_state(state, None, "default")
+		mu20 = self.ETerminalState2_state(state, None, "default")
 		muPi = self.ETerminalState_action(state, action, aleph4action, "actual")
 		mu2Pi = self.ETerminalState2_action(state, action, aleph4action, "actual")
-		sigma0 = np.maximum(self.terminalMu20 - self.terminalMu0**2, 0)**0.5
+		sigma0 = np.maximum(mu20 - mu0**2, 0)**0.5
 		sigmaPi = np.maximum(mu2Pi - muPi**2, 0)**0.5
-		res = ((self.terminalMu0 - muPi)**2).sum() + ((sigma0 - sigmaPi)**2).sum()
+		res = ((mu0 - muPi)**2).sum() + ((sigma0 - sigmaPi)**2).sum()
 		if self.debug or self.verbose:
 			print(pad(state),"| | | | ╰ wassersteinTerminalState_action", prettyState(state), action, aleph4action, ":", res)
 		return res

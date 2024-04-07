@@ -221,7 +221,8 @@ def reset_env(start=False):
 wait = time.monotonic()
 while True:
     event, values = window.read(timeout=0)
-    print(event)
+    if event != '__TIMEOUT__': 
+        print(event)
     if event == sg.WINDOW_CLOSED:
         break
     elif event == 'reset_params_button':
