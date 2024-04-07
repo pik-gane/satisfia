@@ -254,3 +254,13 @@ class WorldModel(Env):
         self._set_state(successor)
         assert self.observation_space.contains(observation), f"{observation} not in {self.observation_space.__dict__}"
         return observation, reward, self.is_terminal(successor), False, {}
+    
+    # Methods for enabling the computation of reversibility metrics:
+
+    def get_prolonged_version(self, horizon=None) -> "WorldModel":
+        """Return a version of this world model that allows for at least horizon many further steps 
+        at each terminal state of the original world model. 
+        This requires modification of terminal states, adding actions to the former terminal states, 
+        and possibly adding new states.
+        All formerly non-terminal states, their action spaces, and the corresponding transitons must remain unchanged."""
+        raise NotImplementedError()
