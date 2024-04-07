@@ -444,17 +444,18 @@ class SimpleGridworld(MDPWorldModel):
                                        - np.array(state_embedding_for_distance(state2))[1:], 2)))
 
     @lru_cache(maxsize=None)
-    def transition_distribution(self, state, action, n_samples = None):
+    def transition_distribution(self, state, action, n_samples = None) -> dict:
         if state is None and action is None:
             successor = self._make_state()
             return {successor: (1, True)}
-        t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
+
+        t, loc, _, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
         cell_type = self.xygrid[loc]
         at_goal = cell_type == 'G'
         if at_goal:
             successor = self._make_state(t + 1, loc, loc, imm_states, mc_locs, mv_locs, mv_states)
             return {successor: (1, True)}
-        else:
+
             if cell_type == ',':
                 # turn into a wall:
                 imm_states = set_entry(imm_states, self.immobile_object_indices[loc], 1)
@@ -468,7 +469,8 @@ class SimpleGridworld(MDPWorldModel):
 
             # loop through all mobile constant objects and see if they are affected by the action:
             for i, object_type in enumerate(self.mobile_constant_object_types):
-                if (mc_locs[2*i],mc_locs[2*i+1]) == target_loc:
+            if (mc_locs[2*i],mc_locs[2*i+1]) != target_loc:
+                continue
                     if object_type == 'X':  # a box
                         # see if we can push it:
                         box_target_loc = self._get_target_location(target_loc, action)
@@ -493,7 +495,8 @@ class SimpleGridworld(MDPWorldModel):
                 simulated_actions = [a for a in range(4) 
                       if a != self.opposite_action(action) # won't fall back to where we came from
                          and self._can_move(target_loc, self._get_target_location(target_loc, a), state)]
-                if len(simulated_actions) > 0:
+            if len(simulated_actions) == 0:
+                return None
                     p0 = 1 if target_type == '^' else self.uneven_ground_prob  # probability of falling off
                     intermediate_state = self._make_state(t, target_loc, loc, imm_states, mc_locs, mv_locs, mv_states)
                     trans_dist = {}
@@ -508,7 +511,7 @@ class SimpleGridworld(MDPWorldModel):
                     if target_type == '~':
                         trans_dist[intermediate_state] = 1 - p0
                     return { successor: (probability, True) for (successor,probability) in trans_dist.items() }
-            else:
+
                 # implement all deterministic changes:
                 # (none yet)
 
@@ -521,8 +524,11 @@ class SimpleGridworld(MDPWorldModel):
                 # again loop through all variable mobile objects encoded in mv_locs and mv_states:
                 for i, object_type in enumerate(self.mobile_constant_object_types):
                     object_loc = get_loc(mc_locs, i) 
-                    if object_type == 'F':  # a fragile object
-                        if object_loc != (-2,-2) and self.move_probability_F > 0:  # object may move
+            if object_type != 'F':  # a non-fragile object
+                continue
+            if not(object_loc != (-2,-2) and self.move_probability_F > 0):  # object may not move
+                continue
+
                             # loop through all possible successor states in trans_dist and split them into at most 5 depending on whether F moves and where:
                             new_trans_dist = {}
                             for (successor, probability) in trans_dist.items():
@@ -531,10 +537,10 @@ class SimpleGridworld(MDPWorldModel):
                                     default_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, set_loc(succ_mc_locs, i, (-2,-2)), succ_mv_locs, succ_mv_states)
                                 else:  # it stays in place
                                     default_successor = successor
-                                direction_locs = [(direction, self._get_target_location(object_loc, direction)) 
-                                                   for direction in range(4)]
-                                direction_locs = [(direction, loc) for (direction, loc) in direction_locs 
-                                                  if self._can_move(object_loc, loc, successor, who='F')]
+                direction_locs = tuple((direction, self._get_target_location(object_loc, direction)) 
+                                   for direction in range(4))
+                direction_locs = tuple((direction, loc) for (direction, loc) in direction_locs 
+                                  if self._can_move(object_loc, loc, successor, who='F'))
                                 n_directions = len(direction_locs)
                                 if n_directions == 0:
                                     new_trans_dist[default_successor] = probability
