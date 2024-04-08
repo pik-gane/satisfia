@@ -190,23 +190,33 @@ class SimpleGridworld(MDPWorldModel):
         # Construct an auxiliary grid that contains a unique index of each immobile object 
         # (cells of a type in immobile_object_types), or None if there is none.
         # Also, get lists of objects and their types and initial locations.
+        self.immobile_object_types = []
         self.immobile_object_indices = np.full(xygrid.shape, None)
+        self.immobile_object_locations = []
+        self.immobile_object_state0_deltas = []  # delta collected when meeting an immobile object that is in state 0 
         self.mobile_constant_object_types = []
         self.mobile_constant_object_initial_locations = []
+        self.mobile_constant_object_deltas = []  # delta collected when meeting a mobile constant object
         self.mobile_variable_object_types = []
         self.mobile_variable_object_initial_locations = []
+        self.mobile_variable_object_state0_deltas = []  # delta collected when meeting a mobile variable object that is in state 0
         for x in range(xygrid.shape[0]):
             for y in range(xygrid.shape[1]):
                 if xygrid[x, y] in immobile_object_types:
+                    self.immobile_object_types.append(xygrid[x, y])
+                    self.immobile_object_locations += [x, y]
                     self.immobile_object_indices[x, y] = self.n_immobile_objects
+                    self.immobile_object_state0_deltas.append(cell_code2delta[delta_xygrid[x, y]] if delta_xygrid[x, y] != ' ' else 0)
                     self.n_immobile_objects += 1
                 elif xygrid[x, y] in mobile_constant_object_types:
                     self.mobile_constant_object_types.append(xygrid[x, y])
                     self.mobile_constant_object_initial_locations += [x, y]
+                    self.mobile_constant_object_deltas.append(cell_code2delta[delta_xygrid[x, y]] if delta_xygrid[x, y] != ' ' else 0)
                     self.n_mobile_constant_objects += 1
                 elif xygrid[x, y] in mobile_variable_object_types:
                     self.mobile_variable_object_types.append(xygrid[x, y])
                     self.mobile_variable_object_initial_locations += [x, y]
+                    self.mobile_variable_object_state0_deltas.append(cell_code2delta[delta_xygrid[x, y]] if delta_xygrid[x, y] != ' ' else 0)
                     self.n_mobile_variable_objects += 1
 
         # The observation returned for reinforcement learning equals state, as described above.
@@ -275,19 +285,11 @@ class SimpleGridworld(MDPWorldModel):
         self.clock = None
 
     def get_prolonged_version(self, horizon=None):
-        """Return a copy of this gridworld in which the episode length is prolonged by horizon steps and all
-        former terminal states are replaced by non-terminal states with a timeout delta."""
+        """Return a copy of this gridworld in which the episode length is prolonged by horizon steps."""
         # get a copy of the original grid, the delta grid, and the delta table:
         xygrid = self.xygrid.copy()
         delta_xygrid = self.delta_xygrid.copy()
         cell_code2delta = self.cell_code2delta.copy()
-        # to each 'G' state's delta, add timeout delta:
-        for x in range(xygrid.shape[0]):
-            for y in range(xygrid.shape[1]):
-                if xygrid[x,y] == 'G':
-                    if delta_xygrid[x,y] == ' ':
-                        delta_xygrid[x,y] = str((x,y))
-                    cell_code2delta[delta_xygrid[x,y]] += self.timeout_delta                    
         # replace all 'G' states by 'Δ' states to make them non-terminal:
         xygrid[xygrid == 'G'] = 'Δ'
         # return a new SimpleGridworld with this data:
@@ -568,6 +570,19 @@ class SimpleGridworld(MDPWorldModel):
         delta = self.time_deltas[t % self.time_deltas.size]
         if self.delta_xygrid[loc] in self.cell_code2delta:
             delta += self.cell_code2delta[self.delta_xygrid[loc]]
+        # loop through all immobile objects with state 0, see if agent has met it, and if so add the corresponding Delta:
+        for i in range(self.n_immobile_objects):
+            if imm_states[i] == 0 and loc == self.immobile_object_locations[i]:
+                delta += self.immobile_object_state0_deltas[i]
+        # do the same for all mobile variable objects:
+        for i in range(self.n_mobile_variable_objects):
+            if mv_states[i] == 0 and loc == get_loc(mv_locs, i):
+                delta += self.mobile_variable_object_state0_deltas[i]
+        # do the same for all mobile constant objects:
+        for i in range(self.n_mobile_constant_objects):
+            if loc == get_loc(mc_locs, i):
+                delta += self.mobile_constant_object_deltas[i]
+        # add timeout Delta:
         if t == self.max_episode_length and self.xygrid[loc] != 'G':
             delta += self.timeout_delta
         return {(successor, delta): (1, True)}
@@ -645,13 +660,16 @@ class SimpleGridworld(MDPWorldModel):
                         (64, 64, 64),
                         ((x+.3) * pix_square_size, (y+.8) * pix_square_size, .4*pix_square_size, .1*pix_square_size),
                     )
-                elif (cell_type == "Δ" and self._immobile_object_states[self.immobile_object_indices[x, y]] != 1):
-                    # draw a small triangle:
-                    pygame.draw.polygon(
-                        canvas,
-                        (255, 255, 0),
-                        ((x+.3) * pix_square_size, (y+.8) * pix_square_size, (x+.7) * pix_square_size, (y+.8) * pix_square_size, (x+.5) * pix_square_size, (y+.3) * pix_square_size),
-                    )
+                elif cell_type == "Δ":
+                    if self._immobile_object_states[self.immobile_object_indices[x, y]] == 0:
+                        # draw a small triangle:
+                        pygame.draw.polygon(
+                            canvas,
+                            (224, 224, 0),
+                            (((x+.3) * pix_square_size, (y+.7) * pix_square_size), 
+                            ((x+.7) * pix_square_size, (y+.7) * pix_square_size), 
+                            ((x+.5) * pix_square_size, (y+.3) * pix_square_size)),
+                        )
                 elif cell_type in render_as_char_types:
                     canvas.blit(self._cell_font.render(cell_type, True, (0, 0, 0)),
                                       ((x+.3) * pix_square_size, (y+.3) * pix_square_size))

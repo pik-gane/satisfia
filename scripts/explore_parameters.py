@@ -187,6 +187,7 @@ def reset_env(start=False):
     gridworld = values['gridworld_dropdown']
     if gridworld != old_gridworld:
         env, aleph0 = make_simple_gridworld(gw=gridworld, render_mode="human", fps=values['speed_slider'])
+        env = env.get_prolonged_version(5)
     if values['override_aleph_checkbox']:
         aleph = (values['aleph0_low'], values['aleph0_high'])
     else:
