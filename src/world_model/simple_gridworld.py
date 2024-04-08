@@ -19,7 +19,7 @@ unenterable_mobile_object_types = ['A']  # can't run into agents
 unsteady_cell_types = ['~', '^', '-']
 what_can_move_into_agent = ['A']
 
-immobile_object_types = [',']
+immobile_object_types = [',','Δ']
 mobile_constant_object_types = ['X','|','F']
 mobile_variable_object_types = []
 
@@ -274,6 +274,35 @@ class SimpleGridworld(MDPWorldModel):
         self._window = None
         self.clock = None
 
+    def get_prolonged_version(self, horizon=None):
+        """Return a copy of this gridworld in which the episode length is prolonged by horizon steps and all
+        former terminal states are replaced by non-terminal states with a timeout delta."""
+        # get a copy of the original grid, the delta grid, and the delta table:
+        xygrid = self.xygrid.copy()
+        delta_xygrid = self.delta_xygrid.copy()
+        cell_code2delta = self.cell_code2delta.copy()
+        # to each 'G' state's delta, add timeout delta:
+        for x in range(xygrid.shape[0]):
+            for y in range(xygrid.shape[1]):
+                if xygrid[x,y] == 'G':
+                    if delta_xygrid[x,y] == ' ':
+                        delta_xygrid[x,y] = str((x,y))
+                    cell_code2delta[delta_xygrid[x,y]] += self.timeout_delta                    
+        # replace all 'G' states by 'Δ' states to make them non-terminal:
+        xygrid[xygrid == 'G'] = 'Δ'
+        # return a new SimpleGridworld with this data:
+        return SimpleGridworld(render_mode = self.render_mode, 
+                 grid = xygrid.T,
+                 delta_grid = delta_xygrid.T,
+                 cell_code2delta = cell_code2delta,
+                 max_episode_length = self.max_episode_length + horizon,
+                 time_deltas = self.time_deltas,
+                 timeout_delta = self.timeout_delta,
+                 uneven_ground_prob = self.uneven_ground_prob,
+                 move_probability_F = self.move_probability_F,
+                 fps = self._fps
+                 )
+
     def _get_target_location(self, location, action):
         """Return the next location of the agent if it takes the given action from the given location."""
         direction = self._action_to_direction[action]
@@ -427,6 +456,10 @@ class SimpleGridworld(MDPWorldModel):
             if cell_type == ',':
                 # turn into a wall:
                 imm_states = set_entry(imm_states, self.immobile_object_indices[loc], 1)
+            elif cell_type == 'Δ':
+                if imm_states[self.immobile_object_indices[loc]] == 0:
+                    # turn state to 1:
+                    imm_states = set_entry(imm_states, self.immobile_object_indices[loc], 1)
 
             target_loc = self._get_target_location(loc, action)
             target_type = self.xygrid[target_loc]
@@ -611,6 +644,13 @@ class SimpleGridworld(MDPWorldModel):
                         canvas,
                         (64, 64, 64),
                         ((x+.3) * pix_square_size, (y+.8) * pix_square_size, .4*pix_square_size, .1*pix_square_size),
+                    )
+                elif (cell_type == "Δ" and self._immobile_object_states[self.immobile_object_indices[x, y]] != 1):
+                    # draw a small triangle:
+                    pygame.draw.polygon(
+                        canvas,
+                        (255, 255, 0),
+                        ((x+.3) * pix_square_size, (y+.8) * pix_square_size, (x+.7) * pix_square_size, (y+.8) * pix_square_size, (x+.5) * pix_square_size, (y+.3) * pix_square_size),
                     )
                 elif cell_type in render_as_char_types:
                     canvas.blit(self._cell_font.render(cell_type, True, (0, 0, 0)),
