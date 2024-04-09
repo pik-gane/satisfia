@@ -456,114 +456,114 @@ class SimpleGridworld(MDPWorldModel):
             successor = self._make_state(t + 1, loc, loc, imm_states, mc_locs, mv_locs, mv_states)
             return {successor: (1, True)}
 
-            if cell_type == ',':
-                # turn into a wall:
+        if cell_type == ',':
+            # turn into a wall:
+            imm_states = set_entry(imm_states, self.immobile_object_indices[loc], 1)
+        elif cell_type == 'Δ':
+            if imm_states[self.immobile_object_indices[loc]] == 0:
+                # turn state to 1:
                 imm_states = set_entry(imm_states, self.immobile_object_indices[loc], 1)
-            elif cell_type == 'Δ':
-                if imm_states[self.immobile_object_indices[loc]] == 0:
-                    # turn state to 1:
-                    imm_states = set_entry(imm_states, self.immobile_object_indices[loc], 1)
 
-            target_loc = self._get_target_location(loc, action)
-            target_type = self.xygrid[target_loc]
+        target_loc = self._get_target_location(loc, action)
+        target_type = self.xygrid[target_loc]
 
-            # loop through all mobile constant objects and see if they are affected by the action:
-            for i, object_type in enumerate(self.mobile_constant_object_types):
+        # loop through all mobile constant objects and see if they are affected by the action:
+        for i, object_type in enumerate(self.mobile_constant_object_types):
             if (mc_locs[2*i],mc_locs[2*i+1]) != target_loc:
                 continue
-                    if object_type == 'X':  # a box
-                        # see if we can push it:
-                        box_target_loc = self._get_target_location(target_loc, action)
-                        if self._can_move(target_loc, box_target_loc, state):
-                            if self.xygrid[box_target_loc] in unsteady_cell_types:
-                                raise NotImplementedError("boxes cannot slide/fall yet")  # TODO: let boxes slide/fall like agents!
-                            mc_locs = set_loc(mc_locs, i, box_target_loc)
-                    elif object_type == '|':  # a glass pane
-                        if action in [0,2]:
-                            # see if we can push it:
-                            pane_target_loc = self._get_target_location(target_loc, action)
-                            if self._can_move(target_loc, pane_target_loc, state):
-                                if self.xygrid[pane_target_loc] in unsteady_cell_types:
-                                    raise NotImplementedError("glass panes cannot slide/fall yet")  # TODO: let boxes slide/fall like agents!
-                                mc_locs = set_loc(mc_locs, i, pane_target_loc)
-                        else:
-                            # it will break
-                            mc_locs = set_loc(mc_locs, i, (-2,-2))
+            if object_type == 'X':  # a box
+                # see if we can push it:
+                box_target_loc = self._get_target_location(target_loc, action)
+                if self._can_move(target_loc, box_target_loc, state):
+                    if self.xygrid[box_target_loc] in unsteady_cell_types:
+                        raise NotImplementedError("boxes cannot slide/fall yet")  # TODO: let boxes slide/fall like agents!
+                    mc_locs = set_loc(mc_locs, i, box_target_loc)
+            elif object_type == '|':  # a glass pane
+                if action in [0,2]:
+                    # see if we can push it:
+                    pane_target_loc = self._get_target_location(target_loc, action)
+                    if self._can_move(target_loc, pane_target_loc, state):
+                        if self.xygrid[pane_target_loc] in unsteady_cell_types:
+                            raise NotImplementedError("glass panes cannot slide/fall yet")  # TODO: let boxes slide/fall like agents!
+                        mc_locs = set_loc(mc_locs, i, pane_target_loc)
+                else:
+                    # it will break
+                    mc_locs = set_loc(mc_locs, i, (-2,-2))
 
-            if target_type in ['^', '~']:
-                # see what "falling-off" actions are possible:
-                simulated_actions = [a for a in range(4) 
-                      if a != self.opposite_action(action) # won't fall back to where we came from
-                         and self._can_move(target_loc, self._get_target_location(target_loc, a), state)]
+        if target_type in ['^', '~']:
+            # see what "falling-off" actions are possible:
+            simulated_actions = [a for a in range(4) 
+                  if a != self.opposite_action(action) # won't fall back to where we came from
+                     and self._can_move(target_loc, self._get_target_location(target_loc, a), state)]
             if len(simulated_actions) == 0:
                 return None
-                    p0 = 1 if target_type == '^' else self.uneven_ground_prob  # probability of falling off
-                    intermediate_state = self._make_state(t, target_loc, loc, imm_states, mc_locs, mv_locs, mv_states)
-                    trans_dist = {}
-                    # compose the transition distribution recursively:
-                    for simulate_action in simulated_actions:
-                        for (successor, (probability, _)) in self.transition_distribution(intermediate_state, simulate_action, n_samples).items():
-                            dp = p0 * probability / len(simulated_actions)
-                            if successor in trans_dist:
-                                trans_dist[successor] += dp
-                            else:
-                                trans_dist[successor] = dp
-                    if target_type == '~':
-                        trans_dist[intermediate_state] = 1 - p0
-                    return { successor: (probability, True) for (successor,probability) in trans_dist.items() }
+            p0 = 1 if target_type == '^' else self.uneven_ground_prob  # probability of falling off
+            intermediate_state = self._make_state(t, target_loc, loc, imm_states, mc_locs, mv_locs, mv_states)
+            trans_dist = {}
+            # compose the transition distribution recursively:
+            for simulate_action in simulated_actions:
+                for (successor, (probability, _)) in self.transition_distribution(intermediate_state, simulate_action, n_samples).items():
+                    dp = p0 * probability / len(simulated_actions)
+                    if successor in trans_dist:
+                        trans_dist[successor] += dp
+                    else:
+                        trans_dist[successor] = dp
+            if target_type == '~':
+                trans_dist[intermediate_state] = 1 - p0
+            return { successor: (probability, True) for (successor,probability) in trans_dist.items() }
 
-                # implement all deterministic changes:
-                # (none yet)
+        # implement all deterministic changes:
+        # (none yet)
 
-                # initialize a dictionary of possible successor states as keys and their probabilities as values,
-                # which will subsequently be adjusted:
-                trans_dist = { self._make_state(t + 1, target_loc, loc, imm_states, mc_locs, mv_locs, mv_states): 1 }  # stay in the same state with probability 1
+        # initialize a dictionary of possible successor states as keys and their probabilities as values,
+        # which will subsequently be adjusted:
+        trans_dist = { self._make_state(t + 1, target_loc, loc, imm_states, mc_locs, mv_locs, mv_states): 1 }  # stay in the same state with probability 1
 
-                # implement all probabilistic changes:
+        # implement all probabilistic changes:
 
-                # again loop through all variable mobile objects encoded in mv_locs and mv_states:
-                for i, object_type in enumerate(self.mobile_constant_object_types):
-                    object_loc = get_loc(mc_locs, i) 
+        # again loop through all variable mobile objects encoded in mv_locs and mv_states:
+        for i, object_type in enumerate(self.mobile_constant_object_types):
+            object_loc = get_loc(mc_locs, i) 
             if object_type != 'F':  # a non-fragile object
                 continue
             if not(object_loc != (-2,-2) and self.move_probability_F > 0):  # object may not move
                 continue
 
-                            # loop through all possible successor states in trans_dist and split them into at most 5 depending on whether F moves and where:
-                            new_trans_dist = {}
-                            for (successor, probability) in trans_dist.items():
-                                succ_t, succ_loc, succ_prev_loc, succ_imm_states, succ_mc_locs, succ_mv_locs, succ_mv_states, gridcontents = self._extract_state_attributes(successor, gridcontents=True)
-                                if object_loc == target_loc:  # object is destroyed
-                                    default_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, set_loc(succ_mc_locs, i, (-2,-2)), succ_mv_locs, succ_mv_states)
-                                else:  # it stays in place
-                                    default_successor = successor
+            # loop through all possible successor states in trans_dist and split them into at most 5 depending on whether F moves and where:
+            new_trans_dist = {}
+            for (successor, probability) in trans_dist.items():
+                succ_t, succ_loc, succ_prev_loc, succ_imm_states, succ_mc_locs, succ_mv_locs, succ_mv_states, gridcontents = self._extract_state_attributes(successor, gridcontents=True)
+                if object_loc == target_loc:  # object is destroyed
+                    default_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, set_loc(succ_mc_locs, i, (-2,-2)), succ_mv_locs, succ_mv_states)
+                else:  # it stays in place
+                    default_successor = successor
                 direction_locs = tuple((direction, self._get_target_location(object_loc, direction)) 
                                    for direction in range(4))
                 direction_locs = tuple((direction, loc) for (direction, loc) in direction_locs 
                                   if self._can_move(object_loc, loc, successor, who='F'))
-                                n_directions = len(direction_locs)
-                                if n_directions == 0:
-                                    new_trans_dist[default_successor] = probability
-                                else:
-                                    new_trans_dist[default_successor] = probability * (1 - self.move_probability_F)
-                                    p = probability * self.move_probability_F / n_directions
-                                    for (direction, obj_target_loc) in direction_locs:
-                                        if obj_target_loc == target_loc:  # object is destroyed
-                                            new_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, set_loc(succ_mc_locs, i, (-2,-2)), succ_mv_locs, succ_mv_states)
-                                        else:  # it moves
-                                            new_mc_locs = set_loc(succ_mc_locs, i, obj_target_loc)
-                                            # see if there's a glass pane at obj_target_loc:
-                                            inhabitant_type, inhabitant_index = gridcontents.get(obj_target_loc, (None, None))
-                                            if inhabitant_type == '|':
-                                                # glass pane breaks
-                                                new_mc_locs = set_loc(new_mc_locs, inhabitant_index, (-2,-2))
-                                            new_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, new_mc_locs, succ_mv_locs, succ_mv_states)
-                                        new_trans_dist[new_successor] = p
-                            trans_dist = new_trans_dist
-                            
-                # TODO: update object states and/or object locations, e.g. if the agent picks up an object or moves an object
+                n_directions = len(direction_locs)
+                if n_directions == 0:
+                    new_trans_dist[default_successor] = probability
+                else:
+                    new_trans_dist[default_successor] = probability * (1 - self.move_probability_F)
+                    p = probability * self.move_probability_F / n_directions
+                    for (direction, obj_target_loc) in direction_locs:
+                        if obj_target_loc == target_loc:  # object is destroyed
+                            new_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, set_loc(succ_mc_locs, i, (-2,-2)), succ_mv_locs, succ_mv_states)
+                        else:  # it moves
+                            new_mc_locs = set_loc(succ_mc_locs, i, obj_target_loc)
+                            # see if there's a glass pane at obj_target_loc:
+                            inhabitant_type, inhabitant_index = gridcontents.get(obj_target_loc, (None, None))
+                            if inhabitant_type == '|':
+                                # glass pane breaks
+                                new_mc_locs = set_loc(new_mc_locs, inhabitant_index, (-2,-2))
+                            new_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, new_mc_locs, succ_mv_locs, succ_mv_states)
+                        new_trans_dist[new_successor] = p
+            trans_dist = new_trans_dist
 
-                return {successor: (probability, True) for (successor,probability) in trans_dist.items()} 
+        # TODO: update object states and/or object locations, e.g. if the agent picks up an object or moves an object
+
+        return {successor: (probability, True) for (successor,probability) in trans_dist.items()} 
 
     @lru_cache(maxsize=None)
     def observation_and_reward_distribution(self, state, action, successor, n_samples = None):
@@ -680,13 +680,13 @@ class SimpleGridworld(MDPWorldModel):
                     canvas.blit(self._cell_font.render(cell_type, True, (0, 0, 0)),
                                       ((x+.3) * pix_square_size, (y+.3) * pix_square_size))
                 if self._window is None and self.render_mode == "human":
-                canvas.blit(self._delta_font.render(
-                    f"{x},{y}", True, (128, 128, 128)),
-                    ((x+.8) * pix_square_size, (y+.1) * pix_square_size))
-                if cell_code in self.cell_code2delta:
                     canvas.blit(self._delta_font.render(
-                        cell_code + f" {self.cell_code2delta[cell_code]}", True, (0, 0, 0)),
-                        ((x+.1) * pix_square_size, (y+.1) * pix_square_size))
+                        f"{x},{y}", True, (128, 128, 128)),
+                        ((x+.8) * pix_square_size, (y+.1) * pix_square_size))
+                    if cell_code in self.cell_code2delta:
+                        canvas.blit(self._delta_font.render(
+                            cell_code + f" {self.cell_code2delta[cell_code]}", True, (0, 0, 0)),
+                            ((x+.1) * pix_square_size, (y+.1) * pix_square_size))
 
         # Render all mobile objects:
         for i, object_type in enumerate(self.mobile_constant_object_types):
@@ -775,9 +775,9 @@ class SimpleGridworld(MDPWorldModel):
             )
         # And print the time left into the top-right cell:
         if self.render_mode == "human":
-        canvas.blit(self._cell_font.render(
-            f"{self.max_episode_length - self.t}", True, (0, 0, 0)),
-            ((self.xygrid.shape[0]-1+.3) * pix_square_size, (.3) * pix_square_size))
+            canvas.blit(self._cell_font.render(
+                f"{self.max_episode_length - self.t}", True, (0, 0, 0)),
+                ((self.xygrid.shape[0]-1+.3) * pix_square_size, (.3) * pix_square_size))
 
             # The following line copies our drawings from `canvas` to the visible window
             self._window.blit(canvas, canvas.get_rect())
