@@ -63,7 +63,7 @@ class WorldModel(Env):
 
     @lru_cache(maxsize=None)
     def possible_successors(self, state, action=None, n_samples = None) -> set:
-        """Return the of possible successor states after performing action in state,
+        """Return the set of possible successor states after performing action in state,
         or, if action is None, of all possible successor states after any action in state,
         or, if state and action are None, a list of possible initial states."""
         return {succs
