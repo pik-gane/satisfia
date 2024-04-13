@@ -98,7 +98,7 @@ for c in (AspirationAgent, AgentMDPPlanning, SimpleGridworld, MDPWorldModel, Wor
     for m in c.__dict__.values():
         if isinstance(m, functools._lru_cache_wrapper):
             ci = m.cache_info()
-            if ci.hits or ci.misses:
+            if ci.misses:
                 print(f"{c.__name__}.{m.__name__}, hits={ci.hits}, "
                       f"misses={ci.misses} ({(ci.hits/ci.misses*100):.0f}%)")
 

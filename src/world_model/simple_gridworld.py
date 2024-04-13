@@ -1,6 +1,7 @@
-from functools import cache, lru_cache
+from functools import cache
 import os
 from sre_parse import State
+from typing import Generic, NamedTuple, Self, TypeVar, overload
 
 from satisfia.util import distribution
 from . import MDPWorldModel
@@ -8,10 +9,8 @@ from . import MDPWorldModel
 # based in large part on https://gymnasium.farama.org/tutorials/gymnasium_basics/environment_creation/
 
 import numpy as np
-from numpy import random
 import pygame
 
-import gymnasium as gym
 from gymnasium import spaces
 
 unenterable_immobile_cell_types = ['#']  # can't run into walls
@@ -47,7 +46,22 @@ def state_embedding_for_distance(state):
     """return an embedding of state where all entries -2 are replaced by -10000"""
     return tuple(-10000 if x == -2 else x for x in state)
 
-class SimpleGridworld(MDPWorldModel):
+class Location(NamedTuple):
+    x: int
+    y: int
+
+class SimpleGWState(NamedTuple):
+    t: int
+    locp: Location
+    locc: Location
+    immobiles_s: tuple[Location]
+    mobiles_s: tuple[Location]
+
+ObsType = TypeVar("ObsType")
+State= TypeVar("State")
+
+Action = int
+class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, State]):
     """A world model of a simple MDP-type Gridworld environment.
     
     A *state* here is a tuple of integers encoding the following sequence of items,
@@ -261,12 +275,12 @@ class SimpleGridworld(MDPWorldModel):
         The following dictionary maps abstract actions from `self.action_space` to
         the direction we will walk in if that action is taken.
         """
-        self._action_to_direction = {
-            0: np.array([0, -1]), # up
-            1: np.array([1, 0]), # right
-            2: np.array([0, 1]), # down
-            3: np.array([-1, 0]), # left
-            4: np.array([0, 0]), # stay in place
+        self._action_to_direction: dict[Action, tuple[int, int]] = {
+            0: (0,-1),# up
+            1: (1,0),# right
+            2: (0,1),# down
+            3: (-1,0),# left
+            4: (0,0),# stay in place
         }
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
@@ -284,7 +298,7 @@ class SimpleGridworld(MDPWorldModel):
         self._window = None
         self.clock = None
 
-    def get_prolonged_version(self, horizon=None):
+    def get_prolonged_version(self: Self, horizon=None) -> Self:
         """Return a copy of this gridworld in which the episode length is prolonged by horizon steps."""
         # get a copy of the original grid, the delta grid, and the delta table:
         xygrid = self.xygrid.copy()
@@ -293,7 +307,7 @@ class SimpleGridworld(MDPWorldModel):
         # replace all 'G' states by 'Δ' states to make them non-terminal:
         xygrid[xygrid == 'G'] = 'Δ'
         # return a new SimpleGridworld with this data:
-        return SimpleGridworld(render_mode = self.render_mode, 
+        return type(self)(render_mode = self.render_mode, 
                  grid = xygrid.T,
                  delta_grid = delta_xygrid.T,
                  cell_code2delta = cell_code2delta,
@@ -305,10 +319,10 @@ class SimpleGridworld(MDPWorldModel):
                  fps = self._fps
                  )
 
-    def _get_target_location(self, location, action):
+    def _get_target_location(self, location: Location, action: Action) -> Location:
         """Return the next location of the agent if it takes the given action from the given location."""
         direction = self._action_to_direction[action]
-        return (
+        return Location(
             location[0] + direction[0],
             location[1] + direction[1]
         )
@@ -353,7 +367,7 @@ class SimpleGridworld(MDPWorldModel):
         res = np.array(state_embedding_for_distance(state), dtype=np.float32)[3:]  # make time and previous position irrelevant
         return res
 
-    @lru_cache(maxsize=None)
+    @cache
     def possible_actions(self, state=None):
         """Return a list of possible actions from the given state."""
         if state is None:
@@ -369,7 +383,13 @@ class SimpleGridworld(MDPWorldModel):
         """Return a default action, if any"""
         return distribution.categorical([4], [1])  # staying in place
 
+    @overload
     def _extract_state_attributes(self, state, gridcontents=False):
+        pass
+    @overload
+    def _extract_state_attributes(self, state, gridcontents=True):
+        pass
+    def _extract_state_attributes(self, state, gridcontents=False) -> tuple:
         """Return the individual attributes of a state."""
         t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = (
                 state[0],  # time step
@@ -430,20 +450,20 @@ class SimpleGridworld(MDPWorldModel):
                 *mv_states
                 )
 
-    @lru_cache(maxsize=None)
-    def is_terminal(self, state):
+    @cache
+    def is_terminal(self, state: State):
         """Return True if the given state is a terminal state."""
         t, loc, _, _, _, _, _ = self._extract_state_attributes(state)
         is_at_goal = self.xygrid[loc] == 'G'
-        return (t == self.max_episode_length) or is_at_goal
+        return is_at_goal or (t == self.max_episode_length)
 
-    @lru_cache(maxsize=None)
+    @cache
     def state_distance(self, state1, state2):
         """Return the distance between the two given states, disregarding time."""
         return np.sqrt(np.sum(np.power(np.array(state_embedding_for_distance(state1))[1:] 
                                        - np.array(state_embedding_for_distance(state2))[1:], 2)))
 
-    @lru_cache(maxsize=None)
+    @cache
     def transition_distribution(self, state, action, n_samples = None) -> dict:
         if state is None and action is None:
             successor = self._make_state()
@@ -565,7 +585,7 @@ class SimpleGridworld(MDPWorldModel):
 
         return {successor: (probability, True) for (successor,probability) in trans_dist.items()} 
 
-    @lru_cache(maxsize=None)
+    @cache
     def observation_and_reward_distribution(self, state, action, successor, n_samples = None):
         """
         Delta for a state accrues when entering the state, so it depends on successor:

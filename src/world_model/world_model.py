@@ -1,14 +1,21 @@
+from collections.abc import Callable
+from typing import Generic, NamedTuple, TypeVar, TypeVarTuple, Self
 import numpy as np
 from numpy import random
 from numpy.random import choice
 from gymnasium import Env #, ResetNeeded # TODO: replace ResetNeeded with a custom exception?
-from functools import cache, lru_cache
+from functools import cache
 
 # TODO: add typing
 
 # TODO: define Exceptions for: action set empty, action not possible in state
+ObsType = TypeVar("ObsType")
+Action = TypeVar("Action")
+State= TypeVar("State")
+TT = TypeVarTuple("TT")
 
-class WorldModel(Env):
+ 
+class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
     """An abstract base class for potentially probabilistic world models, 
     extending gymnasion.Env by providing methods for enquiring transition probabilities between 
     environmental states.
@@ -29,27 +36,31 @@ class WorldModel(Env):
         - the other results are the main parts of the return values of consecutively calling step(action) after the given history up to that point.
     - n_samples is the number of samples to use for estimating the probability if no exact computation is possible.
     """
+    class Result(NamedTuple):
+        observation: ObsType
+        reward: float
+        terminated: bool
 
-    _state = None
+    _state: State|None = None
     """The current state of the environment, possibly not directly observable by the agent."""
 
     # methods for enquiring transition probabilities between states:
 
-    @lru_cache(maxsize=None)
-    def state_embedding(self, state):
+    @cache
+    def state_embedding(self, state: State):
         """vector representation of state"""
         try:
             return np.array(state, dtype=np.float32)
         except:
             raise ValueError("state must be an iterable of numbers")
 
-    def is_terminal(self, state):
+    def is_terminal(self, state: State) -> bool:
         """Return whether the given state is terminal, i.e., 
         an episode ends and the agent can no longer perform actions when reaching this state."""
         raise NotImplementedError()
     
-    @lru_cache(maxsize=None)
-    def possible_actions(self, state = None):
+    @cache
+    def possible_actions(self, state: State|None = None):
         """Return the list of all actions possible in a given state or in the current state if state is None.
         
         This default implementation assumes that the action space is of type gymnasium.spaces.Discrete,
@@ -57,13 +68,13 @@ class WorldModel(Env):
         space = self.action_space
         return range(space.start, space.start + space.n)
     
-    def default_policy(self, state):
+    def default_policy(self, state: State):
         """Return a default action, if any"""
         return None
 
-    @lru_cache(maxsize=None)
-    def possible_successors(self, state, action=None, n_samples = None) -> set:
-        """Return the set of possible successor states after performing action in state,
+    @cache
+    def possible_successors(self, state:State, action:Action|None=None, n_samples:int|None = None) -> set[State]:
+        """Return the of possible successor states after performing action in state,
         or, if action is None, of all possible successor states after any action in state,
         or, if state and action are None, a list of possible initial states."""
         return {succs
@@ -71,8 +82,8 @@ class WorldModel(Env):
                 for succs in self.possible_successors(state, act, n_samples)
               }
     
-    @lru_cache(maxsize=None)
-    def reachable_states(self, state):
+    @cache
+    def reachable_states(self, state: State) -> set[State]:
         """Return a list of all states that can be reached from the given state by taking any sequence of actions."""
         res = {state}
         if not self.is_terminal(state):
@@ -83,22 +94,22 @@ class WorldModel(Env):
              }
         return res
 
-    @lru_cache(maxsize=None)
-    def transition_probability(self, state, action, successor, n_samples = None):
+    @cache
+    def transition_probability(self, state: State, action: Action, successor: State, n_samples:int|None = None):
         """Return the probability of the successor state after performing action in state,
         or, if state and action are None, of successor being the initial state,
         and a boolean flag indicating whether the probability is exact."""
         return self.transition_distribution(state, action, n_samples).get(successor, (0, True))
     
-    @lru_cache(maxsize=None)
-    def transition_distribution(self, state, action, n_samples = None):
+    @cache
+    def transition_distribution(self, state:State, action:Action, n_samples:int|None = None):
         """Return a dictionary mapping possible successor states after performing action in state,
         or, if state and action are None, of possible initial states,
         to tuples of the form (probability: float, exact: boolean)."""
         return {successor: self.transition_probability(state, action, successor, n_samples) 
                 for successor in self.possible_successors(state, action, n_samples)}
     
-    def observation_and_reward_distribution(self, state, action, successor, n_samples = None):
+    def observation_and_reward_distribution(self, state:State|None, action:Action|None, successor:State, n_samples:int|None = None):
         """Return a dictionary mapping possible pairs of observation and reward after performing action in state
         and reaching successor, or, if state and action are None, of starting in successor as the initial state,
         to tuples of the form (probability: float, exact: boolean)."""
@@ -106,7 +117,7 @@ class WorldModel(Env):
 
     # methods for enquiring expected values in states:
 
-    def expectation_of_fct_of_reward(self, state, action, f, additional_args = (), n_samples = None):
+    def expectation_of_fct_of_reward(self, state:State, action:Action, f, additional_args = (), n_samples:int|None= None):
         """Return the expected value of f(reward, *additional_args) after taking action in state."""
         return np.sum([successor_probability * reward_probability * f(reward, *additional_args)
                        for (successor, (successor_probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()
@@ -117,27 +128,31 @@ class WorldModel(Env):
     
     expectation_of_fct_of_delta = expectation_of_fct_of_reward
 
-    @lru_cache(maxsize=None)
-    def raw_moment_of_reward(self, state, action, degree = 1, n_samples = None):
+    @cache
+    def raw_moment_of_reward(self, state:State, action:Action, degree:int = 1, n_samples:int|None = None):
         """Return a raw moment of reward after taking action in state."""
         return self.expectation_of_fct_of_reward(state, action, lambda reward: reward**degree, n_samples = n_samples)
     
     raw_moment_of_delta = raw_moment_of_reward
 
-    @lru_cache(maxsize=None)
-    def expected_reward(self, state, action, n_samples = None):
+    @cache
+    def expected_reward(self, state:State, action:Action, n_samples:int|None = None):
         """Return the expected reward after taking action in state."""
         return self.raw_moment_of_reward(state, action, 1, n_samples = n_samples)
     
     expected_delta = expected_reward
     
-    def expectation(self, state, action, f, additional_args = (), n_samples = None):
+    def expectation( self, state:State, action:Action,
+            f:Callable[[State, *TT], float],
+              *additional_args:*TT, n_samples:int|None = None):
         """Return the expected value of f(successor, *additional_args) after taking action in state."""
         return np.sum([probability * f(successor, *additional_args)
                        for (successor, (probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()
                        if probability > 0], axis=0)
 
-    def expectation_of_fct_of_probability(self, state, action, f, additional_args = (), n_samples = None):
+    def expectation_of_fct_of_probability(self, state: State, action: Action,
+                                                      f:Callable[[State, float, *TT], float],
+                                          *additional_args: *TT, n_samples = None):
         """Return the expected value of f(successor, probability, *additional_args) after taking action in state,
         where probability is the probability of reaching successor after taking action in state."""
         return np.sum([probability * f(successor, probability, *additional_args)
@@ -146,21 +161,21 @@ class WorldModel(Env):
 
     # methods for enquiring observation probabilities given histories:
 
-    @lru_cache(maxsize=None)
-    def possible_results(self, history, action, n_samples = None):
+    @cache
+    def possible_results(self, history, action: Action, n_samples: int|None = None):
         """Return a list of possible results of calling step(action) after the given history,
         or, if history and action are None, of calling reset()."""
         return list(self.result_distribution(history, action, n_samples).keys())
     
-    @lru_cache(maxsize=None)
-    def result_probability(self, history, action, result, n_samples = None):
+    @cache
+    def result_probability(self, history, action:Action, result, n_samples:int|None = None):
         """Return the probability of the given result of calling step(action) after the given history,
         or, if history and action are None, of calling reset(),
         and a boolean flag indicating whether the probability is exact."""
         return self.result_distribution(history, action, n_samples).get(result, (0, True))
     
-    @lru_cache(maxsize=None)
-    def result_distribution(self, history, action, n_samples = None):
+    @cache
+    def result_distribution(self, history, action:Action, n_samples :int|None= None):
         """Return a dictionary mapping results of calling step(action) after the given history,
         or, if action is None, of calling reset(history[0] or None),
         to tuples of the form (probability: float, exact: boolean)."""
@@ -169,25 +184,23 @@ class WorldModel(Env):
     
     # methods for enquiring expected values after histories:
 
-    def _result2reward(self, result):
-        return result[1]  # since result is a tuple (observation, reward, terminated)
-    
-    def expectation_of_fct_of_reward_after_history(self, history, action, f, additional_args = (), n_samples = None):
+    def expectation_of_fct_of_reward_after_history(self, history, action: Action, 
+                                                   f:Callable[[float, *TT], float], *additional_args : *TT, n_samples:int|None = None):
         """Return the expected value of f(reward, *additional_args) when calling step(action) after the given history."""
-        return np.sum([probability * f(self._result2reward(result), *additional_args)
+        return np.sum([probability * f(result.reward, *additional_args)
                        for (result, (probability, _)) in self.result_distribution(history, action, n_samples = None)
                        if probability > 0], axis=0)
     
     expectation_of_fct_of_delta_after_history = expectation_of_fct_of_reward_after_history
 
-    @lru_cache(maxsize=None)
-    def raw_moment_of_reward_after_history(self, history, action, degree, n_samples = None):
+    @cache
+    def raw_moment_of_reward_after_history(self, history, action:Action, degree:float, n_samples:int|None = None):
         """Return a raw moment of the reward of the given result of calling step(action) after the given history."""
         return self.expectation_of_fct_of_reward_after_history(history, action, lambda reward: reward**degree, n_samples = None)
 
     raw_moment_of_delta_after_history = raw_moment_of_reward_after_history
 
-    @lru_cache(maxsize=None)
+    @cache
     def expected_reward_after_history(self, history, action, n_samples = None):
         """Return the expected reward of the given result of calling step(action) after the given history."""
         return self.raw_moment_of_reward_after_history(history, action, 1, n_samples = None)
@@ -203,7 +216,7 @@ class WorldModel(Env):
 
     # Our default implementation of standard gymnasium.Env methods uses sampling from the above distribution:
 
-    def _sample_successor_observation_reward(self, action = None):
+    def _sample_successor_observation_reward(self, action: Action|None = None) -> tuple[State, ObsType, float, dict]:
         """Auxiliary method for sampling successor, observation, and reward given action in current state.
         Also returns an info dict as the fourth item."""
         # draw a successor according to the transition distribution:
@@ -229,11 +242,11 @@ class WorldModel(Env):
             "p_successor": succ_prob, "p_successor_exact": succ_prob_exact, 
             "p_obs_and_reward": res_prob, "p_obs_and_reward_exact": res_prob_exact})
 
-    def _set_state(self, state):
+    def _set_state(self, state: State):
         """Implement if you want to use the standard implementations of reset and step below."""
         raise NotImplementedError()
     
-    def reset(self, *, seed = None, options = None):
+    def reset(self, *, seed: float|None = None, options = None):
         """Reset the environment and return the initial observation, reward, terminated, False, {}."""
         if seed is not None:
             random.seed(seed)
@@ -242,7 +255,7 @@ class WorldModel(Env):
         assert self.observation_space.contains(observation), f"{observation} not in {self.observation_space.__dict__}"
         return observation, {}
     
-    def step(self, action):
+    def step(self, action: Action):
         """Perform the given action and return a tuple 
         (observation, reward, terminated, False, {})."""
         assert action in self.possible_actions(self._state), f"{action} not possible in {self._state}"
@@ -256,7 +269,7 @@ class WorldModel(Env):
     
     # Methods for enabling the computation of reversibility metrics:
 
-    def get_prolonged_version(self, horizon=None) -> "WorldModel":
+    def get_prolonged_version(self: Self, horizon=None) -> Self:
         """Return a version of this world model that allows for at least horizon many further steps 
         at each terminal state of the original world model. 
         This requires modification of terminal states, adding actions to the former terminal states, 

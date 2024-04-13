@@ -1,7 +1,16 @@
+from typing import Any, Generic, TypeVar, TypeVarTuple
+
 from . import WorldModel
 
-class MDPWorldModel(WorldModel):
-    """A WorldModel of a (fully observed) MDP environment, allowing the user to reset the environment to a given state.
+ObsType = TypeVar("ObsType")
+Action = TypeVar("Action")
+State= TypeVar("State")
+TT = TypeVarTuple("TT")
+
+ 
+class MDPWorldModel(Generic[ObsType, Action, State],WorldModel[ObsType, Action, State]):
+    """
+    A WorldModel of a (fully observed) MDP environment, allowing the user to reset the environment to a given state.
     """
 
     def reset(self, *, seed = None, options = None):
@@ -10,26 +19,24 @@ class MDPWorldModel(WorldModel):
             raise NotImplementedError()
         else:
             return super().reset(seed=seed, options=options)
-            
-    def transition_distribution(self, state, action, n_samples = None):
+
+    def transition_distribution(self, state: State, action: Action|None, n_samples: int):
         """Return a dictionary mapping possible successor states after performing action in state,
         or, if state and action are None, of possible initial states,
         to tuples of the form (probability: float, exact: boolean).
-        
+
         If not overridden, this will sample n_samples times and return the empirical distribution."""
         old_state = self._state
-        frequencies = {}
-        for i in range(n_samples):
+        frequencies: dict[Any, int] = {}
+        for _ in range(n_samples):
             if action is None:
                 result = self.reset(options={"state": state})
             else:
-                self.reset(state)
+                self.reset(options={"state": state})
                 result = self.step(action)
-            try:
-                frequencies[result] += 1
-            except KeyError:
-                frequencies[result] = 1
+            frequencies[result] = frequencies.get(result, 0) + 1
         self.reset(options={"state": old_state})
+        print("trans_dist len: ", len(frequencies))
         return {result: (frequency / n_samples, False) 
                 for (result, frequency) in frequencies.items()}
 
