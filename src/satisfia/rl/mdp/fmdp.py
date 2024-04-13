@@ -1,5 +1,7 @@
-from numpy import inf, log, argsort, sum
+from numpy import argsort, inf, log, sum
+
 from .mdp import MDP
+
 
 class FMDP(MDP):
     """A Feasibility Markov Decision Process"""
@@ -25,12 +27,12 @@ class FMDP(MDP):
                 a: {s2: 1 if s2 in S_good else 0 for s2 in Tsa.keys()}
                 for a, Tsa in T[s].items()
             }
-            for s in S 
+            for s in S
         }
         self.gamma = 1  # no discounting necessary, each trajectory can only contain one good state.
 
     def set_entropy_adjusted_reward(self, eta: float):
-        """Set R(s,a,s') to 1 iff s' is good and 0 otherwise, 
+        """Set R(s,a,s') to 1 iff s' is good and 0 otherwise,
         plus eta times log(T(s,a,s')) to discourage increasing the entropy of the trajectory"""
         assert eta > 0
         self.set_binary_reward()
@@ -55,7 +57,9 @@ class FMDP(MDP):
         S, T, s0, S_good = self.S, self.T, self.s0, self.S_good
         # sort actions by entropy:
         s2A = {
-            s: argsort([- sum([p * log(p) for s2, p in Tsa.items()]) for Tsa in T[s].values()])
+            s: argsort(
+                [-sum([p * log(p) for s2, p in Tsa.items()]) for Tsa in T[s].values()]
+            )
             for s in S
         }
         # low-entropy greedy search through tree of partial policies:
@@ -76,7 +80,7 @@ class FMDP(MDP):
                 # check if current F is complete:
                 is_complete = True
                 for path in F:
-                    if len(path) < 1 + 2 * max_time and path[-1] not in S_good: 
+                    if len(path) < 1 + 2 * max_time and path[-1] not in S_good:
                         is_complete = False
                         break
                 if is_complete:
@@ -105,29 +109,30 @@ class FMDP(MDP):
                             Pr[path2] = Prpath * p
                         del Pr[path]
             if go_back:
-                pass # TODO!!
+                pass  # TODO!!
+
 
 if __name__ == "__main__":
     pass_end = {"pass": {"end": 1}}
     fmdp = FMDP(
-        S = ["start", "bad", "acceptable", "good", "better", "excellent", "end"], 
-        T = {
+        S=["start", "bad", "acceptable", "good", "better", "excellent", "end"],
+        T={
             "start": {
-                "safe": {"good": 1}, 
-                "risky": {"better": 0.7, "acceptable": 0.3},  
-                "unsafe": {"excellent": 0.6, "bad": 0.4}
+                "safe": {"good": 1},
+                "risky": {"better": 0.7, "acceptable": 0.3},
+                "unsafe": {"excellent": 0.6, "bad": 0.4},
             },
             "bad": {"repeat": {"excellent": 0.3, "bad": 0.7}, "stop": {"end": 1}},
             "acceptable": pass_end,
             "good": pass_end,
             "better": pass_end,
             "excellent": pass_end,
-            "end": pass_end
+            "end": pass_end,
         },
-        S_good = {"good", "better", "excellent"},
-        s0 = "start",
-        P_good_min = 0.7
-        )
-    fmdp.set_entropy_adjusted_reward(.01)
+        S_good={"good", "better", "excellent"},
+        s0="start",
+        P_good_min=0.7,
+    )
+    fmdp.set_entropy_adjusted_reward(0.01)
     fmdp.do_value_iteration()
     print(fmdp.V)
