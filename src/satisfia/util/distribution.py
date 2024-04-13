@@ -108,8 +108,8 @@ class categorical(_distribution):
 
 	def expectation(self, f, additional_args = ()):
 		"""Return the expected value of f(x, *additional_args) for x ~ this distribution."""
-		return np.sum([weight * f(name, *additional_args) 
-			        for name, weight in self._category2weight.items()], axis=0) / self._weight_total
+		return sum(weight * f(name, *additional_args) 
+			        for name, weight in self._category2weight.items()) / self._weight_total
 
 	def expectation_of_fct_of_probability(self, f, additional_args = ()):
 		"""Return the expected value of f(x, probability(x), *additional_args) for x ~ this distribution."""
