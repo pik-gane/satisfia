@@ -238,7 +238,6 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
         nx, ny = xygrid.shape[0], xygrid.shape[1]
         self.observation_space = spaces.MultiDiscrete(
             [max_episode_length+1,  # current time step
-             nx+2, ny+2,  # previous location
              nx+2, ny+2]  # current location
             + [max_n_object_states] * self.n_immobile_objects 
             + [nx+2, ny+2] * self.n_mobile_constant_objects 
@@ -246,8 +245,7 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
             + [max_n_object_states] * self.n_mobile_variable_objects
             , start = 
             [0,  # current time step
-             -2, -2,  # current location
-             -2, -2]  # previous location
+             -2, -2]  # current location
             + [0] * self.n_immobile_objects 
             + [-2, -2] * self.n_mobile_constant_objects 
             + [-2, -2] * self.n_mobile_variable_objects
@@ -335,7 +333,7 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
                 and not self.xygrid[to_loc] in unenterable_immobile_cell_types):
             return False
         # TODO: add other conditions for not being able to move, e.g. because of other objects
-        t, agent_loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
+        t, agent_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
         if self.xygrid[to_loc] == ',':
             # can only move there if it hasn't turned into a wall yet:
             if imm_states[self.immobile_object_indices[to_loc]] > 0:
@@ -372,7 +370,7 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
         """Return a list of possible actions from the given state."""
         if state is None:
             state = self._state
-        t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
+        t, loc,  imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
         actions = [action for action in range(5) 
                     if self._can_move(loc, self._get_target_location(loc, action), state)]
         if len(actions) == 0:
@@ -391,47 +389,44 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
         pass
     def _extract_state_attributes(self, state, gridcontents=False) -> tuple:
         """Return the individual attributes of a state."""
-        t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = (
+        t, loc, imm_states, mc_locs, mv_locs, mv_states = (
                 state[0],  # time step
-                (state[3], state[4]),  # current location
-                (state[1], state[2]),  # previous location
-                state[5 
-                      : 5+self.n_immobile_objects],  # immobile object states
-                state[5+self.n_immobile_objects 
-                      : 5+self.n_immobile_objects+2*self.n_mobile_constant_objects],  # mobile constant object locations
-                state[5+self.n_immobile_objects+2*self.n_mobile_constant_objects
-                      : 5+self.n_immobile_objects+2*self.n_mobile_constant_objects+2*self.n_mobile_variable_objects],  # mobile variable object locations
-                state[5+self.n_immobile_objects+2*self.n_mobile_constant_objects+2*self.n_mobile_variable_objects
-                      : 5+self.n_immobile_objects+2*self.n_mobile_constant_objects+3*self.n_mobile_variable_objects]  # mobile variable object states
+                (state[1], state[2]),  # current location
+                state[3 
+                      : 3+self.n_immobile_objects],  # immobile object states
+                state[3+self.n_immobile_objects 
+                      : 3+self.n_immobile_objects+2*self.n_mobile_constant_objects],  # mobile constant object locations
+                state[3+self.n_immobile_objects+2*self.n_mobile_constant_objects
+                      : 3+self.n_immobile_objects+2*self.n_mobile_constant_objects+2*self.n_mobile_variable_objects],  # mobile variable object locations
+                state[3+self.n_immobile_objects+2*self.n_mobile_constant_objects+2*self.n_mobile_variable_objects
+                      : 3+self.n_immobile_objects+2*self.n_mobile_constant_objects+3*self.n_mobile_variable_objects]  # mobile variable object states
          )
         if not gridcontents:
-            return t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states
+            return t, loc,  imm_states, mc_locs, mv_locs, mv_states
         gc = { get_loc(mc_locs, i): (self.mobile_constant_object_types[i], i) 
                for i in range(self.n_mobile_constant_objects) }
         gc.update(
             { get_loc(mv_locs, i): (self.mobile_variable_object_types[i], i) 
               for i in range(self.n_mobile_variable_objects) }
         )
-        return t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states, gc
+        return t, loc, imm_states, mc_locs, mv_locs, mv_states, gc
 
     def _set_state(self, state):
         """Set the current state to the provided one."""
+        self._previous_agent_location = self._agent_location
         self._state = state
-        self.t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
+        self.t, loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
         self._agent_location = loc
-        self._previous_agent_location = prev_loc
         self._immobile_object_states = imm_states
         self._mobile_constant_object_locations = mc_locs
         self._mobile_variable_object_locations = mv_locs
         self._mobile_variable_object_states = mv_states
 
-    def _make_state(self, t = 0, loc = None, prev_loc = None, 
+    def _make_state(self, t = 0, loc = None, 
                     imm_states = None, mc_locs = None, mv_locs = None, mv_states = None):
         """Compile the given attributes into a state encoding that can be returned as an observation."""
         if loc is None:
             loc = self.initial_agent_location
-        if prev_loc is None:
-            prev_loc = (-2, -2)
         if mc_locs is None:
             mc_locs = self.mobile_constant_object_initial_locations
         if mv_locs is None:
@@ -442,7 +437,6 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
         if mv_states is None:
             mv_states = np.zeros(self.n_mobile_variable_objects, dtype = int)
         return (t, 
-                prev_loc[0], prev_loc[1],
                 loc[0], loc[1],
                 *imm_states,
                 *mc_locs,
@@ -453,7 +447,7 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
     @cache
     def is_terminal(self, state: State):
         """Return True if the given state is a terminal state."""
-        t, loc, _, _, _, _, _ = self._extract_state_attributes(state)
+        t, loc,  _, _, _, _ = self._extract_state_attributes(state)
         is_at_goal = self.xygrid[loc] == 'G'
         return is_at_goal or (t == self.max_episode_length)
 
@@ -469,7 +463,7 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
             successor = self._make_state()
             return {successor: (1, True)}
 
-        t, loc, _, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
+        t, loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
         cell_type = self.xygrid[loc]
         at_goal = cell_type == 'G'
         if at_goal:
@@ -537,7 +531,7 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
 
         # initialize a dictionary of possible successor states as keys and their probabilities as values,
         # which will subsequently be adjusted:
-        trans_dist = { self._make_state(t + 1, target_loc, loc, imm_states, mc_locs, mv_locs, mv_states): 1 }  # stay in the same state with probability 1
+        trans_dist = { self._make_state(t + 1, target_loc, imm_states, mc_locs, mv_locs, mv_states): 1 }  # stay in the same state with probability 1
 
         # implement all probabilistic changes:
 
@@ -552,9 +546,9 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
             # loop through all possible successor states in trans_dist and split them into at most 5 depending on whether F moves and where:
             new_trans_dist = {}
             for (successor, probability) in trans_dist.items():
-                succ_t, succ_loc, succ_prev_loc, succ_imm_states, succ_mc_locs, succ_mv_locs, succ_mv_states, gridcontents = self._extract_state_attributes(successor, gridcontents=True)
+                succ_t, succ_loc, succ_imm_states, succ_mc_locs, succ_mv_locs, succ_mv_states, gridcontents = self._extract_state_attributes(successor, gridcontents=True)
                 if object_loc == target_loc:  # object is destroyed
-                    default_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, set_loc(succ_mc_locs, i, (-2,-2)), succ_mv_locs, succ_mv_states)
+                    default_successor = self._make_state(succ_t, succ_loc, succ_imm_states, set_loc(succ_mc_locs, i, (-2,-2)), succ_mv_locs, succ_mv_states)
                 else:  # it stays in place
                     default_successor = successor
                 direction_locs = tuple((direction, self._get_target_location(object_loc, direction)) 
@@ -569,7 +563,7 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
                     p = probability * self.move_probability_F / n_directions
                     for (direction, obj_target_loc) in direction_locs:
                         if obj_target_loc == target_loc:  # object is destroyed
-                            new_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, set_loc(succ_mc_locs, i, (-2,-2)), succ_mv_locs, succ_mv_states)
+                            new_successor = self._make_state(succ_t, succ_loc, succ_imm_states, set_loc(succ_mc_locs, i, (-2,-2)), succ_mv_locs, succ_mv_states)
                         else:  # it moves
                             new_mc_locs = set_loc(succ_mc_locs, i, obj_target_loc)
                             # see if there's a glass pane at obj_target_loc:
@@ -577,7 +571,7 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
                             if inhabitant_type == '|':
                                 # glass pane breaks
                                 new_mc_locs = set_loc(new_mc_locs, inhabitant_index, (-2,-2))
-                            new_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, new_mc_locs, succ_mv_locs, succ_mv_states)
+                            new_successor = self._make_state(succ_t, succ_loc, succ_imm_states, new_mc_locs, succ_mv_locs, succ_mv_states)
                         new_trans_dist[new_successor] = p
             trans_dist = new_trans_dist
 
@@ -592,7 +586,7 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
         """
         if state is None and action is None:
             return {(self._make_state(), 0): (1, True)}
-        t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(successor)
+        t, loc,  imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(successor)
         delta = self.time_deltas[t % self.time_deltas.size]
         if self.delta_xygrid[loc] in self.cell_code2delta:
             delta += self.cell_code2delta[self.delta_xygrid[loc]]
@@ -620,7 +614,7 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
     
     def reset(self, seed = None, options = None): 
         ret = super().reset(seed = seed, options = options)
-        if self.render_mode == "human":
+        if self.render_mode == "human" and self._previous_agent_location is not None:
             self._render_frame()
         return ret
 
