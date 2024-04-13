@@ -1,5 +1,7 @@
-from numpy import abs, max, sum
 from typing import Iterable
+
+from numpy import abs, max, sum
+
 
 class MDP(object):
     """A finite Markov Decision Process"""
@@ -24,7 +26,7 @@ class MDP(object):
     _dicts = ["T", "R"]
 
     def __init__(self, **kwargs) -> None:
-        for (key, value) in kwargs.items():
+        for key, value in kwargs.items():
             assert key in self._kwargs
             if key in self._sets:
                 assert isinstance(value, Iterable)
@@ -55,7 +57,7 @@ class MDP(object):
                     a: sum([p * Rs[a][s2] for s2, p in Tsa.items()])
                     for a, Tsa in T[s].items()
                 }
-                for s, Rs in R.items() 
+                for s, Rs in R.items()
             }
         return r
 
@@ -73,13 +75,15 @@ class MDP(object):
         last_V = {s: v0 for s in S}
         for it in range(maxiter):
             next_V = {
-                s: max([
-                    rs[a] + gamma * sum([p * last_V[s2] for s2, p in Tsa.items()])
-                    for a, Tsa in T[s].items()
-                ])
+                s: max(
+                    [
+                        rs[a] + gamma * sum([p * last_V[s2] for s2, p in Tsa.items()])
+                        for a, Tsa in T[s].items()
+                    ]
+                )
                 for s, rs in r.items()
             }
-            if max([abs(next_V[s] - last_V[s]) for s in S]) < tol: 
+            if max([abs(next_V[s] - last_V[s]) for s in S]) < tol:
                 self._cache["V"] = next_V
                 return next_V
             last_V = next_V
@@ -87,16 +91,11 @@ class MDP(object):
 
 
 if __name__ == "__main__":
-    mdp = MDP(S = [1,2],
-        T = {
-            1: {1: {1:1}, 2: {1:0.3, 2:0.7}}, 
-            2: {1: {2:1}, 2: {2:0.2, 1:0.8}}
-        },
-        R = {
-            1: {1: {1:1}, 2: {1:1, 2:1}}, 
-            2: {1: {2:0}, 2: {2:0, 1:0}}
-        },
-        gamma = 0.9
-        )
+    mdp = MDP(
+        S=[1, 2],
+        T={1: {1: {1: 1}, 2: {1: 0.3, 2: 0.7}}, 2: {1: {2: 1}, 2: {2: 0.2, 1: 0.8}}},
+        R={1: {1: {1: 1}, 2: {1: 1, 2: 1}}, 2: {1: {2: 0}, 2: {2: 0, 1: 0}}},
+        gamma=0.9,
+    )
     mdp.do_value_iteration()
     print(mdp.V)
