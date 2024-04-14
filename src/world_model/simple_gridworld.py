@@ -1,6 +1,7 @@
-from functools import cache, lru_cache
+from functools import cache
 import os
 from sre_parse import State
+from typing import Generic, NamedTuple, Self, TypeVar, overload
 
 from satisfia.util import distribution
 from . import MDPWorldModel
@@ -8,10 +9,8 @@ from . import MDPWorldModel
 # based in large part on https://gymnasium.farama.org/tutorials/gymnasium_basics/environment_creation/
 
 import numpy as np
-from numpy import random
 import pygame
 
-import gymnasium as gym
 from gymnasium import spaces
 
 unenterable_immobile_cell_types = ['#']  # can't run into walls
@@ -47,7 +46,22 @@ def state_embedding_for_distance(state):
     """return an embedding of state where all entries -2 are replaced by -10000"""
     return tuple(-10000 if x == -2 else x for x in state)
 
-class SimpleGridworld(MDPWorldModel):
+class Location(NamedTuple):
+    x: int
+    y: int
+
+class SimpleGWState(NamedTuple):
+    t: int
+    locp: Location
+    locc: Location
+    immobiles_s: tuple[Location]
+    mobiles_s: tuple[Location]
+
+ObsType = TypeVar("ObsType")
+State= TypeVar("State")
+
+Action = int
+class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, State]):
     """A world model of a simple MDP-type Gridworld environment.
     
     A *state* here is a tuple of integers encoding the following sequence of items,
@@ -224,7 +238,6 @@ class SimpleGridworld(MDPWorldModel):
         nx, ny = xygrid.shape[0], xygrid.shape[1]
         self.observation_space = spaces.MultiDiscrete(
             [max_episode_length+1,  # current time step
-             nx+2, ny+2,  # previous location
              nx+2, ny+2]  # current location
             + [max_n_object_states] * self.n_immobile_objects 
             + [nx+2, ny+2] * self.n_mobile_constant_objects 
@@ -232,8 +245,7 @@ class SimpleGridworld(MDPWorldModel):
             + [max_n_object_states] * self.n_mobile_variable_objects
             , start = 
             [0,  # current time step
-             -2, -2,  # current location
-             -2, -2]  # previous location
+             -2, -2]  # current location
             + [0] * self.n_immobile_objects 
             + [-2, -2] * self.n_mobile_constant_objects 
             + [-2, -2] * self.n_mobile_variable_objects
@@ -261,12 +273,12 @@ class SimpleGridworld(MDPWorldModel):
         The following dictionary maps abstract actions from `self.action_space` to
         the direction we will walk in if that action is taken.
         """
-        self._action_to_direction = {
-            0: np.array([0, -1]), # up
-            1: np.array([1, 0]), # right
-            2: np.array([0, 1]), # down
-            3: np.array([-1, 0]), # left
-            4: np.array([0, 0]), # stay in place
+        self._action_to_direction: dict[Action, tuple[int, int]] = {
+            0: (0,-1),# up
+            1: (1,0),# right
+            2: (0,1),# down
+            3: (-1,0),# left
+            4: (0,0),# stay in place
         }
 
         assert render_mode is None or render_mode in self.metadata["render_modes"]
@@ -284,7 +296,7 @@ class SimpleGridworld(MDPWorldModel):
         self._window = None
         self.clock = None
 
-    def get_prolonged_version(self, horizon=None):
+    def get_prolonged_version(self: Self, horizon=None) -> Self:
         """Return a copy of this gridworld in which the episode length is prolonged by horizon steps."""
         # get a copy of the original grid, the delta grid, and the delta table:
         xygrid = self.xygrid.copy()
@@ -293,7 +305,7 @@ class SimpleGridworld(MDPWorldModel):
         # replace all 'G' states by 'Δ' states to make them non-terminal:
         xygrid[xygrid == 'G'] = 'Δ'
         # return a new SimpleGridworld with this data:
-        return SimpleGridworld(render_mode = self.render_mode, 
+        return type(self)(render_mode = self.render_mode, 
                  grid = xygrid.T,
                  delta_grid = delta_xygrid.T,
                  cell_code2delta = cell_code2delta,
@@ -305,10 +317,10 @@ class SimpleGridworld(MDPWorldModel):
                  fps = self._fps
                  )
 
-    def _get_target_location(self, location, action):
+    def _get_target_location(self, location: Location, action: Action) -> Location:
         """Return the next location of the agent if it takes the given action from the given location."""
         direction = self._action_to_direction[action]
-        return (
+        return Location(
             location[0] + direction[0],
             location[1] + direction[1]
         )
@@ -321,7 +333,7 @@ class SimpleGridworld(MDPWorldModel):
                 and not self.xygrid[to_loc] in unenterable_immobile_cell_types):
             return False
         # TODO: add other conditions for not being able to move, e.g. because of other objects
-        t, agent_loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
+        t, agent_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
         if self.xygrid[to_loc] == ',':
             # can only move there if it hasn't turned into a wall yet:
             if imm_states[self.immobile_object_indices[to_loc]] > 0:
@@ -353,12 +365,12 @@ class SimpleGridworld(MDPWorldModel):
         res = np.array(state_embedding_for_distance(state), dtype=np.float32)[3:]  # make time and previous position irrelevant
         return res
 
-    @lru_cache(maxsize=None)
+    @cache
     def possible_actions(self, state=None):
         """Return a list of possible actions from the given state."""
         if state is None:
             state = self._state
-        t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
+        t, loc,  imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
         actions = [action for action in range(5) 
                     if self._can_move(loc, self._get_target_location(loc, action), state)]
         if len(actions) == 0:
@@ -369,49 +381,52 @@ class SimpleGridworld(MDPWorldModel):
         """Return a default action, if any"""
         return distribution.categorical([4], [1])  # staying in place
 
+    @overload
     def _extract_state_attributes(self, state, gridcontents=False):
+        pass
+    @overload
+    def _extract_state_attributes(self, state, gridcontents=True):
+        pass
+    def _extract_state_attributes(self, state, gridcontents=False) -> tuple:
         """Return the individual attributes of a state."""
-        t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = (
+        t, loc, imm_states, mc_locs, mv_locs, mv_states = (
                 state[0],  # time step
-                (state[3], state[4]),  # current location
-                (state[1], state[2]),  # previous location
-                state[5 
-                      : 5+self.n_immobile_objects],  # immobile object states
-                state[5+self.n_immobile_objects 
-                      : 5+self.n_immobile_objects+2*self.n_mobile_constant_objects],  # mobile constant object locations
-                state[5+self.n_immobile_objects+2*self.n_mobile_constant_objects
-                      : 5+self.n_immobile_objects+2*self.n_mobile_constant_objects+2*self.n_mobile_variable_objects],  # mobile variable object locations
-                state[5+self.n_immobile_objects+2*self.n_mobile_constant_objects+2*self.n_mobile_variable_objects
-                      : 5+self.n_immobile_objects+2*self.n_mobile_constant_objects+3*self.n_mobile_variable_objects]  # mobile variable object states
+                (state[1], state[2]),  # current location
+                state[3 
+                      : 3+self.n_immobile_objects],  # immobile object states
+                state[3+self.n_immobile_objects 
+                      : 3+self.n_immobile_objects+2*self.n_mobile_constant_objects],  # mobile constant object locations
+                state[3+self.n_immobile_objects+2*self.n_mobile_constant_objects
+                      : 3+self.n_immobile_objects+2*self.n_mobile_constant_objects+2*self.n_mobile_variable_objects],  # mobile variable object locations
+                state[3+self.n_immobile_objects+2*self.n_mobile_constant_objects+2*self.n_mobile_variable_objects
+                      : 3+self.n_immobile_objects+2*self.n_mobile_constant_objects+3*self.n_mobile_variable_objects]  # mobile variable object states
          )
         if not gridcontents:
-            return t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states
+            return t, loc,  imm_states, mc_locs, mv_locs, mv_states
         gc = { get_loc(mc_locs, i): (self.mobile_constant_object_types[i], i) 
                for i in range(self.n_mobile_constant_objects) }
         gc.update(
             { get_loc(mv_locs, i): (self.mobile_variable_object_types[i], i) 
               for i in range(self.n_mobile_variable_objects) }
         )
-        return t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states, gc
+        return t, loc, imm_states, mc_locs, mv_locs, mv_states, gc
 
     def _set_state(self, state):
         """Set the current state to the provided one."""
+        self._previous_agent_location = self._agent_location
         self._state = state
-        self.t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
+        self.t, loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
         self._agent_location = loc
-        self._previous_agent_location = prev_loc
         self._immobile_object_states = imm_states
         self._mobile_constant_object_locations = mc_locs
         self._mobile_variable_object_locations = mv_locs
         self._mobile_variable_object_states = mv_states
 
-    def _make_state(self, t = 0, loc = None, prev_loc = None, 
+    def _make_state(self, t = 0, loc = None, 
                     imm_states = None, mc_locs = None, mv_locs = None, mv_states = None):
         """Compile the given attributes into a state encoding that can be returned as an observation."""
         if loc is None:
             loc = self.initial_agent_location
-        if prev_loc is None:
-            prev_loc = (-2, -2)
         if mc_locs is None:
             mc_locs = self.mobile_constant_object_initial_locations
         if mv_locs is None:
@@ -422,7 +437,6 @@ class SimpleGridworld(MDPWorldModel):
         if mv_states is None:
             mv_states = np.zeros(self.n_mobile_variable_objects, dtype = int)
         return (t, 
-                prev_loc[0], prev_loc[1],
                 loc[0], loc[1],
                 *imm_states,
                 *mc_locs,
@@ -430,143 +444,149 @@ class SimpleGridworld(MDPWorldModel):
                 *mv_states
                 )
 
-    @lru_cache(maxsize=None)
-    def is_terminal(self, state):
+    @cache
+    def is_terminal(self, state: State):
         """Return True if the given state is a terminal state."""
-        t, loc, _, _, _, _, _ = self._extract_state_attributes(state)
+        t, loc,  _, _, _, _ = self._extract_state_attributes(state)
         is_at_goal = self.xygrid[loc] == 'G'
-        return (t == self.max_episode_length) or is_at_goal
+        return is_at_goal or (t == self.max_episode_length)
 
-    @lru_cache(maxsize=None)
+    @cache
     def state_distance(self, state1, state2):
         """Return the distance between the two given states, disregarding time."""
         return np.sqrt(np.sum(np.power(np.array(state_embedding_for_distance(state1))[1:] 
                                        - np.array(state_embedding_for_distance(state2))[1:], 2)))
 
-    @lru_cache(maxsize=None)
-    def transition_distribution(self, state, action, n_samples = None):
+    @cache
+    def transition_distribution(self, state, action, n_samples = None) -> dict:
         if state is None and action is None:
             successor = self._make_state()
             return {successor: (1, True)}
-        t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
+
+        t, loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(state)
         cell_type = self.xygrid[loc]
         at_goal = cell_type == 'G'
         if at_goal:
             successor = self._make_state(t + 1, loc, loc, imm_states, mc_locs, mv_locs, mv_states)
             return {successor: (1, True)}
-        else:
-            if cell_type == ',':
-                # turn into a wall:
+
+        if cell_type == ',':
+            # turn into a wall:
+            imm_states = set_entry(imm_states, self.immobile_object_indices[loc], 1)
+        elif cell_type == 'Δ':
+            if imm_states[self.immobile_object_indices[loc]] == 0:
+                # turn state to 1:
                 imm_states = set_entry(imm_states, self.immobile_object_indices[loc], 1)
-            elif cell_type == 'Δ':
-                if imm_states[self.immobile_object_indices[loc]] == 0:
-                    # turn state to 1:
-                    imm_states = set_entry(imm_states, self.immobile_object_indices[loc], 1)
 
-            target_loc = self._get_target_location(loc, action)
-            target_type = self.xygrid[target_loc]
+        target_loc = self._get_target_location(loc, action)
+        target_type = self.xygrid[target_loc]
 
-            # loop through all mobile constant objects and see if they are affected by the action:
-            for i, object_type in enumerate(self.mobile_constant_object_types):
-                if (mc_locs[2*i],mc_locs[2*i+1]) == target_loc:
-                    if object_type == 'X':  # a box
-                        # see if we can push it:
-                        box_target_loc = self._get_target_location(target_loc, action)
-                        if self._can_move(target_loc, box_target_loc, state):
-                            if self.xygrid[box_target_loc] in unsteady_cell_types:
-                                raise NotImplementedError("boxes cannot slide/fall yet")  # TODO: let boxes slide/fall like agents!
-                            mc_locs = set_loc(mc_locs, i, box_target_loc)
-                    elif object_type == '|':  # a glass pane
-                        if action in [0,2]:
-                            # see if we can push it:
-                            pane_target_loc = self._get_target_location(target_loc, action)
-                            if self._can_move(target_loc, pane_target_loc, state):
-                                if self.xygrid[pane_target_loc] in unsteady_cell_types:
-                                    raise NotImplementedError("glass panes cannot slide/fall yet")  # TODO: let boxes slide/fall like agents!
-                                mc_locs = set_loc(mc_locs, i, pane_target_loc)
-                        else:
-                            # it will break
-                            mc_locs = set_loc(mc_locs, i, (-2,-2))
+        # loop through all mobile constant objects and see if they are affected by the action:
+        for i, object_type in enumerate(self.mobile_constant_object_types):
+            if (mc_locs[2*i],mc_locs[2*i+1]) != target_loc:
+                continue
+            if object_type == 'X':  # a box
+                # see if we can push it:
+                box_target_loc = self._get_target_location(target_loc, action)
+                if self._can_move(target_loc, box_target_loc, state):
+                    if self.xygrid[box_target_loc] in unsteady_cell_types:
+                        raise NotImplementedError("boxes cannot slide/fall yet")  # TODO: let boxes slide/fall like agents!
+                    mc_locs = set_loc(mc_locs, i, box_target_loc)
+            elif object_type == '|':  # a glass pane
+                if action in [0,2]:
+                    # see if we can push it:
+                    pane_target_loc = self._get_target_location(target_loc, action)
+                    if self._can_move(target_loc, pane_target_loc, state):
+                        if self.xygrid[pane_target_loc] in unsteady_cell_types:
+                            raise NotImplementedError("glass panes cannot slide/fall yet")  # TODO: let boxes slide/fall like agents!
+                        mc_locs = set_loc(mc_locs, i, pane_target_loc)
+                else:
+                    # it will break
+                    mc_locs = set_loc(mc_locs, i, (-2,-2))
 
-            if target_type in ['^', '~']:
-                # see what "falling-off" actions are possible:
-                simulated_actions = [a for a in range(4) 
-                      if a != self.opposite_action(action) # won't fall back to where we came from
-                         and self._can_move(target_loc, self._get_target_location(target_loc, a), state)]
-                if len(simulated_actions) > 0:
-                    p0 = 1 if target_type == '^' else self.uneven_ground_prob  # probability of falling off
-                    intermediate_state = self._make_state(t, target_loc, loc, imm_states, mc_locs, mv_locs, mv_states)
-                    trans_dist = {}
-                    # compose the transition distribution recursively:
-                    for simulate_action in simulated_actions:
-                        for (successor, (probability, _)) in self.transition_distribution(intermediate_state, simulate_action, n_samples).items():
-                            dp = p0 * probability / len(simulated_actions)
-                            if successor in trans_dist:
-                                trans_dist[successor] += dp
-                            else:
-                                trans_dist[successor] = dp
-                    if target_type == '~':
-                        trans_dist[intermediate_state] = 1 - p0
-                    return { successor: (probability, True) for (successor,probability) in trans_dist.items() }
-            else:
-                # implement all deterministic changes:
-                # (none yet)
+        if target_type in ['^', '~']:
+            # see what "falling-off" actions are possible:
+            simulated_actions = [a for a in range(4) 
+                  if a != self.opposite_action(action) # won't fall back to where we came from
+                     and self._can_move(target_loc, self._get_target_location(target_loc, a), state)]
+            if len(simulated_actions) == 0:
+                return None
+            p0 = 1 if target_type == '^' else self.uneven_ground_prob  # probability of falling off
+            intermediate_state = self._make_state(t, target_loc, loc, imm_states, mc_locs, mv_locs, mv_states)
+            trans_dist = {}
+            # compose the transition distribution recursively:
+            for simulate_action in simulated_actions:
+                for (successor, (probability, _)) in self.transition_distribution(intermediate_state, simulate_action, n_samples).items():
+                    dp = p0 * probability / len(simulated_actions)
+                    if successor in trans_dist:
+                        trans_dist[successor] += dp
+                    else:
+                        trans_dist[successor] = dp
+            if target_type == '~':
+                trans_dist[intermediate_state] = 1 - p0
+            return { successor: (probability, True) for (successor,probability) in trans_dist.items() }
 
-                # initialize a dictionary of possible successor states as keys and their probabilities as values,
-                # which will subsequently be adjusted:
-                trans_dist = { self._make_state(t + 1, target_loc, loc, imm_states, mc_locs, mv_locs, mv_states): 1 }  # stay in the same state with probability 1
+        # implement all deterministic changes:
+        # (none yet)
 
-                # implement all probabilistic changes:
+        # initialize a dictionary of possible successor states as keys and their probabilities as values,
+        # which will subsequently be adjusted:
+        trans_dist = { self._make_state(t + 1, target_loc, imm_states, mc_locs, mv_locs, mv_states): 1 }  # stay in the same state with probability 1
 
-                # again loop through all variable mobile objects encoded in mv_locs and mv_states:
-                for i, object_type in enumerate(self.mobile_constant_object_types):
-                    object_loc = get_loc(mc_locs, i) 
-                    if object_type == 'F':  # a fragile object
-                        if object_loc != (-2,-2) and self.move_probability_F > 0:  # object may move
-                            # loop through all possible successor states in trans_dist and split them into at most 5 depending on whether F moves and where:
-                            new_trans_dist = {}
-                            for (successor, probability) in trans_dist.items():
-                                succ_t, succ_loc, succ_prev_loc, succ_imm_states, succ_mc_locs, succ_mv_locs, succ_mv_states, gridcontents = self._extract_state_attributes(successor, gridcontents=True)
-                                if object_loc == target_loc:  # object is destroyed
-                                    default_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, set_loc(succ_mc_locs, i, (-2,-2)), succ_mv_locs, succ_mv_states)
-                                else:  # it stays in place
-                                    default_successor = successor
-                                direction_locs = [(direction, self._get_target_location(object_loc, direction)) 
-                                                   for direction in range(4)]
-                                direction_locs = [(direction, loc) for (direction, loc) in direction_locs 
-                                                  if self._can_move(object_loc, loc, successor, who='F')]
-                                n_directions = len(direction_locs)
-                                if n_directions == 0:
-                                    new_trans_dist[default_successor] = probability
-                                else:
-                                    new_trans_dist[default_successor] = probability * (1 - self.move_probability_F)
-                                    p = probability * self.move_probability_F / n_directions
-                                    for (direction, obj_target_loc) in direction_locs:
-                                        if obj_target_loc == target_loc:  # object is destroyed
-                                            new_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, set_loc(succ_mc_locs, i, (-2,-2)), succ_mv_locs, succ_mv_states)
-                                        else:  # it moves
-                                            new_mc_locs = set_loc(succ_mc_locs, i, obj_target_loc)
-                                            # see if there's a glass pane at obj_target_loc:
-                                            inhabitant_type, inhabitant_index = gridcontents.get(obj_target_loc, (None, None))
-                                            if inhabitant_type == '|':
-                                                # glass pane breaks
-                                                new_mc_locs = set_loc(new_mc_locs, inhabitant_index, (-2,-2))
-                                            new_successor = self._make_state(succ_t, succ_loc, succ_prev_loc, succ_imm_states, new_mc_locs, succ_mv_locs, succ_mv_states)
-                                        new_trans_dist[new_successor] = p
-                            trans_dist = new_trans_dist
-                            
-                # TODO: update object states and/or object locations, e.g. if the agent picks up an object or moves an object
+        # implement all probabilistic changes:
 
-                return {successor: (probability, True) for (successor,probability) in trans_dist.items()} 
+        # again loop through all variable mobile objects encoded in mv_locs and mv_states:
+        for i, object_type in enumerate(self.mobile_constant_object_types):
+            object_loc = get_loc(mc_locs, i) 
+            if object_type != 'F':  # a non-fragile object
+                continue
+            if not(object_loc != (-2,-2) and self.move_probability_F > 0):  # object may not move
+                continue
 
-    @lru_cache(maxsize=None)
+            # loop through all possible successor states in trans_dist and split them into at most 5 depending on whether F moves and where:
+            new_trans_dist = {}
+            for (successor, probability) in trans_dist.items():
+                succ_t, succ_loc, succ_imm_states, succ_mc_locs, succ_mv_locs, succ_mv_states, gridcontents = self._extract_state_attributes(successor, gridcontents=True)
+                if object_loc == target_loc:  # object is destroyed
+                    default_successor = self._make_state(succ_t, succ_loc, succ_imm_states, set_loc(succ_mc_locs, i, (-2,-2)), succ_mv_locs, succ_mv_states)
+                else:  # it stays in place
+                    default_successor = successor
+                direction_locs = tuple((direction, self._get_target_location(object_loc, direction)) 
+                                   for direction in range(4))
+                direction_locs = tuple((direction, loc) for (direction, loc) in direction_locs 
+                                  if self._can_move(object_loc, loc, successor, who='F'))
+                n_directions = len(direction_locs)
+                if n_directions == 0:
+                    new_trans_dist[default_successor] = probability
+                else:
+                    new_trans_dist[default_successor] = probability * (1 - self.move_probability_F)
+                    p = probability * self.move_probability_F / n_directions
+                    for (direction, obj_target_loc) in direction_locs:
+                        if obj_target_loc == target_loc:  # object is destroyed
+                            new_successor = self._make_state(succ_t, succ_loc, succ_imm_states, set_loc(succ_mc_locs, i, (-2,-2)), succ_mv_locs, succ_mv_states)
+                        else:  # it moves
+                            new_mc_locs = set_loc(succ_mc_locs, i, obj_target_loc)
+                            # see if there's a glass pane at obj_target_loc:
+                            inhabitant_type, inhabitant_index = gridcontents.get(obj_target_loc, (None, None))
+                            if inhabitant_type == '|':
+                                # glass pane breaks
+                                new_mc_locs = set_loc(new_mc_locs, inhabitant_index, (-2,-2))
+                            new_successor = self._make_state(succ_t, succ_loc, succ_imm_states, new_mc_locs, succ_mv_locs, succ_mv_states)
+                        new_trans_dist[new_successor] = p
+            trans_dist = new_trans_dist
+
+        # TODO: update object states and/or object locations, e.g. if the agent picks up an object or moves an object
+
+        return {successor: (probability, True) for (successor,probability) in trans_dist.items()} 
+
+    @cache
     def observation_and_reward_distribution(self, state, action, successor, n_samples = None):
         """
         Delta for a state accrues when entering the state, so it depends on successor:
         """
         if state is None and action is None:
             return {(self._make_state(), 0): (1, True)}
-        t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(successor)
+        t, loc,  imm_states, mc_locs, mv_locs, mv_states = self._extract_state_attributes(successor)
         delta = self.time_deltas[t % self.time_deltas.size]
         if self.delta_xygrid[loc] in self.cell_code2delta:
             delta += self.cell_code2delta[self.delta_xygrid[loc]]
@@ -594,7 +614,7 @@ class SimpleGridworld(MDPWorldModel):
     
     def reset(self, seed = None, options = None): 
         ret = super().reset(seed = seed, options = options)
-        if self.render_mode == "human":
+        if self.render_mode == "human" and self._previous_agent_location is not None:
             self._render_frame()
         return ret
 
@@ -673,13 +693,14 @@ class SimpleGridworld(MDPWorldModel):
                 elif cell_type in render_as_char_types:
                     canvas.blit(self._cell_font.render(cell_type, True, (0, 0, 0)),
                                       ((x+.3) * pix_square_size, (y+.3) * pix_square_size))
-                canvas.blit(self._delta_font.render(
-                    f"{x},{y}", True, (128, 128, 128)),
-                    ((x+.8) * pix_square_size, (y+.1) * pix_square_size))
-                if cell_code in self.cell_code2delta:
+                if self._window is None and self.render_mode == "human":
                     canvas.blit(self._delta_font.render(
-                        cell_code + f" {self.cell_code2delta[cell_code]}", True, (0, 0, 0)),
-                        ((x+.1) * pix_square_size, (y+.1) * pix_square_size))
+                        f"{x},{y}", True, (128, 128, 128)),
+                        ((x+.8) * pix_square_size, (y+.1) * pix_square_size))
+                    if cell_code in self.cell_code2delta:
+                        canvas.blit(self._delta_font.render(
+                            cell_code + f" {self.cell_code2delta[cell_code]}", True, (0, 0, 0)),
+                            ((x+.1) * pix_square_size, (y+.1) * pix_square_size))
 
         # Render all mobile objects:
         for i, object_type in enumerate(self.mobile_constant_object_types):
@@ -767,11 +788,11 @@ class SimpleGridworld(MDPWorldModel):
                 width=3,
             )
         # And print the time left into the top-right cell:
-        canvas.blit(self._cell_font.render(
-            f"{self.max_episode_length - self.t}", True, (0, 0, 0)),
-            ((self.xygrid.shape[0]-1+.3) * pix_square_size, (.3) * pix_square_size))
-
         if self.render_mode == "human":
+            canvas.blit(self._cell_font.render(
+                f"{self.max_episode_length - self.t}", True, (0, 0, 0)),
+                ((self.xygrid.shape[0]-1+.3) * pix_square_size, (.3) * pix_square_size))
+
             # The following line copies our drawings from `canvas` to the visible window
             self._window.blit(canvas, canvas.get_rect())
             pygame.event.pump()
