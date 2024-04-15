@@ -1,6 +1,6 @@
 from typing import Any, Generic, TypeVar, TypeVarTuple
 
-from . import WorldModel
+from .world_model import WorldModel
 
 ObsType = TypeVar("ObsType")
 Action = TypeVar("Action")
