@@ -467,7 +467,7 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
         cell_type = self.xygrid[loc]
         at_goal = cell_type == 'G'
         if at_goal:
-            successor = self._make_state(t + 1, loc, loc, imm_states, mc_locs, mv_locs, mv_states)
+            successor = self._make_state(t + 1, loc, imm_states, mc_locs, mv_locs, mv_states)
             return {successor: (1, True)}
 
         if cell_type == ',':
@@ -512,7 +512,7 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
             if len(simulated_actions) == 0:
                 return None
             p0 = 1 if target_type == '^' else self.uneven_ground_prob  # probability of falling off
-            intermediate_state = self._make_state(t, target_loc, loc, imm_states, mc_locs, mv_locs, mv_states)
+            intermediate_state = self._make_state(t, target_loc, imm_states, mc_locs, mv_locs, mv_states)
             trans_dist = {}
             # compose the transition distribution recursively:
             for simulate_action in simulated_actions:

@@ -154,22 +154,25 @@ def step():
             env.render()
         elif values['debug_checkbox'] or values['verbose_checkbox']:
             if values['debug_checkbox']:
-                visited_state_alephs = agent.seen_state_alephs
-                visited_action_alephs = agent.seen_action_alephs
+                visited_state_alephs = agent.seen_state_alephs.copy()
+                visited_action_alephs = agent.seen_action_alephs.copy()
             Vs = {}
             for state, aleph in visited_state_alephs:
-                t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = env._extract_state_attributes(state)
+                t, loc, imm_states, mc_locs, mv_locs, mv_states = env._extract_state_attributes(state)
                 if loc not in Vs:
                     Vs[loc] = []
                 Vs[loc].append(f"{aleph[0]},{aleph[1]}:{agent.V(state, aleph)}")  # expected Total
             Qs = {}
             for state, action, aleph in visited_action_alephs:
-                t, loc, prev_loc, imm_states, mc_locs, mv_locs, mv_states = env._extract_state_attributes(state)
+                t, loc, imm_states, mc_locs, mv_locs, mv_states = env._extract_state_attributes(state)
                 key = (*loc, action)
                 if key not in Qs:
                     Qs[key] = []
 #                    Qs[key].append(agent.Q(state, action, aleph))
-                Qs[key].append(f"{aleph[0]},{aleph[1]}:{agent.relativeQ2(state, action, aleph, agent.Q(state, action, aleph))}")  # variance of Total
+                Qs[key].append(f"{aleph[0]},{aleph[1]}:{
+                    #agent.relativeQ2(state, action, aleph, agent.Q(state, action, aleph))
+                    agent.Q(state, action, aleph)
+                    }")  # variance of Total
             
             env.render(additional_data={
                 'cell': Vs,
