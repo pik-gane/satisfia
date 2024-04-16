@@ -449,6 +449,26 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         aleph0 = 1
         max_episode_length = time or 20
 
+
+    elif gw == "two_paths":
+        """
+        Two paths lead to the goal, one with 1 Δ and one with 3 Δ, but only 2 Δ should be collected.
+        Should show differing behavior when trying to achieve expected values vs. achieving a value with high probability.
+        """
+        grid = [
+          [' ', ' ', ' ', ' ', ' '],
+          ['A', '#', '#', '#', 'G'],
+          [' ', ' ', ' ', ' ', ' ']
+        ]  
+        delta_grid = [
+          [' ', 'Δ', 'Δ', 'Δ', ' '],
+          [' ', ' ', ' ', ' ', 'G'],
+          [' ', ' ', 'Δ', ' ', ' ']
+        ]
+        expected_deltas = { 'G': 10, 'Δ' : 1}
+        aleph0 = 12
+        max_episode_length = time or 10
+
     else:
         world = None
         with open(json_dir / f"{gw}.json", "r") as file:
