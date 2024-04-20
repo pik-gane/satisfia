@@ -1,7 +1,7 @@
 from functools import cache
 import os
 from sre_parse import State
-from typing import Generic, NamedTuple, Self, TypeVar, overload
+from typing import Generic, NamedTuple, TypeVar, overload
 
 from satisfia.util import distribution
 from . import MDPWorldModel
@@ -296,7 +296,7 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
         self._window = None
         self.clock = None
 
-    def get_prolonged_version(self: Self, horizon=None) -> Self:
+    def get_prolonged_version(self, horizon=None):
         """Return a copy of this gridworld in which the episode length is prolonged by horizon steps."""
         # get a copy of the original grid, the delta grid, and the delta table:
         xygrid = self.xygrid.copy()
