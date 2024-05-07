@@ -817,7 +817,7 @@ class AspirationAgent(ABC):
                                    self.world.transition_probability(state, otherActionAndAleph[0], nextState)[0]))
         def X(actionAndAleph):
             action, aleph4action = actionAndAleph
-            return self.world.expectation(state, action, Y, (action,)) + self.causation_action(state, aleph4state, action, aleph4action) # recursion
+            return self.world.expectation(state, action, Y, action) + self.causation_action(state, aleph4state, action, aleph4action) # recursion
         res = locPol.expectation(X)
         if self.debug or self.verbose:
             print(pad(state),"╰ causation_state", prettyState(state), aleph4state, ":", res)

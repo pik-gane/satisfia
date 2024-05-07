@@ -221,6 +221,8 @@ def reset_env(start=False):
     visited_action_alephs = set()
     running = start
     stepping = False
+    env.render()
+
 
 wait = time.monotonic()
 while True:
