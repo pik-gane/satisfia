@@ -43,6 +43,9 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
     _state: Optional[State] = None
     """The current state of the environment, possibly not directly observable by the agent."""
 
+    reward_dim: int = 1
+    """Dimension of the reward (Delta) space. If >1, rewards (Deltas) are numpy vectors of this length."""
+
     # methods for enquiring transition probabilities between states:
 
     @cache
@@ -131,6 +134,7 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
     def raw_moment_of_reward(self, state:State, action:Action, degree:int = 1, n_samples:Optional[int] = None):
         """Return a raw moment of reward after taking action in state."""
         return self.expectation_of_fct_of_reward(state, action, lambda reward: reward**degree, n_samples = n_samples)
+        # TODO: if reward is multi-dimensional, return the full tensor of raw moments rather than only its diagonal
     
     raw_moment_of_delta = raw_moment_of_reward
 
@@ -142,8 +146,7 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
     expected_delta = expected_reward
     
     def expectation( self, state:State, action:Action,
-            f:Callable,
-              additional_args=(), n_samples:Optional[int] = None):
+            f:Callable, additional_args=(), n_samples:Optional[int] = None):
         """Return the expected value of f(successor, *additional_args) after taking action in state."""
         return sum(probability * f(successor, *additional_args)
                        for (successor, (probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()
@@ -196,6 +199,7 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
     def raw_moment_of_reward_after_history(self, history, action:Action, degree:float, n_samples:Optional[int] = None):
         """Return a raw moment of the reward of the given result of calling step(action) after the given history."""
         return self.expectation_of_fct_of_reward_after_history(history, action, lambda reward: reward**degree, n_samples = None)
+        # TODO: if reward is multi-dimensional, return the full tensor of raw moments rather than only its diagonal
 
     raw_moment_of_delta_after_history = raw_moment_of_reward_after_history
 

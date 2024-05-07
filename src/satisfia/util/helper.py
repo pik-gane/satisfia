@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from typing import NamedTuple
+from functools import cache
 
 def Interval(left, right=None):
     if hasattr(left, "__len__"):
@@ -86,3 +87,8 @@ def midpoint(interval):
 def isSubsetOf(interval1, interval2):
 	# is interval1 a subset of interval2?
 	return (interval2[0] <= interval1[0]) and (interval2[1] >= interval1[1])
+
+@cache
+def center_and_shape(polytope):
+    center = np.mean(polytope, axis=0)
+    return center, polytope - center

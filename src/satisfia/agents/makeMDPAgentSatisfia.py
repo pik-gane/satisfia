@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 
+import itertools
 import math
 from functools import cache
 import random
+from networkx import center
 import numpy as np
+import polytope
+from scipy.optimize import linprog
 
 from satisfia.util import distribution
 from satisfia.util.helper import *
@@ -17,6 +21,18 @@ prettyState = str
 
 def pad(state):
     return " :            " * state[0]  # state[0] is the time step
+
+def probability_add(p, key, weight):
+    if weight < 0:
+        raise ValueError("invalid weight")
+
+    if weight == 0:
+        if key in p:
+            del p[key]
+    elif key in p:
+        p[key] += weight
+    else:
+        p[key] = weight
 
 class AspirationAgent(ABC):
 
@@ -94,6 +110,9 @@ class AspirationAgent(ABC):
             "fifthMomentOfDelta": (lambda state, action: 8 * self.params["varianceOfDelta"](state, action) ** 2.5), # assumes a Gaussian distribution
             "sixthMomentOfDelta": (lambda state, action: 15 * self.params["varianceOfDelta"](state, action) ** 3), # assumes a Gaussian distribution
 
+            "delta_dim": 1, # dimension of delta space (1 for scalar delta, >1 for vector delta)
+            "ref_dirs": None, # reference directions in delta space if delta_dim >1, given as an np.array with delta_dim+1 many rows containing coefficient vectors
+
             "debug": None,
             "verbose" : None
         }
@@ -135,6 +154,13 @@ class AspirationAgent(ABC):
         assert self.params["lossCoeff4Entropy"] == 0 or self.params["lossCoeff4DP"] == 0 or ("uninformedPolicy" in self.params), "uninformedPolicy must be provided if lossCoeff4DP > 0 or lossCoeff4Entropy > 0"
         assert self.params["lossCoeff4StateDistance"] == 0 or ("referenceState" in self.params), "referenceState must be provided if lossCoeff4StateDistance > 0"
 
+        assert isinstance(self.params["delta_dim"], int) and self.params["delta_dim"] > 0, "delta_dim must be a positive integer"
+        self.dim = self.params["delta_dim"]
+        ref_dirs = self.params["ref_dirs"]
+        if ref_dirs is not None:
+            assert isinstance(ref_dirs, np.ndarray) and ref_dirs.shape == (self.dim+1, self.dim), "ref_dirs must be a numpy array with shape (delta_dim+1, delta_dim)"
+        self.ref_dirs = ref_dirs
+
         self.debug = DEBUG if self.params["debug"] is None else self.params["debug"]
         self.verbose = VERBOSE if self.params["verbose"] is None else self.params["verbose"] 
 
@@ -145,7 +171,7 @@ class AspirationAgent(ABC):
             print("makeMDPAgentSatisfia with parameters", self.params)
 
         def deltaVar(s, a, al4s, al4a, p):
-            if not(q_ones :=self.Q_ones(s,a,al4a)):
+            if not(q_ones := self.Q_ones(s,a,al4a)):
                 return 0
             return self.Q_DeltaSquare(s, a, al4a) / q_ones - self.Q2(s, a, al4a) / (q_ones ** 2)
 
@@ -219,23 +245,42 @@ class AspirationAgent(ABC):
         return self.params[name]
 
     @cache
-    def maxAdmissibleV(self, state): # recursive
-        if self.verbose or self.debug:
-            print(pad(state), "| | | maxAdmissibleV, state", state, "...")
+    def maxAdmissibleV(self, state, coeffs=None): # recursive
+        """The maximum admissible expected Total in state (if dim==1 and coeffs not given)
+        or the extremal admissible expected Total in state when maximizing 
+        the given linear combination of its components (if coeffs given)."""
+        if self.dim == 1 and coeffs is None:
+            if self.verbose or self.debug:
+                print(pad(state), "| | | maxAdmissibleV, state", state, "...")
 
-        v = 0
-        actions = self.possible_actions(state)
-        if actions != []:
-            qs = [self.maxAdmissibleQ(state, a) for a in actions] # recursion
-            v = max(qs) if self["maxLambda"] == 1 else interpolate(min(qs), self["maxLambda"], max(qs))
+            v = 0
+            actions = self.possible_actions(state)
+            if actions != []:
+                qs = [self.maxAdmissibleQ(state, a) for a in actions] # recursion
+                v = max(qs) if self["maxLambda"] == 1 else interpolate(min(qs), self["maxLambda"], max(qs))
 
-        if self.verbose or self.debug:
-            print(pad(state), "| | | ╰ maxAdmissibleV, state", state, ":", v)
+            if self.verbose or self.debug:
+                print(pad(state), "| | | ╰ maxAdmissibleV, state", state, ":", v)
+        else:
+            assert self["maxLambda"] == 1 and self["minLambda"], "minLambda,maxLambda must be 0,1 for dim > 1"
+            if self.verbose or self.debug:
+                print(pad(state), "| | | maxAdmissibleV, state", state, "coeffs", coeffs, "...")
+
+            v = 0
+            actions = self.possible_actions(state)
+            if actions != []:
+                qs = np.array([self.maxAdmissibleQ(state, a, coeffs) for a in actions]) # recursion
+                amax = np.argmax(np.dot(qs, coeffs))  # action that maximizes given linear comb. of components of Total
+                v = qs[amax]
+
+            if self.verbose or self.debug:
+                print(pad(state), "| | | ╰ maxAdmissibleV, state", state, "coeffs", coeffs, ":", v)
 
         return v
 
     @cache
     def minAdmissibleV(self, state): # recursive
+        """The minimum admissible expected Total in state (if dim==1, otherwise unused)"""
         if self.verbose or self.debug:
             print(pad(state), "| | | minAdmissibleV, state", state, "...")
 
@@ -250,19 +295,33 @@ class AspirationAgent(ABC):
 
         return v
 
-    # The resulting admissibility interval for states.
+    # The resulting admissibility interval or simplex for states.
     def admissibility4state(self, state):
-        return self.minAdmissibleV(state), self.maxAdmissibleV(state)
+        """The admissibility interval (if dim==1) or simplex (if dim>1) for expected Total in state"""
+        return (
+            self.minAdmissibleV(state), self.maxAdmissibleV(state) if self.dim == 1 
+            else np.array([self.maxAdmissibleV(state, coeffs) for coeffs in self.ref_dirs])
+            )
 
     # The resulting admissibility interval for actions.
     def admissibility4action(self, state, action):
+        """The admissibility interval for expected Total in state at action"""
         return self.minAdmissibleQ(state, action), self.maxAdmissibleQ(state, action)
 
+    # The resulting reference simplex for actions.
+    @cache
+    def simplex4action(self, state, action):
+        """The admissibility simplex (if dim>1) for expected Total in state at action"""
+        vertices = np.array([self.maxAdmissibleQ(state, action, coeffs) for coeffs in self.ref_dirs])
+        # calculate the H-representation of the simplex defined by these vertices:        
+        return vertices, polytope.qhull(vertices)
+
     # When in state, we can get any expected total in the interval
-    # [minAdmissibleV(state), maxAdmissibleV(state)].
+    # [minAdmissibleV(state), maxAdmissibleV(state)] (or the admissible simplex if dim>1).
     # So when having aspiration aleph, we can still fulfill it in expectation if it lies in the interval.
     # Therefore, when in state at incoming aspiration aleph,
-    # we adjust our aspiration to aleph clipped to that interval:
+    # we adjust our aspiration to aleph clipped to that interval 
+    # (if dim==1, otherwise we require it to be a subset already):  # TODO: also clip when dim>1
     @cache
     def aspiration4state(self, state, unclippedAleph):
         if self.verbose or self.debug:
@@ -272,55 +331,125 @@ class AspirationAgent(ABC):
             print(pad(state),"| | ╰ aspiration4state, state",prettyState(state),"unclippedAleph",unclippedAleph,":",res)
         return res
 
+
     # When constructing the local policy, we use an action aspiration interval
     # that does not depend on the local policy but is simply based on the state's aspiration interval,
-    # moved from the admissibility interval of the state to the admissibility interval of the action.
+    # moved from the admissibility interval (or simplex) of the state to the admissibility interval (or simplex) of the action and properly restricted to a subset of it.
     @cache
-    def aspiration4action(self, state, action, aleph4state):
-        if self.debug:
-            print(pad(state),"| | aspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,"...")
+    def aspiration4action(self, state, action, aleph4state, 
+                          dir_index=None  # if dim>1, index (0...dim+1) of direction in which to shift
+                          ):
+        """Set an action aspiration interval or simplex based on the state aspiration and the admissibility interval or simplex of the state and action, and if dim>1 also based on the direction in which to shift the state's aspiration. Return the resulting action aspiration interval or simplex, and if dim>1 also the shifting vector so that the probability distribution can be computed."""
+        if self.dim == 1:
+            if self.debug:
+                print(pad(state),"| | aspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,"...")
 
-        phi = self.admissibility4action(state, action)
+            phi = self.admissibility4action(state, action)
 
-        # We use a steadfast version that does make sure that 
-        # - aleph(a) is no wider than aleph(s)
-        # - one can mix the midpoint of aleph(s) from midpoints of alephs(a)
-        # - hence one can mix an interval inside aleph(s) from alephs(a).
-        # The rule finds the largest subinterval of phi(a) (the admissibility interval of a)
-        # that is no wider than aleph(s) and is closest to aleph(s).
-        # More precisely:
-        # - If phi(a) contains aleph(s), then aleph(a) = aleph(s)
-        # - If aleph(s) contains phi(a), then aleph(a) = phi(a)
-        # - If phiLo(a) < alephLo(s) and phiHi(a) < alephHi(s), then aleph(a) = [max(phiLo(a), phiHi(a) - alephW(s)), phiHi(a)]
-        # - If phiHi(a) > alephHi(s) and phiLo(a) > alephLo(s), then aleph(a) = [phiLo(a), min(phiHi(a), phiLo(a) + alephW(s))]
+            # We use a steadfast version that does make sure that 
+            # - aleph(a) is no wider than aleph(s)
+            # - one can mix the midpoint of aleph(s) from midpoints of alephs(a)
+            # - hence one can mix an interval inside aleph(s) from alephs(a).
+            # The rule finds the largest subinterval of phi(a) (the admissibility interval of a)
+            # that is no wider than aleph(s) and is closest to aleph(s).
+            # More precisely:
+            # - If phi(a) contains aleph(s), then aleph(a) = aleph(s)
+            # - If aleph(s) contains phi(a), then aleph(a) = phi(a)
+            # - If phiLo(a) < alephLo(s) and phiHi(a) < alephHi(s), then aleph(a) = [max(phiLo(a), phiHi(a) - alephW(s)), phiHi(a)]
+            # - If phiHi(a) > alephHi(s) and phiLo(a) > alephLo(s), then aleph(a) = [phiLo(a), min(phiHi(a), phiLo(a) + alephW(s))]
 
-        if isSubsetOf(aleph4state, phi):  # case (1)
-            res = aleph4state
-            # as a consequence, midpoint(res) = midpoint(aleph4state)
-        elif isSubsetOf(phi, aleph4state):  # case (2)
-            res = phi
-            # this case has no guarantee for the relationship between midpoint(res) and midpoint(aleph4state),
-            # but that's fine since there will always either be an action with case (1) above,
-            # or both an action with case (3) and another with case (4) below,
-            # so that the midpoint of aleph4state can always be mixed from midpoints of alephs4action
-        else:
-            phiLo, phiHi = phi
-            alephLo, alephHi = aleph4state
-            w = alephHi - alephLo
-            if phiLo < alephLo and phiHi < alephHi:  # case (3)
-                res = Interval(max(phiLo, phiHi - w), phiHi)
-                # as a consequence, midpoint(res) < midpoint(aleph4state)
-            elif phiHi > alephHi and phiLo > alephLo:  # case (4)
-                res = Interval(phiLo, min(phiHi, phiLo + w))
-                # as a consequence, midpoint(res) > midpoint(aleph4state)
+            if isSubsetOf(aleph4state, phi):  # case (1)
+                res = aleph4state
+                # as a consequence, midpoint(res) = midpoint(aleph4state)
+            elif isSubsetOf(phi, aleph4state):  # case (2)
+                res = phi
+                # this case has no guarantee for the relationship between midpoint(res) and midpoint(aleph4state),
+                # but that's fine since there will always either be an action with case (1) above,
+                # or both an action with case (3) and another with case (4) below,
+                # so that the midpoint of aleph4state can always be mixed from midpoints of alephs4action
             else:
-                raise ValueError("impossible relationship between phi and aleph4state")
+                phiLo, phiHi = phi
+                alephLo, alephHi = aleph4state
+                w = alephHi - alephLo
+                if phiLo < alephLo and phiHi < alephHi:  # case (3)
+                    res = Interval(max(phiLo, phiHi - w), phiHi)
+                    # as a consequence, midpoint(res) < midpoint(aleph4state)
+                elif phiHi > alephHi and phiLo > alephLo:  # case (4)
+                    res = Interval(phiLo, min(phiHi, phiLo + w))
+                    # as a consequence, midpoint(res) > midpoint(aleph4state)
+                else:
+                    raise ValueError("impossible relationship between phi and aleph4state")
 
-        # memorize that we encountered this state, action, aleph4action:
-        self.seen_action_alephs.add((state, action, res))
+            # memorize that we encountered this state, action, aleph4action:
+            self.seen_action_alephs.add((state, action, res))
 
-        if self.verbose or self.debug:
-            print(pad(state),"| | ╰ aspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,":",res,"(steadfast)") 
+            if self.verbose or self.debug:
+                print(pad(state),"| | ╰ aspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,":",res,"(steadfast)") 
+
+        else: # follow the "shrink" strategy from the ADT24 paper
+
+            if self.debug:
+                print(pad(state),"| | aspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,"dir_index",dir_index,"...")
+
+            Es = aleph4state
+            Es_center, Es_shape = center_and_shape(Es)
+            flat_Es_shape = Es_shape.flatten()
+
+            VR = self.admissibility4state(state)  # simplex
+            QRa_vertices, QRa_poly = self.simplex4action(state, action) 
+            QRa_A = QRa_poly.A
+            QRa_b = QRa_poly.b
+
+            # We are shifting the Es towards a certain target point:
+            # For dir_index>0, the respective vertex of the state's reference simplex,
+            # otherwise the center of the action's reference simplex:
+            shifting_direction = (VR[dir_index] if dir_index > 0 else QRa_vertices.mean(axis=0)) - Es_center
+
+            # Find the largest m <= 1 so that there is an l >= 0 with
+            # l*shifting_direction + Es_center + m*Es_shape is a subset of QRsa.
+            # The inequality constraints are thus
+            #    QRa_poly.A @ row.T <= QRa_poly.b
+            # for all rows in l*shifting_direction + Es_center + m*Es_shape. 
+            # In terms of the two variables (l,m), the (d+1)² many constraints are:
+            #    QRa_poly.A @ (shifting_direction, Es_shape[i]) @ (l,m) 
+            #    <= QRa_poly.b - QRa_poly.A @ Es_center
+            # for i=0...d.
+            # If the variable vector is (l,m), the arguments for linprog are thus:
+            c = [0,-1]  # minimize -m
+            b_ub = np.repeat([QRa_b - QRa_A @ Es_center], self.dim+1, axis=0).flatten()  # d+1 repetitions of the vector
+            A_ub = np.array([
+                np.repeat([QRa_A @ shifting_direction], self.dim+1, axis=0).flatten(),
+                QRa_A @ flat_Es_shape
+            ])
+            lb = [0,0]  # lower bounds on l,m
+            ub = [None, 1]  # upper bounds on l,m
+            linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=(lb,ub))
+            if self.debug: print("linprog for l,m:", linprogres)
+            if not linprogres.success:
+                # action is not in directional action set
+                return None, None
+            _, m = linprogres.x
+            
+            # Now find the smallest l >= 0 for this m:
+            c = [1]  # minimize l
+            b_ub -= m * flat_Es_shape
+            A_ub = A_ub[:,[0]]
+            lb = [0]  # lower bound on l
+            linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=(lb,None))
+            if self.debug: print("linprog for l:", linprogres)
+            if not linprogres.success:
+                raise ValueError("linprog for l failed", res)
+            l = linprogres.x
+
+            shift = l * shifting_direction
+            res = shift, shift + center + m * Es_shape 
+
+            # memorize that we encountered this state, action, dir_index, res:
+            self.seen_action_alephs.add((state, action, dir_index, res))
+
+            if self.verbose or self.debug:
+                print(pad(state),"| | ╰ aspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,"dir_index",dir_index,":",res,f"(l={l},m={m})") 
+
         return res
 
     @cache
@@ -399,86 +528,125 @@ class AspirationAgent(ABC):
         # memorize that we encountered this state, aleph:
         self.seen_state_alephs.add((state, aleph))
 
-        # Clip aspiration interval to admissibility interval of state:
-        alephLo, alephHi = aleph4state = self.aspiration4state(state, aleph)
-
-        # Estimate aspiration intervals for all possible actions in a way
-        # independent from the local policy that we are about to construct,
         actions = self.possible_actions(state)
         assert actions != []
-        alephs = [self.aspiration4action(state, action, aleph4state) for action in actions]
 
         # Estimate losses based on this estimated aspiration intervals
         # and use it to construct softmin propensities (probability weights) for choosing actions.
         # since we don't know the actual probabilities of actions yet (we will determine those only later),
         # but the loss estimation requires an estimate of the probability of the chosen action,
         # we estimate the probability at 1 / number of actions:
-        def propensity(indices, estAlephs):
-            p = 1 / len(indices)
-            losses = [self.combinedLoss(state, actions[index], aleph4state, estAlephs[index], p) for index in indices] # bottleneck
+        def getPropensities(actions, estAlephs):
+            p = 1 / len(actions)
+            losses = [self.combinedLoss(state, action, aleph4state, estAlephs[i], p) for i, action in enumerate(actions)] # bottleneck
             min_loss = min(losses)
             return [max(math.exp(-(loss - min_loss) / self["lossTemperature"]), 1e-100) for loss in losses]
 
         p_effective = {}
 
-        def probability_add(p, key, weight):
-            if weight < 0:
-                raise ValueError("invalid weight")
+        if self.dim == 1:
+            # Clip aspiration interval to admissibility interval of state:
+            alephLo, alephHi = aleph4state = self.aspiration4state(state, aleph)
 
-            if weight == 0:
-                if key in p:
-                    del p[key]
-            elif key in p:
-                p[key] += weight
-            else:
-                p[key] = weight
+            # Estimate aspiration intervals for all possible actions in a way
+            # independent from the local policy that we are about to construct,
+            alephs = [self.aspiration4action(state, action, aleph4state) for action in actions]
 
-        indices = list(range(len(actions)))
-        propensities = propensity(indices, alephs)
+            indices = list(range(len(actions)))
+            propensities = getPropensities([actions[i] for i in indices], 
+                                           [alephs[i] for i in indices])
 
-        if self.debug:
-            print(pad(state),"| localPolicyData", prettyState(state), aleph, actions, propensities)
+            if self.debug:
+                print(pad(state),"| localPolicyData", prettyState(state), aleph, actions, propensities)
 
-        for i1, p1 in distribution.categorical(indices, propensities).categories():
-            # Get admissibility interval for the first action.
-            a1 = actions[i1]
-            adm1 = self.admissibility4action(state, a1)
+            for i1, p1 in distribution.categorical(indices, propensities).categories():
+                # Get admissibility interval for the first action.
+                a1 = actions[i1]
+                adm1 = self.admissibility4action(state, a1)
 
-            # If a1's admissibility interval is completely contained in aleph4state, we are done:
-            if Interval(adm1) <= Interval(aleph4state):
-                if self.verbose or self.debug:
-                    print(pad(state),"| localPolicyData, state",prettyState(state),"aleph4state",aleph4state,": a1",a1,"adm1",adm1,"(subset of aleph4state)")
-                probability_add(p_effective, (a1, adm1), p1)
-            else:
-                # For the second action, restrict actions so that the the midpoint of aleph4state can be mixed from
-                # those of aleph4action of the first and second action:
-                midTarget = midpoint(aleph4state)
-                aleph1 = alephs[i1]
-                mid1 = midpoint(aleph1)
-                indices2 = [index for index in indices if between(midTarget, midpoint(alephs[index]), mid1)]
-                if len(indices2) == 0:
-                    print("OOPS: indices2 is empty", a1, adm1, aleph4state, midTarget, aleph1, mid1, alephs)
-                    indices2 = indices
-                propensities2 = propensity(indices2, alephs)
-
-                for i2, p2 in distribution.categorical(indices2, propensities2).categories():
-                    # Get admissibility interval for the second action.
-                    a2 = actions[i2]
-                    adm2 = self.admissibility4action(state, a2)
-                    aleph2 = alephs[i2]
-                    mid2 = midpoint(aleph2)
-                    p = relativePosition(mid1, midTarget, mid2)
-                    if p < 0 or p > 1:
-                        print("OOPS: p", p)
-                        p = clip(0, p, 1)
-
+                # If a1's admissibility interval is completely contained in aleph4state, we are done:
+                if Interval(adm1) <= Interval(aleph4state):
                     if self.verbose or self.debug:
-                        print(pad(state),"| localPolicyData, state",prettyState(state),"aleph4state",aleph4state,": a1,p,a2",a1,p,a2,"adm12",adm1,adm2,"aleph12",aleph1,aleph2)
+                        print(pad(state),"| localPolicyData, state",prettyState(state),"aleph4state",aleph4state,": a1",a1,"adm1",adm1,"(subset of aleph4state)")
+                    probability_add(p_effective, (a1, adm1), p1)
+                else:
+                    # For the second action, restrict actions so that the the midpoint of aleph4state can be mixed from
+                    # those of aleph4action of the first and second action:
+                    midTarget = midpoint(aleph4state)
+                    aleph1 = alephs[i1]
+                    mid1 = midpoint(aleph1)
+                    indices2 = [index for index in indices if between(midTarget, midpoint(alephs[index]), mid1)]
+                    if len(indices2) == 0:
+                        print("OOPS: indices2 is empty", a1, adm1, aleph4state, midTarget, aleph1, mid1, alephs)
+                        indices2 = indices
+                    propensities2 = getPropensities([actions[i] for i in indices2], 
+                                                    [alephs[i] for i in indices2])
 
-                    probability_add(p_effective, (a1, aleph1), (1 - p) * p1 * p2)
-                    probability_add(p_effective, (a2, aleph2), p * p1 * p2)
+                    for i2, p2 in distribution.categorical(indices2, propensities2).categories():
+                        # Get admissibility interval for the second action.
+                        a2 = actions[i2]
+                        adm2 = self.admissibility4action(state, a2)
+                        aleph2 = alephs[i2]
+                        mid2 = midpoint(aleph2)
+                        p = relativePosition(mid1, midTarget, mid2)
+                        if p < 0 or p > 1:
+                            print("OOPS: p", p)
+                            p = clip(0, p, 1)
 
-        # now we can construct the local policy as a WebPPL distribution object:
+                        if self.verbose or self.debug:
+                            print(pad(state),"| localPolicyData, state",prettyState(state),"aleph4state",aleph4state,": a1,p,a2",a1,p,a2,"adm12",adm1,adm2,"aleph12",aleph1,aleph2)
+
+                        probability_add(p_effective, (a1, aleph1), (1 - p) * p1 * p2)
+                        probability_add(p_effective, (a2, aleph2), p * p1 * p2)
+
+        else: # use algorithm from ADT24 paper
+
+            d = self.dim
+            Ais = []
+            zais = []
+            Eais = []
+            propensities = []
+
+            # calculate directional actions sets Ai, shifting vectors zai and action aspirations Eai:
+            for dir_index in range(d+2):
+
+                Ai = []
+                this_zais = []
+                this_Eais = []
+                for action in actions:
+                    zai, Eai = self.aspiration4action(state, action, aleph4state, dir_index=dir_index)
+                    if zai is not None:
+                        Ai.append(action)
+                        this_zais.append(zai)
+                        this_Eais.append(Eai)
+
+                assert len(Ai) > 0, "no action with dir_index " + str(dir_index) + " for state " + str(state) + " and aleph " + str(aleph)
+
+                Ais.append(Ai)
+                zais.append(this_zais)
+                Eais.append(this_Eais)
+                propensities.append(getPropensities(Ai, this_Eais))
+
+            # loop through all combinations of actions from the d+2 directional action sets:
+            lb = np.repeat(0, d+2)  # lower bounds on probabilities
+            ub = np.repeat(1, d+2)  # upper bounds on probabilities
+            A_ub0 = np.repeat(1, d+2)  # the sum of probabilities... 
+            b_ub = [1] + [0] * d  # ...must be 1
+            c = [-1] + [0] * d  # maximize the probability of the freely chosen action
+
+            for indices in itertools.product([len(Ai) for Ai in Ais]): # bottleneck
+                # find mix that satisfies state aspiration and has largest probability for freely chosen action:
+                A_ub = np.concatenate([A_ub0, np.array([zais[dir_index][indices[dir_index]] for dir_index in range(self.dim+2)]).T], axis=0)
+                linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=(lb,ub))
+                if self.debug: print("linprog for p:", linprogres)
+                if not linprogres.success:
+                    raise ValueError("linprog for p failed", linprogres)
+                p = linprogres.x
+                # register action,aspiration probabilities:
+                for dir_index, index in enumerate(indices):
+                    probability_add(p_effective, (Ais[dir_index][index], Eais[dir_index][index]), p[dir_index])
+
+        # now we can construct the local policy as a distribution object:
         locPol = distribution.categorical(p_effective)
 
         support = locPol.support()
@@ -882,7 +1050,7 @@ class AspirationAgent(ABC):
         }
 
     @abstractmethod
-    def maxAdmissibleQ(self, state, action): pass
+    def maxAdmissibleQ(self, state, action, coeffs=None): pass
     @abstractmethod
     def minAdmissibleQ(self, state, action): pass
     @abstractmethod
@@ -993,19 +1161,21 @@ class AgentMDPPlanning(AspirationAgent):
     # or of the LRA-based problem (if maxLambda<1):
 
     @cache
-    def maxAdmissibleQ(self, state, action): # recursive
+    def maxAdmissibleQ(self, state, action, coeffs=None): # recursive
+        """maximal admissible Q-value for a given state-action pair (if dim==1 and coeffs not given),
+        or admissible Q-value for state and action when maximizing the given linear combination of the components of the expected Total (if coeffs given)"""
         if self.verbose or self.debug:
-            print(pad(state), "| | | | maxAdmissibleQ, state", state, "action", action, "...")
+            print(pad(state), "| | | | maxAdmissibleQ, state", state, "action", action, "coeffs", coeffs, "...")
 
         # register (state, action) in global store (could be anywhere, but here is just as fine as anywhere else)
         self.stateActionPairsSet.add((state, action))
 
         Edel = self.world.raw_moment_of_delta(state, action)
         # Bellman equation
-        q = Edel + self.world.expectation(state, action, self.maxAdmissibleV) # recursion
+        q = Edel + self.world.expectation(state, action, self.maxAdmissibleV, (coeffs,)) # recursion
 
         if self.verbose or self.debug:
-            print(pad(state), "| | | | ╰ maxAdmissibleQ, state", state, "action", action, ":", q)
+            print(pad(state), "| | | | ╰ maxAdmissibleQ, state", state, "action", action, "coeffs", coeffs, ":", q)
 
         return q
 
