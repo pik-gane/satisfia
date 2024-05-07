@@ -734,13 +734,14 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
 #            x, y = get_loc(self._mobile_variable_object_locations, i)
 
         # Now we draw the agent and its previous location:
-        pygame.draw.circle(
-            canvas,
-            (0, 0, 255),
-            (np.array(self._previous_agent_location) + 0.5) * pix_square_size,
-            pix_square_size / 4,
-            width = 3,
-        )
+        if self._previous_agent_location:
+            pygame.draw.circle(
+                canvas,
+                (0, 0, 255),
+                (np.array(self._previous_agent_location) + 0.5) * pix_square_size,
+                pix_square_size / 4,
+                width = 3,
+            )
         pygame.draw.circle(
             canvas,
             (0, 0, 255),

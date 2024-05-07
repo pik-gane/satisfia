@@ -9,7 +9,7 @@ json_dir = Path(os.path.dirname(__file__)) / "simple_gridworlds"
 
 def all_worlds() -> set[str]:
     hardcoded = {"AISG2", "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW24", "GW25", "GW27", "GW28", 
-              "GW29", "GW30", "GW31", "GW32", "test_return", "test_box"}
+              "GW29", "GW30", "GW31", "GW32", "GW33", "test_return", "test_box"}
     files = (f for f in json_dir.iterdir() if f.is_file() and f.name.endswith(".json"))
     return hardcoded | { f.name.replace(".json", "") for f in files}
 
