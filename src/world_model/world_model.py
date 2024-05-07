@@ -76,17 +76,20 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
 
     @cache
     def possible_successors(self, state:State, action:Optional[Action]=None, n_samples:Optional[int] = None) -> set[State]:
-        """Return the of possible successor states after performing action in state,
+        """Return the set of possible successor states after performing action in state,
         or, if action is None, of all possible successor states after any action in state,
         or, if state and action are None, a list of possible initial states."""
-        return {succs
-                for act in ((action,) if action is not None else self.possible_actions(state))
-                for succs in self.possible_successors(state, act, n_samples)
-              }
+        if action is None:
+            return {succs
+                    for act in self.possible_actions(state)
+                    for succs in self.possible_successors(state, act, n_samples)
+                }
+        else:
+            return set(self.transition_distribution(state, action, n_samples).keys())
     
     @cache
     def reachable_states(self, state: State) -> set[State]:
-        """Return a list of all states that can be reached from the given state by taking any sequence of actions."""
+        """Return a set of all states that can be reached from the given state by taking any sequence of actions."""
         res = {state}
         if not self.is_terminal(state):
             res |= { ns 
