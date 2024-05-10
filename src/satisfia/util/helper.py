@@ -2,6 +2,8 @@
 
 from typing import NamedTuple
 from functools import cache
+import numpy as np
+from collections.abc import Iterable
 
 def Interval(left, right=None):
     if hasattr(left, "__len__"):
@@ -89,6 +91,13 @@ def isSubsetOf(interval1, interval2):
 	return (interval2[0] <= interval1[0]) and (interval2[1] >= interval1[1])
 
 @cache
-def center_and_shape(polytope):
-    center = np.mean(polytope, axis=0)
-    return center, polytope - center
+def center_and_shape(vertices):
+    center = np.mean(vertices, axis=0)
+    return center, vertices - center
+
+def nested_tuple(iterable_or_not):
+    """convert nested iterable into nested tuple"""
+    if isinstance(iterable_or_not, Iterable):
+        return tuple(nested_tuple(i) for i in iterable_or_not)
+    else:
+        return iterable_or_not

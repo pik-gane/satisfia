@@ -4,6 +4,7 @@ from sre_parse import State
 from typing import Generic, NamedTuple, TypeVar, overload
 
 from satisfia.util import distribution
+from satisfia.util.helper import nested_tuple
 from . import MDPWorldModel
 
 # based in large part on https://gymnasium.farama.org/tutorials/gymnasium_basics/environment_creation/
@@ -180,12 +181,16 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
                  timeout_delta = 0,
                  uneven_ground_prob = 0.25,
                  move_probability_F = 0,
+                 ref_dirs = None,
                  fps = 4
                  ):
 
         self.xygrid = xygrid = np.array(grid).T
         self.delta_xygrid = delta_xygrid = np.array(delta_grid).T if delta_grid is not None else np.full(xygrid.shape, ' ')
         self.cell_code2delta = cell_code2delta
+        self.delta_dim = np.array(list(cell_code2delta.values())[0]).shape[0]
+        if self.delta_dim > 1:
+            self.ref_dirs = ref_dirs
         self.max_episode_length = max_episode_length
         self.time_deltas = np.array(time_deltas).flatten()
         self.timeout_delta = timeout_delta
@@ -605,7 +610,7 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
         # add timeout Delta:
         if t == self.max_episode_length and self.xygrid[loc] != 'G':
             delta += self.timeout_delta
-        return {(successor, delta): (1, True)}
+        return {(successor, nested_tuple(delta)): (1, True)}
 
     # reset() and step() are inherited from MDPWorldModel and use the above transition_distribution():
 

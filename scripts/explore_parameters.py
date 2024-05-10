@@ -5,6 +5,7 @@ sys.path.insert(0,'./src/')
 
 import time
 import PySimpleGUI as sg
+import numpy as np
 
 from environments.very_simple_gridworlds import make_simple_gridworld, all_worlds
 from satisfia.agents.makeMDPAgentSatisfia import AgentMDPPlanning
@@ -22,7 +23,7 @@ parameter_data = [
     ('lossCoeff4Fourth', -100, 100, 0, 1), 
     ('lossCoeff4Cup', -100, 100, 0, 1), 
 
-    ('lossCoeff4WassersteinTerminalState', -100, 100, 100, 1), 
+    ('lossCoeff4WassersteinTerminalState', -100, 100, 0, 1), 
     ('lossCoeff4AgencyChange', -100, 100, 0, 1), 
 
     ('lossCoeff4StateDistance', -100, 100, 0, 1), 
@@ -69,7 +70,8 @@ override_aleph_checkbox = sg.Checkbox("Override aleph0", default=False, key='ove
 
 # Create "verbose" and "debug" toggles:
 verbose_checkbox = sg.Checkbox("Verbose", default=False, key='verbose_checkbox')
-debug_checkbox = sg.Checkbox("Debug", default=False, key='debug_checkbox')
+debug_checkbox = sg.Checkbox("Debug", default=True, #False, 
+                             key='debug_checkbox')
 
 # Create a "reset" button for resetting all parameter values to their defaults:
 reset_params_button = sg.Button("Reset parameters", key='reset_params_button')
@@ -87,7 +89,7 @@ pause_button = sg.Button("Pause", key='pause_button')
 step_button = sg.Button("Step", key='step_button')
 continue_button = sg.Button("Start/Continue", key='continue_button')
 
-autorestart_checkbox = sg.Checkbox("Auto restart", default=True, key='autorestart_checkbox')
+autorestart_checkbox = sg.Checkbox("Auto restart", default=False, key='autorestart_checkbox')
 
 speed_slider = sg.Slider(range=(1, 20), default_value=10, orientation='h', key='speed_slider')
 
@@ -195,12 +197,19 @@ def reset_env(start=False):
         aleph = (values['aleph0_low'], values['aleph0_high'])
     else:
         aleph = aleph0
-        parameter_sliders['aleph0_low'].update(aleph[0])
-        parameter_sliders['aleph0_high'].update(aleph[1])
+        if len(np.array(aleph0).shape) == 1:
+            parameter_sliders['aleph0_low'].update(aleph[0])
+            parameter_sliders['aleph0_high'].update(aleph[1])
+        else:
+            parameter_sliders['aleph0_low'].update(disabled=True)
+            parameter_sliders['aleph0_high'].update(disabled=True)
+            
     parameter_values = { pd[0]: values[pd[0]] for pd in parameter_data }
     if parameter_values['lossTemperature'] == 0:
         parameter_values['lossTemperature'] = 1e-6
     parameter_values.update({
+        'delta_dim': env.delta_dim,
+        'ref_dirs': env.ref_dirs,
         'verbose': values['verbose_checkbox'],
         'debug': values['debug_checkbox'],
         'allowNegativeCoeffs': True,
@@ -215,7 +224,7 @@ def reset_env(start=False):
     initialMu0 = list(agent.ETerminalState_state(state, aleph, "default"))
     initialMu20 = list(agent.ETerminalState2_state(state, aleph, "default"))
     t = 0
-    delta = total = 0
+    delta = total = 0 if env.delta_dim == 1 else np.zeros(env.delta_dim)
     terminated = False
     visited_state_alephs = set()
     visited_action_alephs = set()

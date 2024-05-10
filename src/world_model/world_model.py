@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Generic, NamedTuple, Optional, TypeVar 
 import numpy as np
 from numpy import random
@@ -43,8 +43,10 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
     _state: Optional[State] = None
     """The current state of the environment, possibly not directly observable by the agent."""
 
-    reward_dim: int = 1
+    delta_dim: int = 1
     """Dimension of the reward (Delta) space. If >1, rewards (Deltas) are numpy vectors of this length."""
+    ref_dirs = None
+    """Reference directions for construction of reference simplices"""
 
     # methods for enquiring transition probabilities between states:
 
@@ -136,7 +138,10 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
     @cache
     def raw_moment_of_reward(self, state:State, action:Action, degree:int = 1, n_samples:Optional[int] = None):
         """Return a raw moment of reward after taking action in state."""
-        return self.expectation_of_fct_of_reward(state, action, lambda reward: reward**degree, n_samples = n_samples)
+        return self.expectation_of_fct_of_reward(
+            state, action, 
+            lambda reward: (np.array(reward) if isinstance(reward, Iterable) else reward)**degree, 
+            n_samples = n_samples)
         # TODO: if reward is multi-dimensional, return the full tensor of raw moments rather than only its diagonal
     
     raw_moment_of_delta = raw_moment_of_reward

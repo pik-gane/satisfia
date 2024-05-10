@@ -19,6 +19,7 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
     time_deltas = [0]
     timeout_delta = -10
     move_probability_F = 0
+    ref_dirs = None
 
     if gw == "GW1":
         grid = [
@@ -432,10 +433,11 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
           [' ', ' ', 'Δ', ' ', ' '],
           [' ', ' ', ' ', ' ', ' ']
         ]
-        expected_deltas = { 'Δ': 1 }
+        expected_deltas = { 'Δ': [1, 10] }
         timeout_delta = 0
-        aleph0 = 1
+        aleph0 = [[1, 10]]
         max_episode_length = time or 2
+        ref_dirs = [[-2,0],[0,-2],[1,1]]
 
 
     elif gw == "test_box":
@@ -486,5 +488,6 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
                             cell_code2delta=expected_deltas, max_episode_length=max_episode_length,
                             time_deltas=time_deltas, timeout_delta=timeout_delta,
                             move_probability_F=move_probability_F,
+                            ref_dirs=ref_dirs, 
                             **kwargs), 
-            Interval(aleph0))
+            nested_tuple(aleph0))

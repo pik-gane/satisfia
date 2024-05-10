@@ -25,14 +25,13 @@ def pad(state):
 def probability_add(p, key, weight):
     if weight < 0:
         raise ValueError("invalid weight")
-
-    if weight == 0:
+    if weight > 0:
         if key in p:
-            del p[key]
-    elif key in p:
-        p[key] += weight
-    else:
-        p[key] = weight
+            p[key] += weight
+            if p[key] == 0:
+                del p[key]
+        else:
+            p[key] = weight
 
 class AspirationAgent(ABC):
 
@@ -158,8 +157,9 @@ class AspirationAgent(ABC):
         self.dim = self.params["delta_dim"]
         ref_dirs = self.params["ref_dirs"]
         if ref_dirs is not None:
-            assert isinstance(ref_dirs, np.ndarray) and ref_dirs.shape == (self.dim+1, self.dim), "ref_dirs must be a numpy array with shape (delta_dim+1, delta_dim)"
-        self.ref_dirs = ref_dirs
+            ref_dirs = np.array(ref_dirs)
+            assert ref_dirs.shape == (self.dim+1, self.dim), f"ref_dirs must be a numpy array with shape (delta_dim+1, delta_dim) but is {ref_dirs}"
+        self.ref_dirs = nested_tuple(ref_dirs)
 
         self.debug = DEBUG if self.params["debug"] is None else self.params["debug"]
         self.verbose = VERBOSE if self.params["verbose"] is None else self.params["verbose"] 
@@ -262,11 +262,11 @@ class AspirationAgent(ABC):
             if self.verbose or self.debug:
                 print(pad(state), "| | | ╰ maxAdmissibleV, state", state, ":", v)
         else:
-            assert self["maxLambda"] == 1 and self["minLambda"], "minLambda,maxLambda must be 0,1 for dim > 1"
+            assert (self["minLambda"], self["maxLambda"]) == (0, 1), "minLambda,maxLambda must be 0,1 for dim > 1"
             if self.verbose or self.debug:
                 print(pad(state), "| | | maxAdmissibleV, state", state, "coeffs", coeffs, "...")
 
-            v = 0
+            v = np.zeros(self.dim)
             actions = self.possible_actions(state)
             if actions != []:
                 qs = np.array([self.maxAdmissibleQ(state, a, coeffs) for a in actions]) # recursion
@@ -295,13 +295,14 @@ class AspirationAgent(ABC):
 
         return v
 
-    # The resulting admissibility interval or simplex for states.
-    def admissibility4state(self, state):
-        """The admissibility interval (if dim==1) or simplex (if dim>1) for expected Total in state"""
-        return (
-            self.minAdmissibleV(state), self.maxAdmissibleV(state) if self.dim == 1 
-            else np.array([self.maxAdmissibleV(state, coeffs) for coeffs in self.ref_dirs])
-            )
+    # The resulting admissibility interval for states.
+#    def admissibility4state(self, state):
+#        """The admissibility interval for expected Total in state (only used if dim==1) """
+#        return self.minAdmissibleV(state), self.maxAdmissibleV(state)
+    
+    def simplex4state(self, state):
+        """The admissibility simplex (if dim>1) for expected Total in state"""
+        return np.array([self.maxAdmissibleV(state, coeffs) for coeffs in self.ref_dirs])
 
     # The resulting admissibility interval for actions.
     def admissibility4action(self, state, action):
@@ -394,8 +395,9 @@ class AspirationAgent(ABC):
             Es = aleph4state
             Es_center, Es_shape = center_and_shape(Es)
             flat_Es_shape = Es_shape.flatten()
+            Es_n = Es_shape.shape[0]
 
-            VR = self.admissibility4state(state)  # simplex
+            VR = self.simplex4state(state)  # simplex
             QRa_vertices, QRa_poly = self.simplex4action(state, action) 
             QRa_A = QRa_poly.A
             QRa_b = QRa_poly.b
@@ -403,52 +405,67 @@ class AspirationAgent(ABC):
             # We are shifting the Es towards a certain target point:
             # For dir_index>0, the respective vertex of the state's reference simplex,
             # otherwise the center of the action's reference simplex:
-            shifting_direction = (VR[dir_index] if dir_index > 0 else QRa_vertices.mean(axis=0)) - Es_center
+            shifting_direction = (VR[dir_index-1] if dir_index > 0 else QRa_vertices.mean(axis=0)) - Es_center
 
-            # Find the largest m <= 1 so that there is an l >= 0 with
-            # l*shifting_direction + Es_center + m*Es_shape is a subset of QRsa.
-            # The inequality constraints are thus
-            #    QRa_poly.A @ row.T <= QRa_poly.b
-            # for all rows in l*shifting_direction + Es_center + m*Es_shape. 
-            # In terms of the two variables (l,m), the (d+1)² many constraints are:
-            #    QRa_poly.A @ (shifting_direction, Es_shape[i]) @ (l,m) 
-            #    <= QRa_poly.b - QRa_poly.A @ Es_center
-            # for i=0...d.
-            # If the variable vector is (l,m), the arguments for linprog are thus:
-            c = [0,-1]  # minimize -m
-            b_ub = np.repeat([QRa_b - QRa_A @ Es_center], self.dim+1, axis=0).flatten()  # d+1 repetitions of the vector
-            A_ub = np.array([
-                np.repeat([QRa_A @ shifting_direction], self.dim+1, axis=0).flatten(),
-                QRa_A @ flat_Es_shape
-            ])
-            lb = [0,0]  # lower bounds on l,m
-            ub = [None, 1]  # upper bounds on l,m
-            linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=(lb,ub))
-            if self.debug: print("linprog for l,m:", linprogres)
-            if not linprogres.success:
-                # action is not in directional action set
-                return None, None
-            _, m = linprogres.x
-            
-            # Now find the smallest l >= 0 for this m:
-            c = [1]  # minimize l
-            b_ub -= m * flat_Es_shape
-            A_ub = A_ub[:,[0]]
-            lb = [0]  # lower bound on l
-            linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=(lb,None))
-            if self.debug: print("linprog for l:", linprogres)
-            if not linprogres.success:
-                raise ValueError("linprog for l failed", res)
-            l = linprogres.x
+            if QRa_A.size > 0:
+                # Find the largest r <= 1 so that there is an l >= 0 with
+                # l*shifting_direction + Es_center + r*Es_shape is a subset of QRa.
+                # The inequality constraints are thus
+                #    QRa_poly.A @ row.T <= QRa_poly.b
+                # for all rows in l*shifting_direction + Es_center + r*Es_shape. 
+                # In terms of the two variables (l,r), the (d+1)² many constraints are:
+                #    QRa_poly.A @ (shifting_direction, Es_shape[i]) @ (l,r) 
+                #    <= QRa_poly.b - QRa_poly.A @ Es_center
+                # for i=0...d.
+                # If the variable vector is (l,r), the arguments for linprog are thus:
+                c = [0,-1]  # minimize -r
+                print(QRa_b, QRa_A, Es_center)
+                b_ub = np.repeat([QRa_b - QRa_A @ Es_center], 
+                                Es_n, axis=0).flatten()  # d+1 repetitions of the vector
+                A_ub = np.array([
+                    np.repeat([QRa_A @ shifting_direction], 
+                              Es_n, axis=0).flatten(),
+                    QRa_A @ flat_Es_shape if QRa_A.size>0 
+                        else flat_Es_shape
+                ])
+                lb = [0,0]  # lower bounds on l,r
+                ub = [1e10, 1]  # upper bounds on l,r
+                linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=(lb,ub))
+                if self.debug: print("linprog for l,r:", linprogres)
+                if not linprogres.success:
+                    # action is not in directional action set
+                    if self.debug: print(linprogres)
+                    return None, None
+                _, r = linprogres.x            
+                # Now find the smallest l >= 0 for this r:
+                c = [1]  # minimize l
+                b_ub -= r * flat_Es_shape
+                A_ub = A_ub[:,[0]]
+                lb = [0]  # lower bound on l
+                linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=(lb,None))
+                if self.debug: print("linprog for l:", linprogres)
+                if not linprogres.success:
+                    raise ValueError("linprog for l failed", res)
+                l = linprogres.x
+            else:
+                # QRa is a singleton q, so we have r=0 and can compute l directly so that 
+                # l*shifting_direction + Es_center = q
+                r = 0
+                sdn = np.linalg.norm(shifting_direction)
+                l = 0 if sdn==0 else (QRa_vertices[0] - Es_center) @ shifting_direction / sdn**2
+                if l < 0 or np.linalg.norm(l*shifting_direction + Es_center - QRa_vertices[0]) > 1e-10:
+                    # action is not in directional action set
+                    if self.debug: print(Es_center, shifting_direction, QRa_vertices)
+                    return None, None
 
             shift = l * shifting_direction
-            res = shift, shift + center + m * Es_shape 
+            res = nested_tuple(shift), nested_tuple(shift + Es_center + r * Es_shape)
 
             # memorize that we encountered this state, action, dir_index, res:
             self.seen_action_alephs.add((state, action, dir_index, res))
 
             if self.verbose or self.debug:
-                print(pad(state),"| | ╰ aspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,"dir_index",dir_index,":",res,f"(l={l},m={m})") 
+                print(pad(state),"| | ╰ aspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,"dir_index",dir_index,":",res,f"(l={l},r={r})") 
 
         return res
 
@@ -510,9 +527,12 @@ class AspirationAgent(ABC):
     def localPolicy(self, state, aleph): # recursive
         """return a categorical distribution over (action, aleph4action) pairs"""
 
-        aleph = Interval(aleph)
+#        aleph = Interval(aleph)
         d = self.localPolicyData(state, aleph)
-        support = [(a, Interval(al)) for a, al in d[0]]
+        support = [(a, #Interval(
+                    al
+                    #)
+                    ) for a, al in d[0]]
         ps = d[1]
 
         if self.debug or self.verbose:
@@ -538,7 +558,7 @@ class AspirationAgent(ABC):
         # we estimate the probability at 1 / number of actions:
         def getPropensities(actions, estAlephs):
             p = 1 / len(actions)
-            losses = [self.combinedLoss(state, action, aleph4state, estAlephs[i], p) for i, action in enumerate(actions)] # bottleneck
+            losses = [self.combinedLoss(state, action, aleph, estAlephs[i], p) for i, action in enumerate(actions)] # bottleneck
             min_loss = min(losses)
             return [max(math.exp(-(loss - min_loss) / self["lossTemperature"]), 1e-100) for loss in losses]
 
@@ -553,13 +573,13 @@ class AspirationAgent(ABC):
             alephs = [self.aspiration4action(state, action, aleph4state) for action in actions]
 
             indices = list(range(len(actions)))
-            propensities = getPropensities([actions[i] for i in indices], 
+            candidate_probs = getPropensities([actions[i] for i in indices], 
                                            [alephs[i] for i in indices])
 
             if self.debug:
-                print(pad(state),"| localPolicyData", prettyState(state), aleph, actions, propensities)
+                print(pad(state),"| localPolicyData", prettyState(state), aleph, actions, candidate_probs)
 
-            for i1, p1 in distribution.categorical(indices, propensities).categories():
+            for i1, p1 in distribution.categorical(indices, candidate_probs).categories():
                 # Get admissibility interval for the first action.
                 a1 = actions[i1]
                 adm1 = self.admissibility4action(state, a1)
@@ -588,24 +608,25 @@ class AspirationAgent(ABC):
                         adm2 = self.admissibility4action(state, a2)
                         aleph2 = alephs[i2]
                         mid2 = midpoint(aleph2)
-                        p = relativePosition(mid1, midTarget, mid2)
-                        if p < 0 or p > 1:
-                            print("OOPS: p", p)
-                            p = clip(0, p, 1)
+                        w = relativePosition(mid1, midTarget, mid2)
+                        if w < 0 or w > 1:
+                            print("OOPS: p", w)
+                            w = clip(0, w, 1)
 
                         if self.verbose or self.debug:
-                            print(pad(state),"| localPolicyData, state",prettyState(state),"aleph4state",aleph4state,": a1,p,a2",a1,p,a2,"adm12",adm1,adm2,"aleph12",aleph1,aleph2)
+                            print(pad(state),"| localPolicyData, state",prettyState(state),"aleph4state",aleph4state,": a1,p,a2",a1,w,a2,"adm12",adm1,adm2,"aleph12",aleph1,aleph2)
 
-                        probability_add(p_effective, (a1, aleph1), (1 - p) * p1 * p2)
-                        probability_add(p_effective, (a2, aleph2), p * p1 * p2)
+                        probability_add(p_effective, (a1, aleph1), (1 - w) * p1 * p2)
+                        probability_add(p_effective, (a2, aleph2), w * p1 * p2)
 
         else: # use algorithm from ADT24 paper
 
             d = self.dim
             Ais = []
             zais = []
+            mean_zais = []
             Eais = []
-            propensities = []
+            candidate_probs = []
 
             # calculate directional actions sets Ai, shifting vectors zai and action aspirations Eai:
             for dir_index in range(d+2):
@@ -614,7 +635,7 @@ class AspirationAgent(ABC):
                 this_zais = []
                 this_Eais = []
                 for action in actions:
-                    zai, Eai = self.aspiration4action(state, action, aleph4state, dir_index=dir_index)
+                    zai, Eai = self.aspiration4action(state, action, aleph, dir_index=dir_index)
                     if zai is not None:
                         Ai.append(action)
                         this_zais.append(zai)
@@ -625,26 +646,30 @@ class AspirationAgent(ABC):
                 Ais.append(Ai)
                 zais.append(this_zais)
                 Eais.append(this_Eais)
-                propensities.append(getPropensities(Ai, this_Eais))
+                w = np.array(getPropensities(Ai, this_Eais))
+                candidate_probs.append(w/sum(w))
+                mean_zais.append(sum([w[i] * np.array(this_zais[i]) for i in range(len(Ai))]))
 
-            # loop through all combinations of actions from the d+2 directional action sets:
-            lb = np.repeat(0, d+2)  # lower bounds on probabilities
-            ub = np.repeat(1, d+2)  # upper bounds on probabilities
-            A_ub0 = np.repeat(1, d+2)  # the sum of probabilities... 
-            b_ub = [1] + [0] * d  # ...must be 1
-            c = [-1] + [0] * d  # maximize the probability of the freely chosen action
+            # find mix that satisfies state aspiration and has largest probability for freely chosen action:
+            c = [-1] + [0] * (d+1)  # maximize the probability of the freely chosen action
+            A_ub = np.array(mean_zais).T
+            b_ub = [0] * d
+            if self.debug: print(c, A_ub)
+            linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, A_eq=np.repeat([[1]], d+2, axis=1), b_eq=[1], bounds=(0,1))
+            if self.debug: print("linprog for p:", linprogres)
+            if not linprogres.success:
+                raise ValueError("linprog for p failed", linprogres)
+            direction_probs = linprogres.x
+            print(direction_probs)
 
-            for indices in itertools.product([len(Ai) for Ai in Ais]): # bottleneck
-                # find mix that satisfies state aspiration and has largest probability for freely chosen action:
-                A_ub = np.concatenate([A_ub0, np.array([zais[dir_index][indices[dir_index]] for dir_index in range(self.dim+2)]).T], axis=0)
-                linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=(lb,ub))
-                if self.debug: print("linprog for p:", linprogres)
-                if not linprogres.success:
-                    raise ValueError("linprog for p failed", linprogres)
-                p = linprogres.x
-                # register action,aspiration probabilities:
-                for dir_index, index in enumerate(indices):
-                    probability_add(p_effective, (Ais[dir_index][index], Eais[dir_index][index]), p[dir_index])
+            # register action,aspiration probabilities:
+            for dir_index in range(d+2):
+                dp = direction_probs[dir_index]
+                cps = candidate_probs[dir_index]
+                this_Eais = Eais[dir_index]
+                for index, action in enumerate(Ais[dir_index]):
+                    probability_add(p_effective, (action, this_Eais[index]), dp * cps[index])
+            print(p_effective)
 
         # now we can construct the local policy as a distribution object:
         locPol = distribution.categorical(p_effective)
@@ -664,46 +689,64 @@ class AspirationAgent(ABC):
         if self.debug:
             print(pad(state),"| | | | | | propagateAspiration, state",prettyState(state),"action",action,"aleph4action",aleph4action,"Edel",Edel,"nextState",prettyState(nextState),"...")
 
-        # compute the relative position of aleph4action in the expectation that we had of 
-        #    delta + next admissibility interval 
-        # before we knew which state we would land in:
-        lam = relativePosition2(self.minAdmissibleQ(state, action), aleph4action, self.maxAdmissibleQ(state, action)) # TODO didn't we calculate the admissible Q when we chose the action?
-        # (this is two numbers between 0 and 1.)
-        # use it to rescale aleph4action to the admissibility interval of the state that we landed in:
-        rescaledAleph4nextState = interpolate2(self.minAdmissibleV(nextState), lam, self.maxAdmissibleV(nextState))
-        # (only this part preserves aspiration in expectation)
-        res = rescaledAleph4nextState # WAS: interpolate(steadfastAleph4nextState, rescaling4Successors, rescaledAleph4nextState)
+        if self.dim == 1:
+            # compute the relative position of aleph4action in the expectation that we had of 
+            #    delta + next admissibility interval 
+            # before we knew which state we would land in:
+            lam = relativePosition2(self.minAdmissibleQ(state, action), aleph4action, self.maxAdmissibleQ(state, action)) # TODO didn't we calculate the admissible Q when we chose the action?
+            # (this is two numbers between 0 and 1.)
+            # use it to rescale aleph4action to the admissibility interval of the state that we landed in:
+            rescaledAleph4nextState = interpolate2(self.minAdmissibleV(nextState), lam, self.maxAdmissibleV(nextState))
+            # (only this part preserves aspiration in expectation)
+            res = rescaledAleph4nextState # WAS: interpolate(steadfastAleph4nextState, rescaling4Successors, rescaledAleph4nextState)
+
+            """ Note on influence of Edel: 
+            It might seem that the (expected) delta received when taking action a in state s should occur
+            explicitly in some form in this formula, similar to how it occurred in the steadfast formula above.
+            This is not so, however. The expected delta is taken account of *implicitly* in the rescaling formula
+            via the use of min/maxAdmissibleQ(s,a) to compute lam but using min/maxAdmissibleV(s') in interpolating.
+            More precisely, one can prove that aspirations are kept in expectation. We want
+
+                aleph(s,a) = E(delta(s,a)) + E(aleph(s') | s'~(s,a)).
+
+            This can be shown to be true as follows:
+
+                min/maxAdmissibleQ(s,a) = E(delta(s,a)) + E(min/maxAdmissibleV(s') | s'~(s,a)),
+
+                lamdba = (aleph(s,a) - minAdmissibleQ(s,a)) / (maxAdmissibleQ(s,a) - minAdmissibleQ(s,a)),
+
+                rescaledAleph(s') = minAdmissibleV(s') + lambda * (maxAdmissibleV(s') - minAdmissibleV(s')),
+
+                E(delta(s,a)) + E(rescaledAleph(s') | s'~(s,a)) 
+                = E(delta(s,a)) + E(minAdmissibleV(s') | s'~(s,a)) 
+                    + lambda * (E(maxAdmissibleV(s') | s'~(s,a)) - E(minAdmissibleV(s') | s'~(s,a)))
+                = minAdmissibleQ(s,a) + lambda * (maxAdmissibleQ(s,a) - minAdmissibleQ(s,a))
+                = minAdmissibleQ(s,a) + (aleph(s,a) - minAdmissibleQ(s,a))
+                = aleph(s,a).
+
+            So the above rescaling formula is correctly taking account of received delta even without explicitly
+            including Edel in the formula.
+            """
+
+        else:
+            # Compute the convex coefficients of the vertices of Ea = aleph4action 
+            # as convex combinations of the vertices of QRa = simplex4action(state, action).
+            # That is, solve the matric equation
+            #   (QRa,1).T @ P = (Ea,1).T
+            # where 1 is a column vector of 1s, using numpy.linalg.solve:
+            QRaT = np.transpose(self.simplex4action(state, action)[0])
+            EaT = np.transpose(aleph4action)
+            A = np.concatenate([QRaT, np.ones((1, self.dim+1))], axis=0)
+            B = np.concatenate([EaT, np.ones((1, EaT.shape[1]))], axis=0)
+            P = np.linalg.lstsq(A, B)[0]  # TODO: verify this is correct if A is singular!
+            # Now let the vertices of Es be the corresponding convex combinations 
+            # of the vertices of Vs = simplex4state(nextState):
+            Vs = self.simplex4state(nextState)
+            res = nested_tuple(np.dot(P.T, Vs)) 
+
         if self.verbose or self.debug:
             print(pad(state),"| | | | | | ╰ propagateAspiration, state",prettyState(state),"action",action,"aleph4action",aleph4action,"Edel",Edel,"nextState",prettyState(nextState),":",res)
         return res
-
-        """ Note on influence of Edel: 
-        It might seem that the (expected) delta received when taking action a in state s should occur
-        explicitly in some form in this formula, similar to how it occurred in the steadfast formula above.
-        This is not so, however. The expected delta is taken account of *implicitly* in the rescaling formula
-        via the use of min/maxAdmissibleQ(s,a) to compute lam but using min/maxAdmissibleV(s') in interpolating.
-        More precisely, one can prove that aspirations are kept in expectation. We want
-
-            aleph(s,a) = E(delta(s,a)) + E(aleph(s') | s'~(s,a)).
-
-        This can be shown to be true as follows:
-
-            min/maxAdmissibleQ(s,a) = E(delta(s,a)) + E(min/maxAdmissibleV(s') | s'~(s,a)),
-
-            lamdba = (aleph(s,a) - minAdmissibleQ(s,a)) / (maxAdmissibleQ(s,a) - minAdmissibleQ(s,a)),
-
-            rescaledAleph(s') = minAdmissibleV(s') + lambda * (maxAdmissibleV(s') - minAdmissibleV(s')),
-
-            E(delta(s,a)) + E(rescaledAleph(s') | s'~(s,a)) 
-            = E(delta(s,a)) + E(minAdmissibleV(s') | s'~(s,a)) 
-                + lambda * (E(maxAdmissibleV(s') | s'~(s,a)) - E(minAdmissibleV(s') | s'~(s,a)))
-            = minAdmissibleQ(s,a) + lambda * (maxAdmissibleQ(s,a) - minAdmissibleQ(s,a))
-            = minAdmissibleQ(s,a) + (aleph(s,a) - minAdmissibleQ(s,a))
-            = aleph(s,a).
-
-        So the above rescaling formula is correctly taking account of received delta even without explicitly
-        including Edel in the formula.
-        """
 
     @cache
     def V(self, state, aleph4state): # recursive
