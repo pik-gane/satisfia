@@ -4,8 +4,8 @@ from scipy.spatial import Delaunay
 
 ## parameters:
 
-Ns = range(10,1000,10) #[10,100,1000]
-ds = [3]
+Ns = [10,100]
+ds = [3,4,5,6,7,8,9,10]
 nits = 1000
 
 def simulate(d, N, plot=False):
@@ -63,16 +63,20 @@ def simulate(d, N, plot=False):
 #simulate(2, 10, plot=True)
 
 # run the simulation N times:
-results = {}
+means = np.zeros((len(ds), len(Ns)))
+maxs = np.zeros((len(ds), len(Ns)))
 res = []
-for d in ds:
-    for N in Ns:
-        results[(d,N)] = r = np.mean([simulate(d,N) for i in range(nits)])
-        res.append(r)
-        print("d=%d, N=%d, r=%f" % (d, N, r))
+for i,d in enumerate(ds):
+    for j,N in enumerate(Ns):
+        sims = [simulate(d,N) for i in range(nits)]
+        means[i,j] = me = np.mean(sims)
+        maxs[i,j] = ma = np.max(sims)
+        print("d=%d, N=%d, mean=%f, max=%f" % (d, N, me, ma))
 
-print(results)
+print(means)
+print(maxs)
 plt.figure()
-plt.plot(res)
+for i,d in enumerate(ds):
+    plt.plot(Ns, means[i,:], label="d=%d mean" % d)
+    plt.plot(Ns, maxs[i,:], ":", label="d=%d max" % d)
 plt.show()
-plt.pause(100)

@@ -300,9 +300,11 @@ class AspirationAgent(ABC):
 #        """The admissibility interval for expected Total in state (only used if dim==1) """
 #        return self.minAdmissibleV(state), self.maxAdmissibleV(state)
     
+    @cache
     def simplex4state(self, state):
         """The admissibility simplex (if dim>1) for expected Total in state"""
-        return np.array([self.maxAdmissibleV(state, coeffs) for coeffs in self.ref_dirs])
+        vertices = np.array([self.maxAdmissibleV(state, coeffs) for coeffs in self.ref_dirs])
+        return vertices, polytope.qhull(vertices)
 
     # The resulting admissibility interval for actions.
     def admissibility4action(self, state, action):
@@ -397,7 +399,7 @@ class AspirationAgent(ABC):
             flat_Es_shape = Es_shape.flatten()
             Es_n = Es_shape.shape[0]
 
-            VR = self.simplex4state(state)  # simplex
+            VR, _ = self.simplex4state(state)  # vertices
             QRa_vertices, QRa_poly = self.simplex4action(state, action) 
             QRa_A = QRa_poly.A
             QRa_b = QRa_poly.b
@@ -425,8 +427,7 @@ class AspirationAgent(ABC):
                 A_ub = np.array([
                     np.repeat([QRa_A @ shifting_direction], 
                               Es_n, axis=0).flatten(),
-                    QRa_A @ flat_Es_shape if QRa_A.size>0 
-                        else flat_Es_shape
+                    QRa_A @ flat_Es_shape
                 ])
                 lb = [0,0]  # lower bounds on l,r
                 ub = [1e10, 1]  # upper bounds on l,r
@@ -621,6 +622,9 @@ class AspirationAgent(ABC):
 
         else: # use algorithm from ADT24 paper
 
+            if self.ref_dirs is None:
+                self.find_ref_dirs(aleph)  # TODO!
+
             d = self.dim
             Ais = []
             zais = []
@@ -649,6 +653,8 @@ class AspirationAgent(ABC):
                 w = np.array(getPropensities(Ai, this_Eais))
                 candidate_probs.append(w/sum(w))
                 mean_zais.append(sum([w[i] * np.array(this_zais[i]) for i in range(len(Ai))]))
+
+            # TODO: adjust the following so that instead of matching the center, only the subset conditions are met:
 
             # find mix that satisfies state aspiration and has largest probability for freely chosen action:
             c = [-1] + [0] * (d+1)  # maximize the probability of the freely chosen action
@@ -729,20 +735,51 @@ class AspirationAgent(ABC):
             """
 
         else:
-            # Compute the convex coefficients of the vertices of Ea = aleph4action 
-            # as convex combinations of the vertices of QRa = simplex4action(state, action).
+            # Compute the center of Ea = aleph4action and its representation as a 
+            # convex combinations of the vertices of QRa = simplex4action(state, action).
             # That is, solve the matric equation
             #   (QRa,1).T @ P = (Ea,1).T
             # where 1 is a column vector of 1s, using numpy.linalg.solve:
+            Ea_center, Ea_shape = center_and_shape(aleph4action)
+            Ea_n = Ea_shape.shape[0]
+            flat_Ea_shape = Ea_shape.flatten()
+            EaT = Ea_center.reshape((-1,1))Ea_
             QRaT = np.transpose(self.simplex4action(state, action)[0])
-            EaT = np.transpose(aleph4action)
             A = np.concatenate([QRaT, np.ones((1, self.dim+1))], axis=0)
-            B = np.concatenate([EaT, np.ones((1, EaT.shape[1]))], axis=0)
+            B = np.concatenate([EaT, [1]], axis=0)
             P = np.linalg.lstsq(A, B)[0]  # TODO: verify this is correct if A is singular!
-            # Now let the vertices of Es be the corresponding convex combinations 
-            # of the vertices of Vs = simplex4state(nextState):
-            Vs = self.simplex4state(nextState)
-            res = nested_tuple(np.dot(P.T, Vs)) 
+            # Compute the new center as the corresponding convex combination 
+            # of the vertices of VR = simplex4state(nextState):
+            VR_vertices, VR_poly = self.simplex4state(nextState)
+            VR_A, VR_b = VR_poly.A, VR_poly.b
+            new_center = np.dot(P.T, VR_vertices)
+
+            # We are now shifting the Es towards new_center and then shrink it:
+            if VR_A.size > 0:
+                # Find the largest r <= 1 so that
+                # shifting_vector + Ea_center + r*Ea_shape is a subset of VR.
+                # The inequality constraints are thus
+                #    VR_A @ row.T <= VR_b
+                # for all rows in new_center + r*Es_shape. 
+                # In terms of the variable r, the (d+1)² many constraints are:
+                #    VR_A @ Ea_shape[i] * r <= VR_b - VR_A @ new_center
+                # for i=0...d.
+                # The arguments for linprog are thus:
+                c = [0,-1]  # minimize -r
+                print(VR_b, VR_A, Ea_center)
+                b_ub = np.repeat([VR_b - VR_A @ new_center], 
+                                  Ea_n, axis=0).flatten()  # d+1 repetitions of the vector
+                A_ub = VR_A @ flat_Ea_shape
+                linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=(0,1))
+                if self.debug: print("linprog for r:", linprogres)
+                if not linprogres.success:
+                    raise ValueError("linprog for r failed", linprogres)
+                r = linprogres.x            
+            else:
+                # VR is a singleton v, so we have r=0:
+                r = 0
+
+            res = nested_tuple(new_center + r * Ea_shape)
 
         if self.verbose or self.debug:
             print(pad(state),"| | | | | | ╰ propagateAspiration, state",prettyState(state),"action",action,"aleph4action",aleph4action,"Edel",Edel,"nextState",prettyState(nextState),":",res)
