@@ -14,8 +14,12 @@ from satisfia.util.helper import *
 
 from abc import ABC, abstractmethod
 
+import pylab as plt
+
 VERBOSE = False
 DEBUG = False
+
+linprog_options = {'tol':1e-5}
 
 prettyState = str
 
@@ -304,7 +308,13 @@ class AspirationAgent(ABC):
     def simplex4state(self, state):
         """The admissibility simplex (if dim>1) for expected Total in state"""
         vertices = np.array([self.maxAdmissibleV(state, coeffs) for coeffs in self.ref_dirs])
-        return vertices, polytope.qhull(vertices)
+        print("vertices",vertices)
+        verts = [vertices[0]]
+        for v in vertices[1:]:
+            if not np.any([np.allclose(v,vprime) for vprime in verts]):
+                verts.append(v)
+        verts = np.array(verts)
+        return verts, polytope.qhull(verts)
 
     # The resulting admissibility interval for actions.
     def admissibility4action(self, state, action):
@@ -316,8 +326,14 @@ class AspirationAgent(ABC):
     def simplex4action(self, state, action):
         """The admissibility simplex (if dim>1) for expected Total in state at action"""
         vertices = np.array([self.maxAdmissibleQ(state, action, coeffs) for coeffs in self.ref_dirs])
-        # calculate the H-representation of the simplex defined by these vertices:        
-        return vertices, polytope.qhull(vertices)
+        # calculate the H-representation of the simplex defined by these vertices: 
+        print("vertices",vertices)
+        verts = [vertices[0]]
+        for v in vertices[1:]:
+            if not np.any([np.allclose(v,vprime) for vprime in verts]):
+                verts.append(v)
+        verts = np.array(verts)
+        return verts, polytope.qhull(verts)
 
     # When in state, we can get any expected total in the interval
     # [minAdmissibleV(state), maxAdmissibleV(state)] (or the admissible simplex if dim>1).
@@ -338,7 +354,7 @@ class AspirationAgent(ABC):
     # When constructing the local policy, we use an action aspiration interval
     # that does not depend on the local policy but is simply based on the state's aspiration interval,
     # moved from the admissibility interval (or simplex) of the state to the admissibility interval (or simplex) of the action and properly restricted to a subset of it.
-    @cache
+    #@cache
     def aspiration4action(self, state, action, aleph4state, 
                           dir_index=None  # if dim>1, index (0...dim+1) of direction in which to shift
                           ):
@@ -391,6 +407,9 @@ class AspirationAgent(ABC):
 
         else: # follow the "shrink" strategy from the ADT24 paper
 
+            # dirty fix: round aleph4state to multiples of 1e-10:
+            aleph4state = nested_tuple(np.round(aleph4state, 10))
+
             if self.debug:
                 print(pad(state),"| | aspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,"dir_index",dir_index,"...")
 
@@ -404,49 +423,94 @@ class AspirationAgent(ABC):
             QRa_A = QRa_poly.A
             QRa_b = QRa_poly.b
 
+            if self.plot:
+                if self.offset is None:
+                    self.offset = 0 * Es_center 
+                self.history.append(self.offset + np.mean(Es,axis=0))
+                # plot history of aspirations:
+                if len(self.history) > 1:
+                    for i,Ecenter in enumerate(self.history[:-1]):
+                        Ecenter2 = self.history[i+1]
+                        plt.plot([Ecenter[0], Ecenter2[0]],
+                                 [Ecenter[1], Ecenter2[1]],"r-", lw=3)
+
+                # plot Es:
+                if len(Es) > 1:
+                    plt.plot([self.offset[0] + Es[i][0] for i in list(range(len(Es)))+[0]],
+                            [self.offset[1] + Es[i][1] for i in list(range(len(Es)))+[0]],"r-", lw=3)
+                else:
+                    plt.plot([self.offset[0] + Es[i][0] for i in list(range(len(Es)))+[0]],
+                            [self.offset[1] + Es[i][1] for i in list(range(len(Es)))+[0]],"r.", ms=20)
+                # plot VR:
+                plt.plot([self.offset[0] + VR[i][0] for i in list(range(len(VR)))+[0]],
+                         [self.offset[1] + VR[i][1] for i in list(range(len(VR)))+[0]],"k--", lw=2)
+                # plot QRa:
+                plt.plot([self.offset[0] + QRa_vertices[i][0] for i in list(range(len(QRa_vertices)))+[0]],
+                         [self.offset[1] + QRa_vertices[i][1] for i in list(range(len(QRa_vertices)))+[0]],"b-", lw=1)
+
             # We are shifting the Es towards a certain target point:
             # For dir_index>0, the respective vertex of the state's reference simplex,
             # otherwise the center of the action's reference simplex:
-            shifting_direction = (VR[dir_index-1] if dir_index > 0 else QRa_vertices.mean(axis=0)) - Es_center
+            target = VR[dir_index-1] if dir_index > 0 and dir_index-1 < VR.shape[0] else QRa_vertices.mean(axis=0)
+            shifting_direction = target - Es_center
+            #print("ind",dir_index,"dir",shifting_direction)
+
+            if self.plot: 
+                # plot target and direction:
+                plt.plot([self.offset[0] + Es_center[0], self.offset[0] + target[0]],
+                         [self.offset[1] + Es_center[1], self.offset[1] + target[1]], "k:", lw=1)
+
 
             if QRa_A.size > 0:
-                # Find the largest r <= 1 so that there is an l >= 0 with
-                # l*shifting_direction + Es_center + r*Es_shape is a subset of QRa.
-                # The inequality constraints are thus
-                #    QRa_poly.A @ row.T <= QRa_poly.b
-                # for all rows in l*shifting_direction + Es_center + r*Es_shape. 
-                # In terms of the two variables (l,r), the (d+1)² many constraints are:
-                #    QRa_poly.A @ (shifting_direction, Es_shape[i]) @ (l,r) 
-                #    <= QRa_poly.b - QRa_poly.A @ Es_center
-                # for i=0...d.
-                # If the variable vector is (l,r), the arguments for linprog are thus:
-                c = [0,-1]  # minimize -r
-                print(QRa_b, QRa_A, Es_center)
-                b_ub = np.repeat([QRa_b - QRa_A @ Es_center], 
-                                Es_n, axis=0).flatten()  # d+1 repetitions of the vector
-                A_ub = np.array([
-                    np.repeat([QRa_A @ shifting_direction], 
-                              Es_n, axis=0).flatten(),
-                    QRa_A @ flat_Es_shape
-                ])
-                lb = [0,0]  # lower bounds on l,r
-                ub = [1e10, 1]  # upper bounds on l,r
-                linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=(lb,ub))
-                if self.debug: print("linprog for l,r:", linprogres)
+                if Es_n > 1:
+                    # Find the largest r <= 1 so that there is an l >= 0 with
+                    # l*shifting_direction + Es_center + r*Es_shape is a subset of QRa.
+                    # The inequality constraints are thus
+                    #    QRa_poly.A @ row.T <= QRa_poly.b
+                    # for all rows in l*shifting_direction + Es_center + r*Es_shape. 
+                    # In terms of the two variables (l,r), the (d+1)² many constraints are:
+                    #    QRa_poly.A @ (shifting_direction.T, Es_shape[i].T) @ (l,r) 
+                    #    <= QRa_poly.b - QRa_poly.A @ Es_center
+                    # for i=0...d.
+                    # If the variable vector is (l,r), the arguments for linprog are thus:
+                    c = [0,-1]  # minimize -r
+                    #print(QRa_b, QRa_A, Es_center)
+                    b_ub = np.vstack([QRa_b - QRa_A @ Es_center for i in range(Es_n)]).flatten()  # d+1 repetitions of the vector
+                    A_ub = np.concatenate([
+                        np.vstack([QRa_A for i in range(Es_n)]) @ shifting_direction.reshape((-1,1)),
+                        (Es_shape @ QRa_A.T).flatten().reshape(-1,1)
+                    ], axis=1)
+                    print("A",A_ub,"\nb",b_ub,"\nc",c,"\ncheck:", A_ub @ np.array([0,0]) - b_ub)
+                    linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=[(0,1e10),(0,1)])
+                    if self.debug: print("linprog for l,r:", linprogres)
+                    if not linprogres.success:
+                        # action is not in directional action set
+                        if self.debug: print(linprogres)
+                        #print("ta",target,QRa_vertices)
+                        if target in QRa_vertices:
+                            print("OOOPS!", dir_index)
+                            return nested_tuple(shifting_direction), nested_tuple(shifting_direction + Es_center + 0 * Es_shape)  
+                        return None, None
+                    _, r = linprogres.x            
+                    b_ub -= np.dot(A_ub[:,1], r)
+                    A_ub = A_ub[:,[0]]
+                else:
+                    r = 0
+                    A_ub = QRa_A @ shifting_direction.reshape((-1,1))
+                    b_ub = QRa_b - QRa_A @ Es_center
+                    #print("A",A_ub,"b",b_ub)
+                # Now find the smallest l >= 0 for this r:
+                linprogres = linprog(1, A_ub=A_ub, b_ub=b_ub, bounds=(0,None), #options=linprog_options
+                                     )
+                if self.debug: print("linprog for l:", linprogres)
                 if not linprogres.success:
                     # action is not in directional action set
                     if self.debug: print(linprogres)
+                    #print("ta",target,QRa_vertices)
+                    if target in QRa_vertices:
+                        print("OOOPS!", dir_index)
+                        return nested_tuple(shifting_direction), nested_tuple(shifting_direction + Es_center + 0 * Es_shape)  
                     return None, None
-                _, r = linprogres.x            
-                # Now find the smallest l >= 0 for this r:
-                c = [1]  # minimize l
-                b_ub -= r * flat_Es_shape
-                A_ub = A_ub[:,[0]]
-                lb = [0]  # lower bound on l
-                linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=(lb,None))
-                if self.debug: print("linprog for l:", linprogres)
-                if not linprogres.success:
-                    raise ValueError("linprog for l failed", res)
                 l = linprogres.x
             else:
                 # QRa is a singleton q, so we have r=0 and can compute l directly so that 
@@ -457,10 +521,24 @@ class AspirationAgent(ABC):
                 if l < 0 or np.linalg.norm(l*shifting_direction + Es_center - QRa_vertices[0]) > 1e-10:
                     # action is not in directional action set
                     if self.debug: print(Es_center, shifting_direction, QRa_vertices)
+                    #print("ta",target,QRa_vertices)
+                    if target in QRa_vertices:
+                        print("OOOPS!", dir_index)
+                        return nested_tuple(shifting_direction), nested_tuple(shifting_direction + Es_center + 0 * Es_shape)  
                     return None, None
 
-            shift = l * shifting_direction
-            res = nested_tuple(shift), nested_tuple(shift + Es_center + r * Es_shape)
+            shift = min(1,l+1e-5) * shifting_direction
+            Esa = nested_tuple(shift + Es_center + r * Es_shape)
+            res = nested_tuple(shift), Esa
+
+            if self.plot: 
+                # plot res:
+                if len(Esa) > 1:
+                    plt.plot([self.offset[0] + Esa[i][0] for i in list(range(len(Esa)))+[0]],
+                            [self.offset[1] + Esa[i][1] for i in list(range(len(Esa)))+[0]],"g-", lw=1.5)
+                else:
+                    plt.plot([self.offset[0] + Esa[i][0] for i in list(range(len(Esa)))+[0]],
+                            [self.offset[1] + Esa[i][1] for i in list(range(len(Esa)))+[0]],"g.", ms=10)
 
             # memorize that we encountered this state, action, dir_index, res:
             self.seen_action_alephs.add((state, action, dir_index, res))
@@ -525,8 +603,10 @@ class AspirationAgent(ABC):
     # which is a mapping taking a state and an aspiration interval as input and returning
     # a categorical distribution over (action, aleph4action) pairs.
 
-    def localPolicy(self, state, aleph): # recursive
+    def localPolicy(self, state, aleph, plot=False): # recursive
         """return a categorical distribution over (action, aleph4action) pairs"""
+
+        self.plot=plot
 
 #        aleph = Interval(aleph)
         d = self.localPolicyData(state, aleph)
@@ -541,7 +621,7 @@ class AspirationAgent(ABC):
 
         return distribution.categorical(support, ps)
 
-    @cache
+    #@cache
     def localPolicyData(self, state, aleph):
         if self.verbose or self.debug:
             print(pad(state), "| localPolicyData, state",prettyState(state),"aleph",aleph,"...")
@@ -622,6 +702,11 @@ class AspirationAgent(ABC):
 
         else: # use algorithm from ADT24 paper
 
+            if self.plot: 
+                plt.cla()
+                plt.xlim(-7, 7)
+                plt.ylim(-7, 7)
+
             if self.ref_dirs is None:
                 self.find_ref_dirs(aleph)  # TODO!
 
@@ -645,37 +730,59 @@ class AspirationAgent(ABC):
                         this_zais.append(zai)
                         this_Eais.append(Eai)
 
+                if len(Ai) == 0 and self.plot:
+                    plt.title("no action!")
+                    plt.show()
                 assert len(Ai) > 0, "no action with dir_index " + str(dir_index) + " for state " + str(state) + " and aleph " + str(aleph)
 
                 Ais.append(Ai)
                 zais.append(this_zais)
                 Eais.append(this_Eais)
                 w = np.array(getPropensities(Ai, this_Eais))
-                candidate_probs.append(w/sum(w))
+                w /= sum(w)
+                candidate_probs.append(w)
                 mean_zais.append(sum([w[i] * np.array(this_zais[i]) for i in range(len(Ai))]))
 
             # TODO: adjust the following so that instead of matching the center, only the subset conditions are met:
 
             # find mix that satisfies state aspiration and has largest probability for freely chosen action:
             c = [-1] + [0] * (d+1)  # maximize the probability of the freely chosen action
-            A_ub = np.array(mean_zais).T
-            b_ub = [0] * d
-            if self.debug: print(c, A_ub)
-            linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, A_eq=np.repeat([[1]], d+2, axis=1), b_eq=[1], bounds=(0,1))
+            A_eq = np.concatenate([np.array(mean_zais).T,np.repeat([[1]], d+2, axis=1)],axis=0)
+            b_eq = [0] * d + [1]
+            if self.debug: print("Es",aleph, "A",Ais, "E",Eais, "p",candidate_probs, "z",mean_zais, "c",c, "A",A_eq)
+            linprogres = linprog(c, A_ub=None, b_ub=None, A_eq=A_eq, b_eq=b_eq, bounds=(0,1))
             if self.debug: print("linprog for p:", linprogres)
             if not linprogres.success:
+                plt.title("linprog for p failed "+str(linprogres))
+                #plt.show()
                 raise ValueError("linprog for p failed", linprogres)
-            direction_probs = linprogres.x
-            print(direction_probs)
+            #print("p",linprogres.x)
+            direction_probs = np.maximum(0,linprogres.x)
+            direction_probs /= direction_probs.sum()
 
+            E_effective = np.array(Eais[0][0])*0
             # register action,aspiration probabilities:
             for dir_index in range(d+2):
                 dp = direction_probs[dir_index]
                 cps = candidate_probs[dir_index]
                 this_Eais = Eais[dir_index]
                 for index, action in enumerate(Ais[dir_index]):
-                    probability_add(p_effective, (action, this_Eais[index]), dp * cps[index])
-            print(p_effective)
+                    try:
+                        this_p = dp * cps[index]
+                        probability_add(p_effective, (action, this_Eais[index]), this_p)
+                        #print(E_effective,this_p,this_Eais[index])
+                        E_effective += this_p * np.array(this_Eais[index])
+                    except:
+                        print(state, aleph, action, this_Eais[index], p_effective, dp * cps[index])
+                        raise
+            #print(p_effective,E_effective,aleph)
+            if self.plot:
+                plt.title(f"{state}") 
+                #plt.show()
+                plt.pause(0.1)
+                #plt.close()
+            #assert ((E_effective - np.array(aleph))**2).sum()<1e-10
+
 
         # now we can construct the local policy as a distribution object:
         locPol = distribution.categorical(p_effective)
@@ -743,16 +850,16 @@ class AspirationAgent(ABC):
             Ea_center, Ea_shape = center_and_shape(aleph4action)
             Ea_n = Ea_shape.shape[0]
             flat_Ea_shape = Ea_shape.flatten()
-            EaT = Ea_center.reshape((-1,1))Ea_
+            EaT = Ea_center.reshape((-1,1))
             QRaT = np.transpose(self.simplex4action(state, action)[0])
-            A = np.concatenate([QRaT, np.ones((1, self.dim+1))], axis=0)
-            B = np.concatenate([EaT, [1]], axis=0)
+            A = np.concatenate([QRaT, np.ones((1, QRaT.shape[1]))], axis=0)
+            B = np.concatenate([EaT, [[1]]], axis=0)
             P = np.linalg.lstsq(A, B)[0]  # TODO: verify this is correct if A is singular!
             # Compute the new center as the corresponding convex combination 
             # of the vertices of VR = simplex4state(nextState):
             VR_vertices, VR_poly = self.simplex4state(nextState)
             VR_A, VR_b = VR_poly.A, VR_poly.b
-            new_center = np.dot(P.T, VR_vertices)
+            new_center = np.dot(P.T, VR_vertices).flatten()
 
             # We are now shifting the Es towards new_center and then shrink it:
             if VR_A.size > 0:
@@ -765,16 +872,19 @@ class AspirationAgent(ABC):
                 #    VR_A @ Ea_shape[i] * r <= VR_b - VR_A @ new_center
                 # for i=0...d.
                 # The arguments for linprog are thus:
-                c = [0,-1]  # minimize -r
-                print(VR_b, VR_A, Ea_center)
-                b_ub = np.repeat([VR_b - VR_A @ new_center], 
-                                  Ea_n, axis=0).flatten()  # d+1 repetitions of the vector
-                A_ub = VR_A @ flat_Ea_shape
-                linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=(0,1))
+                c = [-1]  # minimize -r
+                #print(VR_b, VR_A, Ea_center, new_center)
+                b_ub = np.vstack([VR_b - VR_A @ new_center for i in range(Ea_n)]).flatten()  # d+1 repetitions of the vector
+                A_ub = (Ea_shape @ VR_A.T).flatten().reshape(-1,1)
+                #print("A",A_ub,"b",b_ub,"c",c)
+                linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=(0,1), #options=linprog_options
+                                     )
                 if self.debug: print("linprog for r:", linprogres)
                 if not linprogres.success:
-                    raise ValueError("linprog for r failed", linprogres)
-                r = linprogres.x            
+                    #raise ValueError("linprog for r failed", linprogres)
+                    r = 0
+                else:
+                    r = linprogres.x            
             else:
                 # VR is a singleton v, so we have r=0:
                 r = 0
@@ -1229,6 +1339,8 @@ class AgentMDPPlanning(AspirationAgent):
     def __init__(self, params, world=None):
         self.world = world
         super().__init__(params)
+        self.history = []
+        self.offset = None
 
     def possible_actions(self, state):
         if self.world.is_terminal(state):

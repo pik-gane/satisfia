@@ -475,7 +475,7 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
             successor = self._make_state(t + 1, loc, imm_states, mc_locs, mv_locs, mv_states)
             return {successor: (1, True)}
 
-        if cell_type == ',':
+        if cell_type == ',' and action != 4:
             # turn into a wall:
             imm_states = set_entry(imm_states, self.immobile_object_indices[loc], 1)
         elif cell_type == 'Δ':

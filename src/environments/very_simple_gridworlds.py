@@ -439,6 +439,26 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
         max_episode_length = time or 2
         ref_dirs = [[-2,0],[0,-2],[1,1]]
 
+    elif gw == "test_multi":
+        """
+        """
+        grid = [
+          ['#', '#', '#', '#', '#', '#', '#'],
+          ['#', ' ', ' ', ' ', ' ', ' ', '#'],
+          ['#', ' ', ' ', ' ', ' ', ' ', '#'],
+          ['#', ' ', ' ', 'A', ' ', ' ', '#'],
+          ['#', ' ', ' ', ' ', ' ', ' ', '#'],
+          ['#', ' ', ' ', ' ', ' ', ' ', '#'],
+          ['#', '#', '#', '#', '#', '#', '#']
+        ]
+        delta_grid = [[str((i,j)) for j in range(7)] for i in range(7)]
+        max_episode_length = time or 10  # allowing for two side-stepping moves
+        expected_deltas = {str((i,j)): list(np.random.normal(size=2)/max_episode_length**0.5) for j in range(7) for i in range(7)}
+        print(expected_deltas)
+        timeout_delta = 0
+        aleph0 = [[0,0]]
+        ref_dirs = [[-2,0],[0,-2],[1,1]]
+
 
     elif gw == "test_box":
         grid = [

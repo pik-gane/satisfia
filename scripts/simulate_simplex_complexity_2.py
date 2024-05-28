@@ -5,9 +5,9 @@ from scipy.spatial import Delaunay
 
 ## parameters:
 
-depths = [8]
-ds = [2,3,4,5,6]
-nits = 100
+depths = [10]
+ds = [2,4,6,8]
+nits = 1000
 
 def simulate(dim, depth, only_terminal=0, deterministic=0, plot=False):
 
@@ -47,7 +47,7 @@ def simulate(dim, depth, only_terminal=0, deterministic=0, plot=False):
     def get_vertex(aspiration, direction):
         pi = np.zeros(size, dtype=int) # policy: action by state
         Q = np.zeros((size, dim)) # vectors of expected total to go by action
-        Q2 = np.zeros((size, dim, dim)) # matrices of expected raw 2nd moment of total to go by action
+#        Q2 = np.zeros((size, dim, dim)) # matrices of expected raw 2nd moment of total to go by action
         for level in range(depth-1,-1,-1):
             als = action_level_starts[level]
             ale = action_level_ends[level]
@@ -57,11 +57,11 @@ def simulate(dim, depth, only_terminal=0, deterministic=0, plot=False):
             sle0 = sls1 = sls0 + w
             sle1 = state_level_ends[level+1]
             deltas0 = rands[sls0:sle0]
-            deltas0c = deltas0[:,:,None]
-            deltas0r = deltas0[:,None,:]
+#            deltas0c = deltas0[:,:,None]
+#            deltas0r = deltas0[:,None,:]
             deltas1 = rands[sls1:sle1]
-            deltas1c = deltas1[:,:,None]
-            deltas1r = deltas1[:,None,:]
+#            deltas1c = deltas1[:,:,None]
+#            deltas1r = deltas1[:,None,:]
             if level < depth-1:
                 nextpi0 = pi[sls0:sle0] # action in successors 0
                 nextpi1 = pi[sls1:sle1] # action in successors 1
@@ -72,13 +72,13 @@ def simulate(dim, depth, only_terminal=0, deterministic=0, plot=False):
                 Vs0 = Q[indices0] # expected total to go in successors 0
                 Vs1 = Q[indices1] # expected total to go in successors 1
                 thisQ = Q[als:ale] = (1-psucc1)[:,None] * (deltas0 + Vs0) + psucc1[:,None] * (deltas1 + Vs1)
-                thisQ2 = Q2[als:ale] = (
-                    (1-psucc1)[:,None,None] * (deltas0c*deltas0r + deltas0c*Vs0[:,None,:] + Vs0[:,:,None]*deltas0r + Q2[indices0])
-                    + psucc1[:,None,None] * (deltas1c*deltas1r + deltas1c*Vs1[:,None,:] + Vs1[:,:,None]*deltas1r + Q2[indices1])
-                )
+#                thisQ2 = Q2[als:ale] = (
+#                    (1-psucc1)[:,None,None] * (deltas0c*deltas0r + deltas0c*Vs0[:,None,:] + Vs0[:,:,None]*deltas0r + Q2[indices0])
+#                    + psucc1[:,None,None] * (deltas1c*deltas1r + deltas1c*Vs1[:,None,:] + Vs1[:,:,None]*deltas1r + Q2[indices1])
+#                )
             else:
                 thisQ = Q[als:ale] = (1-psucc1)[:,None] * deltas0 + psucc1[:,None] * deltas1
-                thisQ2 = Q2[als:ale] = (1-psucc1)[:,None,None] * (deltas0c*deltas0r) + psucc1[:,None,None] * (deltas1c*deltas1r)
+#                thisQ2 = Q2[als:ale] = (1-psucc1)[:,None,None] * (deltas0c*deltas0r) + psucc1[:,None,None] * (deltas1c*deltas1r)
             if plot:
                 plt.plot(thisQ[:,0],thisQ[:,1],"k.",ms=(depth-level+1)*10, alpha=0.1)
                 plt.plot([aspiration[0]],[aspiration[1]],"r.",ms=30)
@@ -88,9 +88,10 @@ def simulate(dim, depth, only_terminal=0, deterministic=0, plot=False):
             sle = state_level_ends[level]
             pi[sls:sle] = np.argmax((
                 (thisQ - aspiration) @ direction
-                / ( np.trace(thisQ2, axis1=1, axis2=2) 
-                    - 2 * thisQ @ aspiration 
-                    + aspiration @ aspiration )**0.5
+                / np.linalg.norm(thisQ - aspiration)
+#                / ( np.trace(thisQ2, axis1=1, axis2=2) 
+#                    - 2 * thisQ @ aspiration 
+#                    + aspiration @ aspiration )**0.5
             ).reshape((2,-1)), axis=0)
         return Q[2+pi[1]]
     

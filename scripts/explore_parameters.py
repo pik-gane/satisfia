@@ -6,12 +6,17 @@ sys.path.insert(0,'./src/')
 import time
 import PySimpleGUI as sg
 import numpy as np
+import pylab as plt
+plt.ion()
+from matplotlib.animation import FFMpegWriter
+writer = FFMpegWriter(fps=1)
 
 from environments.very_simple_gridworlds import make_simple_gridworld, all_worlds
 from satisfia.agents.makeMDPAgentSatisfia import AgentMDPPlanning
+from satisfia.util.helper import *
 
 gridworlds = sorted(all_worlds())
-default_gridworld = "test_return"
+default_gridworld = "test_multi"
 
 parameter_data = [
     ("aleph0_low", -10, 10, 0, 0.1),
@@ -50,8 +55,8 @@ parameter_data = [
     ('lossCoeff4DeltaVariation', -100, 100, 0, 1), 
     ('lossCoeff4TrajectoryEntropy', -100, 100, 0, 1), 
 
-    ('minLambda', 0, 1, 0, 0.01), 
-    ('maxLambda', 0, 1, 1, 0.01), 
+#    ('minLambda', 0, 1, 0, 0.01), 
+#    ('maxLambda', 0, 1, 1, 0.01), 
 ] # name, min, max, initial, step-size
 
 class policy():
@@ -125,7 +130,7 @@ def step():
     global gridworld, parameter_values, env, agent, running, stepping, terminated, t, state, total, aleph, aleph0, delta, initialMu0, initialMu20, visited_state_alephs, visited_action_alephs
     print()
     env._fps = values['speed_slider']
-    action, aleph4action = agent.localPolicy(state, aleph).sample()[0]
+    action, aleph4action = agent.localPolicy(state, aleph, plot=True).sample()[0]
     visited_state_alephs.add((state, aleph))
     visited_action_alephs.add((state, action, aleph4action))
     if values['lossCoeff4WassersteinTerminalState'] != 0:
@@ -143,18 +148,24 @@ def step():
     if parameter_values['verbose'] or parameter_values['debug']:
         print("t:", t, ", last delta:" ,delta, ", total:", total, ", s:", state, ", aleph4s:", aleph, ", a:", action, ", aleph4a:", aleph4action)
     nextState, delta, terminated, _, info = env.step(action)
+    writer.grab_frame()
     total += delta
     aleph = agent.propagateAspiration(state, action, aleph4action, delta, nextState)
     state = nextState
+    agent.offset = total
     if terminated:
         print("t:",t, ", last delta:",delta, ", final total:", total, ", final s:", state, ", aleph4s:", aleph)
         print("Terminated.")
+        #V = agent.V(initial_state,aleph0)
+        #print("aleph0", aleph0, "V(s0)",V)
+        #assert ((V - np.array(aleph0))**2).sum()<1e-10
+        #exit()
         running = stepping = False
         if values['autorestart_checkbox']:
             time.sleep(0.2)
             reset_env(True)
-            env.render()
-        elif values['debug_checkbox'] or values['verbose_checkbox']:
+            #env.render()
+        elif False and (values['debug_checkbox'] or values['verbose_checkbox']):
             if values['debug_checkbox']:
                 visited_state_alephs = agent.seen_state_alephs.copy()
                 visited_action_alephs = agent.seen_action_alephs.copy()
@@ -187,10 +198,10 @@ def step():
 
 def reset_env(start=False):
     # TODO: only regenerate env if different from before!
-    global gridworld, parameter_values, env, agent, running, stepping, terminated, t, state, total, aleph, aleph0, delta, initialMu0, initialMu20, visited_state_alephs, visited_action_alephs
+    global gridworld, parameter_values, env, agent, running, stepping, terminated, t, state, initial_state, total, aleph, aleph0, delta, initialMu0, initialMu20, visited_state_alephs, visited_action_alephs, values
     old_gridworld = gridworld
     gridworld = values['gridworld_dropdown']
-    if gridworld != old_gridworld:
+    if True or gridworld != old_gridworld:
         env, aleph0 = make_simple_gridworld(gw=gridworld, render_mode="human", fps=values['speed_slider'])
 #        env = env.get_prolonged_version(5)
     if values['override_aleph_checkbox']:
@@ -218,8 +229,18 @@ def reset_env(start=False):
     })
     print("\n\nRESTART gridworld", gridworld, parameter_values)
     state, info = env.reset()
+    initial_state = state
     print("Initial state:", env.state_embedding(state), ", initial aleph:", aleph)
     agent = AgentMDPPlanning(parameter_values, world=env)
+
+    # dirty fix for 2d aspirations:
+    VR_vertices, VR_poly = agent.simplex4state(initial_state)
+    aleph0 = aleph = nested_tuple(np.mean(VR_vertices, axis=0).reshape(1,-1)
+                                  + np.array([[-1,-1],[-1,1],[1,1],[1,-1]])
+                                  )
+    print("Initial aleph:", aleph0, ", VR_vertices:", VR_vertices)
+
+
     # agent.localPolicy(state, aleph)  # call it once to precompute tables and save time for later
     initialMu0 = list(agent.ETerminalState_state(state, aleph, "default"))
     initialMu20 = list(agent.ETerminalState2_state(state, aleph, "default"))
@@ -232,35 +253,36 @@ def reset_env(start=False):
     stepping = False
 
 wait = time.monotonic()
-while True:
-    event, values = window.read(timeout=0)
-    if event != '__TIMEOUT__': 
-        print(event)
-    if event == sg.WINDOW_CLOSED:
-        break
-    elif event == 'reset_params_button':
-        for pd in parameter_data:
-            window[pd[0]].update(pd[3])
-    elif event == 'reset_env_button':
-        reset_env(False)
-    elif event == 'restart_button':
-        reset_env(True)
-    elif event == 'pause_button':
-        print("\n\nPAUSE")
-        running = False
-    elif event == 'step_button':
-        print("\n\nSTEP")
-        step()
-    elif event == 'continue_button':
-        print("\n\nCONTINUE")
-        running = True
-    elif event == 'override_aleph_checkbox':
-        parameter_sliders['aleph0_low'].update(disabled=not values['override_aleph_checkbox'])
-        parameter_sliders['aleph0_high'].update(disabled=not values['override_aleph_checkbox'])
-    elif running and  (time.monotonic() - wait) > 1/values['speed_slider'] and not terminated:
-        step()
-        wait = time.monotonic()
-    elif event == '__TIMEOUT__':
-        time.sleep(.1)                         
+with writer.saving(plt.figure(figsize=(12,12)), "/tmp/writer_test.mp4", 100):
+    while True:
+        event, values = window.read(timeout=0)
+        if event != '__TIMEOUT__': 
+            print(event)
+        if event == sg.WINDOW_CLOSED:
+            break
+        elif event == 'reset_params_button':
+            for pd in parameter_data:
+                window[pd[0]].update(pd[3])
+        elif event == 'reset_env_button':
+            reset_env(False)
+        elif event == 'restart_button':
+            reset_env(True)
+        elif event == 'pause_button':
+            print("\n\nPAUSE")
+            running = False
+        elif event == 'step_button':
+            print("\n\nSTEP")
+            step()
+        elif event == 'continue_button':
+            print("\n\nCONTINUE")
+            running = True
+        elif event == 'override_aleph_checkbox':
+            parameter_sliders['aleph0_low'].update(disabled=not values['override_aleph_checkbox'])
+            parameter_sliders['aleph0_high'].update(disabled=not values['override_aleph_checkbox'])
+        elif running and  (time.monotonic() - wait) > 1/values['speed_slider'] and not terminated:
+            step()
+            wait = time.monotonic()
+        elif event == '__TIMEOUT__':
+            time.sleep(.1)                         
 
 window.close()
