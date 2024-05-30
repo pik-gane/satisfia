@@ -411,6 +411,11 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
         )
         return t, loc, imm_states, mc_locs, mv_locs, mv_states, gc
 
+    def set_state(self, state):
+        """This is a temporary workaround around me wanting to call _set_state but calling private
+        functions (i.e. ones whose names start with an underscore) being illegal."""
+        self._set_state(state)
+
     def _set_state(self, state):
         """Set the current state to the provided one."""
         self._previous_agent_location = self._agent_location
