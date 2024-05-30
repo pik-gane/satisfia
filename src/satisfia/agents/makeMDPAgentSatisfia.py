@@ -350,6 +350,11 @@ class AspirationAgent(ABC):
             print(pad(state),"| | ╰ aspiration4state, state",prettyState(state),"unclippedAleph",unclippedAleph,":",res)
         return res
 
+    @cache 
+    def rmax_schedule(self, state):
+        tmax = self.world.max_episode_length
+        t = state[0]
+        return ((tmax - t - 1) / (tmax - 1))**(1/self.dim)
 
     # When constructing the local policy, we use an action aspiration interval
     # that does not depend on the local policy but is simply based on the state's aspiration interval,
@@ -480,8 +485,9 @@ class AspirationAgent(ABC):
                         np.vstack([QRa_A for i in range(Es_n)]) @ shifting_direction.reshape((-1,1)),
                         (Es_shape @ QRa_A.T).flatten().reshape(-1,1)
                     ], axis=1)
+                    rmax = self.rmax_schedule(state)
                     print("A",A_ub,"\nb",b_ub,"\nc",c,"\ncheck:", A_ub @ np.array([0,0]) - b_ub)
-                    linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=[(0,1e10),(0,1)])
+                    linprogres = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=[(0,1e10),(0,rmax)])
                     if self.debug: print("linprog for l,r:", linprogres)
                     if not linprogres.success:
                         # action is not in directional action set
