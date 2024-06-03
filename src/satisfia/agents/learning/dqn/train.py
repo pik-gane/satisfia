@@ -185,6 +185,9 @@ class DQNTrainingStatistics:
                             criteria[criterion].squeeze(0)[action].item()
 
     def ground_truth_criteria(self, model, env) -> Dict[Tuple["state", "state_aspiration", "criterion", "action"], float] | None:
+        if self.cfg.planning_agent_for_plotting_ground_truth is None:
+            return None
+
         criteria = dict()
 
         for state in self.cfg.states_for_plotting_criteria:
