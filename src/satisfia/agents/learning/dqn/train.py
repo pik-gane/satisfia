@@ -59,19 +59,21 @@ def train_dqn( make_env:   Callable[[], Env],
 
         next_observations, deltas, dones, truncations, _ = envs.step(actions.cpu().numpy())
 
+        aspirations = exploration_strategy.aspirations
+        exploration_strategy.propagate_aspirations( actions,
+                                                    tensor(next_observations, device=cfg.device) )
+
+        exploration_strategy.on_done(tensor(dones), timestep=timestep)
+
         replay_buffer.add( observations      = tensor(observations,        device=cfg.device),
                            actions           = actions,
                            deltas            = tensor(deltas,              device=cfg.device),
                            dones             = tensor(dones | truncations, device=cfg.device),
                            next_observations = tensor(next_observations,   device=cfg.device),
-                           aspirations       = IntervalTensor(
-                                                   exploration_strategy.aspirations.lower,
-                                                   exploration_strategy.aspirations.upper
-                                               ) )
+                           aspirations       = aspirations,
+                           next_aspirations  = exploration_strategy.aspirations )
 
         observations = next_observations
-
-        exploration_strategy.on_done(tensor(dones), timestep=timestep)
 
         register_criteria_in_stats = cfg.plotted_criteria is not None \
                                         and timestep % cfg.plot_criteria_frequency == 0

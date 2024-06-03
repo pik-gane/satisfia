@@ -15,6 +15,10 @@ class IntervalTensor:
     def midpoint(self) -> Tensor:
         return (self.lower + self.upper) / 2
 
+    def squeeze(self, dim):
+        return IntervalTensor( self.lower.squeeze(dim),
+                               self.upper.squeeze(dim) )
+
     def unsqueeze(self, dim):
         return IntervalTensor( self.lower.unsqueeze(dim),
                                self.upper.unsqueeze(dim) )
@@ -26,6 +30,9 @@ class IntervalTensor:
     def to(self, device):
         return IntervalTensor(self.lower.to(device), self.upper.to(device))
     
+    def gather(self, dim: int, other: Tensor) -> "IntervalTensor":
+        return IntervalTensor( self.lower.gather(dim, other),
+                               self.upper.gather(dim, other) )
 
     def __add__(self, other: Union["IntervalTensor", Tensor, Number]) -> "IntervalTensor":
         if isinstance(other, IntervalTensor):
@@ -55,6 +62,9 @@ class IntervalTensor:
     def __setitem__(self, i, x: "IntervalTensor"):
         self.lower[i] = x.lower
         self.upper[i] = x.upper
+
+def interpolate(x, lambda_, y):
+    return x + (y - x) * lambda_
 
 def relative_position(x, z, y, eps=1e-5):
     diff = y - x

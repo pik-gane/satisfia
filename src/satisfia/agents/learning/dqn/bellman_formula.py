@@ -20,7 +20,7 @@ def bellman_formula( replay_buffer_sample: ReplayBufferSample,
                        if coefficient != 0 ]
 
     next_criteria = target_network( replay_buffer_sample.next_observations,
-                                    replay_buffer_sample.aspirations,
+                                    replay_buffer_sample.next_aspirations,
                                     noisy=False )
     complete_criteria(next_criteria)
     
@@ -36,16 +36,16 @@ def bellman_formula( replay_buffer_sample: ReplayBufferSample,
         if cfg.frozen_model_for_exploration:
             predicted_criteria_for_policy = cfg.frozen_model_for_exploration(
                 replay_buffer_sample.next_observations,
-                replay_buffer_sample.aspirations,
+                replay_buffer_sample.next_aspirations,
                 noisy=False
             )
             complete_criteria(predicted_criteria_for_policy)
         else:
-            predicted_criteria_for_policy = predicted_criteria
+            predicted_criteria_for_policy = next_criteria
 
-        policy = local_policy( cfg.satisfia_agent_params,
-                               predicted_criteria_for_policy,
-                               replay_buffer_sample.aspirations )
+        next_policy = local_policy( cfg.satisfia_agent_params,
+                                    predicted_criteria_for_policy,
+                                    replay_buffer_sample.next_aspirations )
 
     for max_or_min in ["max", "min"]:
         criterion_name = f"{max_or_min}AdmissibleQ"
@@ -75,11 +75,11 @@ def bellman_formula( replay_buffer_sample: ReplayBufferSample,
             assert f"Q{i-1}" in criterion_names
 
     if "Q" in criterion_names:
-        V = (policy.probs * next_criteria["Q"]).sum(-1)
+        next_V = (next_policy.probs * next_criteria["Q"]).sum(-1)
         criteria["Q"] =   replay_buffer_sample.deltas \
                         + where( replay_buffer_sample.dones,
                                  zeros_like(replay_buffer_sample.deltas),
-                                 cfg.discount * V )
+                                 cfg.discount * next_V )
         
     if "Q2" in criterion_names:
         V2 = (policy.probs * next_criteria["Q2"]).sum(-1)

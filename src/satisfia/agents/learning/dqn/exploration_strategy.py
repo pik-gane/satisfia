@@ -1,7 +1,7 @@
 from satisfia.agents.learning.dqn.config import DQNConfig
 import satisfia.agents.learning.dqn.agent_mdp_dqn as agent_mpd_dqn
 from satisfia.agents.learning.dqn.criteria import complete_criteria
-from satisfia.util.interval_tensor import IntervalTensor
+from satisfia.util.interval_tensor import IntervalTensor, relative_position, interpolate
 
 from torch import Tensor, empty, ones, full_like, randint, bernoulli, no_grad
 from torch.nn import Module
@@ -34,9 +34,37 @@ class ExplorationStrategy:
     def satisfia_policy_actions(self, observations: Tensor) -> Categorical:
         criteria = self.target_network(observations, self.aspirations)
         complete_criteria(criteria)
+        self.criteria = criteria
         return agent_mpd_dqn.local_policy( self.cfg.satisfia_agent_params,
                                            criteria,
                                            self.aspirations )
+
+    # TO DO: move all this stuff into agent_mdp_dqn.py
+    def propagate_aspirations(self, actions: Tensor, next_observations: Tensor):
+        state_aspirations  = agent_mpd_dqn.state_aspirations (self.criteria, self.aspirations)
+        action_aspirations = agent_mpd_dqn.action_aspirations(self.criteria, state_aspirations)
+        action_aspirations = action_aspirations.gather(-1, actions.unsqueeze(-1)).squeeze(-1)
+
+        min_admissible_q = self.criteria["minAdmissibleQ"]
+        max_admissible_q = self.criteria["maxAdmissibleQ"]
+        min_admissible_q = min_admissible_q.gather(-1, actions.unsqueeze(-1)).squeeze(-1)
+        max_admissible_q = max_admissible_q.gather(-1, actions.unsqueeze(-1)).squeeze(-1)
+
+        lambda_low  = relative_position(min_admissible_q, action_aspirations.lower, max_admissible_q)
+        lambda_high = relative_position(min_admissible_q, action_aspirations.upper, max_admissible_q)
+        
+        # this will be recalculated in the next call to satisfia_policy_actions, which is necessary
+        # there the aspirations would be different
+        next_criteria = self.target_network(next_observations, self.aspirations)
+        complete_criteria(next_criteria)
+
+        next_min_admissible_v = next_criteria["minAdmissibleV"]
+        next_max_admissible_v = next_criteria["minAdmissibleV"]
+        
+        return IntervalTensor(
+            interpolate(next_min_admissible_v, lambda_low,  next_max_admissible_v),
+            interpolate(next_min_admissible_v, lambda_high, next_max_admissible_v)
+        )
 
     @no_grad()
     def on_done(self, dones: Tensor, timestep: int):

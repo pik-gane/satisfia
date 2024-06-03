@@ -68,7 +68,7 @@ def run_or_load(filename, function, *args, **kwargs):
         pickle.dump(result, f)
     return result
 
-def compute_total(agent: AspirationAgent, env: gym.Env, aspiration4state: float | Tuple[float, float], verbose=False) -> float:
+def compute_total(agent: AspirationAgent, env: gym.Env, aspiration4state: float | Tuple[float, float]) -> float:
     if isinstance(aspiration4state, (int, float)):
         aspiration4state = (aspiration4state, aspiration4state)
 
@@ -77,10 +77,6 @@ def compute_total(agent: AspirationAgent, env: gym.Env, aspiration4state: float 
     done = False
     while not done:
         action, aspiration4action = agent.localPolicy(observation, aspiration4state).sample()[0]
-        if verbose:
-            print(observation, total, aspiration, action)
-            print(agent.maximizer_model(tensor([*observation], dtype=torch.float)).tolist())
-            print(agent.minimizer_model(tensor([*observation], dtype=torch.float)).tolist())
         next_observation, delta, done, truncated, _ = env.step(action)
         done = done or truncated
         total += delta
