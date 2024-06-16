@@ -11,13 +11,14 @@ from gymnasium import Env
 from gymnasium.wrappers import AutoResetWrapper
 from gymnasium.vector import AsyncVectorEnv, SyncVectorEnv
 import torch
-from torch import tensor, zeros_like
+from torch import tensor
 from torch.nn import Module
 from torch.optim import AdamW, Optimizer
 from joblib import Parallel, delayed
 from dataclasses import dataclass, field
 from collections import Counter
 from statistics import mean
+from more_itertools import chunked
 from tqdm import tqdm
 from typing import Callable, Tuple, List, Dict
 from plotly.colors import DEFAULT_PLOTLY_COLORS
@@ -29,14 +30,12 @@ def train_dqn( make_env:   Callable[[], Env],
     
     stats = DQNTrainingStatistics(cfg)
 
-    num_visits_per_state = Counter()
-
     q_network = make_model()
-    target_network = make_model()
+    target_network = make_model() 
     target_network.load_state_dict(q_network.state_dict())
-    optimizer = AdamW(q_network.parameters(), lr=cfg.learning_rate_scheduler(0))
+    optimizer = AdamW(q_network.parameters(), lr=cfg.learning_rate_scheduler(0), weight_decay=0)
 
-    make_envs = [ (lambda: AutoResetWrapper(RestrictToPossibleActionsWrapper(make_env())))
+    make_envs = [ (lambda: AutoResetWrapper(make_env()))
                   for _ in range(cfg.num_envs) ]
     envs = AsyncVectorEnv(make_envs) if cfg.async_envs else SyncVectorEnv(make_envs)
 
@@ -46,14 +45,12 @@ def train_dqn( make_env:   Callable[[], Env],
                 else cfg.frozen_model_for_exploration,
         cfg,
         num_actions=envs.action_space.nvec[0]
-        )
+    )
 
     replay_buffer = ReplayBuffer(cfg.buffer_size, device=cfg.device)
 
     observations, _ = envs.reset()
     for timestep in tqdm(range(cfg.total_timesteps), desc="training dqn"):
-        for observation in observations:
-            num_visits_per_state[tuple(observation)] += 1
 
         actions = exploration_strategy(tensor(observations, device=cfg.device), timestep=timestep)
 
@@ -78,7 +75,7 @@ def train_dqn( make_env:   Callable[[], Env],
         register_criteria_in_stats = cfg.plotted_criteria is not None \
                                         and timestep % cfg.plot_criteria_frequency == 0
         if register_criteria_in_stats:
-            stats.register_criteria(q_network, timestep)
+            stats.register_criteria(target_network, timestep)
 
         train = timestep >= cfg.training_starts and timestep % cfg.training_frequency == 0
         if train:
@@ -127,12 +124,12 @@ def train_dqn( make_env:   Callable[[], Env],
                     + (1 - cfg.soft_target_network_update_coefficient) * q_network_param.data
                 )
 
-    print(f"{num_visits_per_state=}")
-
     if cfg.plotted_criteria is not None:
         stats.plot_criteria(q_network, RestrictToPossibleActionsWrapper(make_env()))
 
-    return q_network
+    # if cfg.soft_target_network_update_coefficient != 0
+    # returning the q_network is not the same as returning the target network
+    return target_network
 
 def set_learning_rate(optimizer: Optimizer, learning_rate: float) -> None:
     for param_group in optimizer.param_groups:
@@ -161,6 +158,9 @@ def compute_total(agent, env, state, state_aspiration, first_action=None):
         state_aspiration = agent.propagateAspiration(observation, action, action_aspiration, Edel=None, nextState=next_observation)
         observation = next_observation
     return total
+
+def smoothen(xs, smoothness):
+    return [mean(chunk) for chunk in chunked(xs, smoothness)]
 
 @dataclass
 class DQNTrainingStatistics:
@@ -198,7 +198,9 @@ class DQNTrainingStatistics:
                             getattr(self.cfg.planning_agent_for_plotting_ground_truth, criterion)
                         
                         if criterion in ["maxAdmissibleQ", "minAdmissibleQ"]:
-                            criterion_value = criterion_function(state, action)
+                            possible_action = action in self.cfg.planning_agent_for_plotting_ground_truth.possible_actions(state)
+                            criterion_value = \
+                                criterion_function(state, action) if possible_action else None
                         elif criterion in ["Q"]:
                             agent = AgentMDPDQN( self.cfg.satisfia_agent_params,
                                                  model
@@ -234,10 +236,11 @@ class DQNTrainingStatistics:
                 for state_aspiration in self.cfg.state_aspirations_for_plotting_criteria:
                     dropdown_menu_titles.append(f"{criterion} in state {state} with state aspiration {state_aspiration}")
                     for action in self.cfg.actions_for_plotting_criteria:
+                        y = [ self.criterion_history[timestep, state, state_aspiration, criterion, action]
+                              for timestep in timesteps ]
                         fig.add_scatter(
-                            x = timesteps,
-                            y = [ self.criterion_history[timestep, state, state_aspiration, criterion, action]
-                                  for timestep in timesteps ],
+                            x = smoothen(timesteps, self.cfg.plot_criteria_smoothness),
+                            y = smoothen(y,         self.cfg.plot_criteria_smoothness),
                             line = dict(color=DEFAULT_PLOTLY_COLORS[action]),
                             name = f"action {action}",
                             visible = first_iteration

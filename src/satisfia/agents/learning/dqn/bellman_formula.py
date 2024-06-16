@@ -54,13 +54,13 @@ def bellman_formula( replay_buffer_sample: ReplayBufferSample,
 
         if criterion_name in criterion_names:
             if cfg.double_q_learning:
-                target_for_q_network = next_criteria_from_q_network[criterion_name]
+                target_from_q_network = next_criteria_from_q_network[criterion_name]
                 target_max_or_min = next_criteria[criterion_name].gather(
                     -1,
-                    torch_argmax_or_argmin(target_for_q_network, -1, keepdim=True)
+                    torch_argmax_or_argmin(target_from_q_network, -1, keepdim=True)
                 ).squeeze(-1)
             else:
-                target_max_or_min = torch_max_or_min(next_criteria[criterion_name], dim=-1)
+                target_max_or_min = torch_max_or_min(next_criteria[criterion_name], dim=-1).values
 
             target_max_or_min = where( replay_buffer_sample.dones,
                                        zeros_like(target_max_or_min),

@@ -87,6 +87,7 @@ class DQNConfig:
     aspiration_sampler: Callable[[int], IntervalTensor] = None
     device: str = "cpu"
     plotted_criteria: List[str] | None = None
+    plot_criteria_smoothness: int = 1
     plot_criteria_frequency: int | None = None
     states_for_plotting_criteria: List | None = None
     state_aspirations_for_plotting_criteria: List | None = None

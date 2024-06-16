@@ -104,22 +104,22 @@ def local_policy( params: Dict[str, Any],
         action_aspirations_.midpoint() > state_aspirations_.midpoint().unsqueeze(-1)
     
     # Tensor[batch, action_candidate] of bools
-    # action_aspiration_midpoints_close_to_state_aspiration_midpoints = \
-    #     (action_aspirations_.midpoint() - state_aspirations_.midpoint().unsqueeze(-1)).abs() <= 1e-5
+    action_aspiration_midpoints_close_to_state_aspiration_midpoints = \
+        (action_aspirations_.midpoint() - state_aspirations_.midpoint().unsqueeze(-1)).abs() <= 1e-5
     
     # Tensor[batch, first_action_candidate, second_action_candidate] of bools
     action_aspiration_midpoints_on_same_side =    action_aspiration_midpoint_sides.unsqueeze(-1) \
                                                == action_aspiration_midpoint_sides.unsqueeze(-2)
-    
-    # action_aspiration_midpoints_on_same_side &= \
-    #     action_aspiration_midpoints_close_to_state_aspiration_midpoints.logical_not().unsqueeze(-1)
-    # action_aspiration_midpoints_on_same_side &= \
-    #     action_aspiration_midpoints_close_to_state_aspiration_midpoints.logical_not().unsqueeze(-2)
+
+    action_aspiration_midpoints_on_same_side &= \
+        action_aspiration_midpoints_close_to_state_aspiration_midpoints.logical_not().unsqueeze(-1)
+    action_aspiration_midpoints_on_same_side &= \
+        action_aspiration_midpoints_close_to_state_aspiration_midpoints.logical_not().unsqueeze(-2)
 
     # Tensor[batch, first_action_candidate]
     first_action_candidate_probabilities = action_probabilities
     
-    # Tensor[batch, first_action_candidate, second_action_candidate] 
+    # Tensor[batch, first_action_candidate, second_action_candidate]
     second_action_candidate_probabilities_conditional_on_first_action_candidate = \
         action_probabilities.unsqueeze(-1).where(
             action_aspiration_midpoints_on_same_side.logical_not(),

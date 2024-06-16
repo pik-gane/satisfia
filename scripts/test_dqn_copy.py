@@ -8,15 +8,13 @@ from satisfia.agents.learning.dqn.config import DQNConfig, UniformPointwiseAspir
 from satisfia.agents.learning.dqn.agent_mdp_dqn import AgentMDPDQN, local_policy
 from satisfia.agents.learning.dqn.criteria import complete_criteria
 from satisfia.agents.learning.models.building_blocks import SatisfiaMLP
-from satisfia.agents.learning.environment_wrappers import RestrictToPossibleActionsWrapper, \
-                                                          RescaleDeltaWrapper, \
-                                                          ObservationToTupleWrapper
+from satisfia.agents.learning.environment_wrappers import RestrictToPossibleActionsWrapper
 from satisfia.agents.makeMDPAgentSatisfia import AspirationAgent, AgentMDPPlanning
 from satisfia.util.interval_tensor import IntervalTensor
 
 import gymnasium as gym
 import torch
-from torch import tensor
+from torch import tensor, Tensor
 from torch.nn import Module
 import numpy as np
 import scipy
@@ -31,8 +29,8 @@ import dataclasses
 from plotly.colors import DEFAULT_PLOTLY_COLORS
 from plotly.graph_objects import Figure, Scatter, Layout
 
-# device = "cuda" if torch.cuda.is_available() else "cpu"
-device = "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
+# device = "cpu"
 print("using", device)
 
 def multi_tqdm(num_tqdms: int) -> List[Callable[[Iterable], Iterable]]:
@@ -74,14 +72,16 @@ def compute_total(agent: AspirationAgent, env: gym.Env, aspiration4state: float 
     if isinstance(aspiration4state, (int, float)):
         aspiration4state = (aspiration4state, aspiration4state)
 
-    env = ObservationToTupleWrapper(env)
-
     total = 0.
     observation, _ = env.reset()
+    if isinstance(observation, (np.ndarray, Tensor)):
+        observation = tuple(observation.tolist())
     done = False
     while not done:
         action, aspiration4action = agent.localPolicy(observation, aspiration4state).sample()[0]
         next_observation, delta, done, truncated, _ = env.step(action)
+        if isinstance(next_observation, (np.ndarray, Tensor)):
+            next_observation = tuple(next_observation.tolist())
         done = done or truncated
         total += delta
         aspiration4state = agent.propagateAspiration(observation, action, aspiration4action, Edel=None, nextState=next_observation)
@@ -109,7 +109,7 @@ def plot_totals_vs_aspiration( agents: Iterable[AspirationAgent] | Dict[str, Asp
                                sample_size: int,
                                reference_agents: Iterable[AspirationAgent] | Dict[str, AspirationAgent] | AspirationAgent = [],
                                error_bar_confidence: float = 0.95,
-                               n_jobs: int = 1,
+                               n_jobs: int = -1,
                                title: str = "Totals for agent(s)",
                                save_to: str | None = None ):
 
@@ -178,68 +178,64 @@ def plot_totals_vs_aspiration( agents: Iterable[AspirationAgent] | Dict[str, Asp
     if save_to is not None:
         fig.write_html(save_to)
 
-# this is only for the test_box gridworld
-reachable_states = [(0, 2, 2)] + [(time, y, 2) for time in range(1, 10) for y in [1, 2, 3]]
-
-cfg = DQNConfig( aspiration_sampler = UniformPointwiseAspirationSampler(-20, 10),
+cfg = DQNConfig( aspiration_sampler = UniformPointwiseAspirationSampler(1e5, 1e5),
                  criterion_coefficients_for_loss = dict( maxAdmissibleQ = 1.,
-                                                         minAdmissibleQ = 1., ) ,
-                                                         # Q = 1. ),
+                                                         minAdmissibleQ = 1.,
+                                                         Q = 1. ),
                  exploration_rate_scheduler =
-                    PiecewiseLinearScheduler([0., 0.5, 1.], [1., 0.01, 0.01]),
+                    PiecewiseLinearScheduler([0., 0.1, 1.], [1., 0.05, 0.05]),
                  noisy_network_exploration = False,
                  # noisy_network_exploration_rate_scheduler =
                  #    PiecewiseLinearScheduler([0., 0.1, 1.], [1., 0.05, 0.05]),
                  num_envs = 10,
                  async_envs = False,
                  discount = 1,
-                 soft_target_network_update_coefficient = 0,
-                 learning_rate_scheduler = lambda _: 1e-2,
-                 total_timesteps = 50_000,
-                 training_starts = 500,
+                 total_timesteps = 25_000,
+                 training_starts = 1000,
                  batch_size = 4096,
                  training_frequency = 10,
-                 target_network_update_frequency = 100,
+                 target_network_update_frequency = 50,
                  satisfia_agent_params = { "lossCoeff4FeasibilityPowers": 0,
                                            "lossCoeff4LRA1": 0,
                                            "lossCoeff4Time1": 0,
                                            "lossCoeff4Entropy1": 0,
                                            "defaultPolicy": None },
                  device = device,
-                 plotted_criteria = None, # ["maxAdmissibleQ", "minAdmissibleQ"],
+                 plotted_criteria = None, # ["maxAdmissibleQ", "minAdmissibleQ", "Q"],
                  plot_criteria_frequency = 100,
-                 states_for_plotting_criteria = [(time, 2, 2) for time in range(10)],
-                 state_aspirations_for_plotting_criteria = [(0, 0), (1e3, 1e3)], # [(-5, -5), (-1, -1), (1, 1)],
-                 actions_for_plotting_criteria = [0, 1, 2, 3, 4] )
+                 states_for_plotting_criteria = None, # [(time, 2, 2) for time in range(10)],
+                 state_aspirations_for_plotting_criteria = [(-5, -5), (-1, -1), (1, 1)],
+                 actions_for_plotting_criteria = [2, 4] )
 
-def train_and_plot( env_name: str,
-                    gridworld: bool = True,
-                    max_achievable_total: float | None = None,
-                    min_achievable_total: float | None = None ):
+def train_and_plot(gym_env: str, min_achievable_total: float, max_achievable_total: float):
+    print(gym_env)
+    env = gym.make('LunarLander-v2')
+
+    def discretize_space(space):
+        num_bins = [10] * space.shape[0]
+        bin_edges = [np.linspace(space.low[i], space.high[i], num_bins[i] + 1)[1:-1] for i in range(space.shape[0])]
+        return bin_edges
     
-    print(env_name)
-
+    def discretize_observations(observation, bin_edges):
+        discretized_observations = []
+        for i in range(len(bin_edges)):
+            discretized_observations.append(np.digitize(observation[i], bin_edges[i]))
+        return np.array(discretized_observations)
+    
     def make_env():
-        if gridworld:
-            env, _ = make_simple_gridworld(env_name, time=10)
-            env = RestrictToPossibleActionsWrapper(env)
-        else:
-            env = gym.make(env_name)
-            env = RescaleDeltaWrapper(env, from_interval=(-500, 100), to_interval=(-5, 1))
-        return env
+        return gym.make(gym_env)
 
     def make_model(pretrained=None):
-        # to do: compute d_observation properly
-        d_observation = len(make_env().observation_space) if gridworld else 8
-        n_actions = make_env().action_space.n
+        d_observation = len(discretize_space(env.observation_space))
+        n_actions = env.action_space.n
         model = SatisfiaMLP(
             input_size = d_observation,
             output_not_depending_on_agent_parameters_sizes = { "maxAdmissibleQ": n_actions,
                                                                "minAdmissibleQ": n_actions },
-            output_depending_on_agent_parameters_sizes = dict(), # { "Q": n_actions },
-            common_hidden_layer_sizes = [32, 32],
-            hidden_layer_not_depending_on_agent_parameters_sizes = [16],
-            hidden_layer_depending_on_agent_parameters_sizes = [], # [64],
+            output_depending_on_agent_parameters_sizes = { "Q": n_actions },
+            common_hidden_layer_sizes = [64, 64],
+            hidden_layer_not_depending_on_agent_parameters_sizes = [64],
+            hidden_layer_depending_on_agent_parameters_sizes = [64],
             batch_size = cfg.num_envs,
             layer_norms = True,
             dropout = 0
@@ -247,69 +243,29 @@ def train_and_plot( env_name: str,
         if pretrained is not None:
             model.load_state_dict(pretrained)
         return model
-        # return NoisyMLPReturningDict( [ d_observation + d_aspiration,
-        #                                 64,
-        #                                 64,
-        #                                 { "maxAdmissibleQ": n_actions,
-        #                                   "minAdmissibleQ": n_actions,
-        #                                   "Q": n_actions } ],
-        #                               batch_size=cfg.num_envs ).to(device)
 
-    planning_agent = AgentMDPPlanning(cfg.satisfia_agent_params, make_env()) if gridworld else None
-
-    model = run_or_load( f"dqn-{env_name}-no-discount-longer-training.pickle",
+    model = run_or_load( f"dqn-{str(gym_env)}-no-discount.pickle",
                          train_dqn,
                          make_env,
                          make_model,
-                         dataclasses.replace(
-                             cfg,
-                             planning_agent_for_plotting_ground_truth=planning_agent
-                         ) )
+                         cfg )
     model = model.to(device)
 
     learning_agent = AgentMDPDQN( cfg.satisfia_agent_params,
                                   model,
-                                  num_actions = make_env().action_space.n,
+                                  num_actions = env.action_space.n,
                                   device = device )
 
-    # for state in [(time, 2, 2) for time in range(10)]:
-    #     for action in range(5):
-    #         for state_aspiration in [(0, 0), (1, 1), (2, 2)]:
-    #             action_aspiration = planning_agent.aspiration4action(state, action, state_aspiration)
-    #             print( state,
-    #                    action,
-    #                    action_aspiration,
-    #                      planning_agent.Q(state, action, state_aspiration)
-    #                    - learning_agent.Q(state, action, state_aspiration) )
-
-    first_observation, _ = make_env().reset()
-    if max_achievable_total is None:
-        max_achievable_total = planning_agent.maxAdmissibleV(first_observation)
-    if min_achievable_total is None:
-        min_achievable_total = planning_agent.minAdmissibleV(first_observation)
     plot_totals_vs_aspiration( agents = learning_agent,
-                               env = make_env(),
+                               env = env,
                                aspirations = np.linspace( min_achievable_total - 1,
                                                           max_achievable_total + 1,
                                                           20 ),
-                               sample_size = 1000,
+                               sample_size = 100,
                                # reference_agents = planning_agent,
-                               title = f"totals for agent with no discount and longer training in {env_name}" )
+                               title = f"totals for agent with no discount and longer training in {str(gym_env)}" )
 
-# train_and_plot( 'LunarLander-v2',
-#                 gridworld = False,
-#                 min_achievable_total = -5,
-#                 max_achievable_total = 1 )
-
-
-all_gridworlds = [ "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW24", "GW25", "GW26",
-                   "GW27", "GW28", "GW29", "GW30", "GW31", "GW32", "AISG2", "test_return",
-                   "test_box" ]
-
-gridworlds_without_delta = ["GW23", "GW24"]
-
-gridworlds_requiring_longer_training = [ "GW28", "test_box", "GW29", "GW26", "GW30", "GW32"]
-
-Parallel(n_jobs=-1)(delayed(train_and_plot)(gridworld_name) for gridworld_name in all_gridworlds)
-# for gridworld_name in all_gridworlds:
-#     train_and_plot(gridworld_name)
+train_and_plot( 'LunarLander-v2',
+                # replace -10 and 10 by the minimal and maximal achievable total rewards in the environment
+                min_achievable_total = -500,
+                max_achievable_total = 500 )

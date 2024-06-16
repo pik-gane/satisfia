@@ -457,7 +457,7 @@ class AspirationAgent(ABC):
                 mid1 = midpoint(aleph1)
                 indices2 = [index for index in indices if between(midTarget, midpoint(alephs[index]), mid1)]
                 if len(indices2) == 0:
-                    print("OOPS: indices2 is empty", a1, adm1, aleph4state, midTarget, aleph1, mid1, alephs)
+                    # print("OOPS: indices2 is empty", a1, adm1, aleph4state, midTarget, aleph1, mid1, alephs)
                     indices2 = indices
                 propensities2 = propensity(indices2, alephs)
 
@@ -469,7 +469,7 @@ class AspirationAgent(ABC):
                     mid2 = midpoint(aleph2)
                     p = relativePosition(mid1, midTarget, mid2)
                     if p < 0 or p > 1:
-                        print("OOPS: p", p)
+                        # print("OOPS: p", p)
                         p = clip(0, p, 1)
 
                     if self.verbose or self.debug:

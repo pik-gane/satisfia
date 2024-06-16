@@ -34,6 +34,7 @@ class ExplorationStrategy:
     def satisfia_policy_actions(self, observations: Tensor) -> Categorical:
         criteria = self.target_network(observations, self.aspirations)
         complete_criteria(criteria)
+        # criteria["maxAdmissibleQ"], criteria["minAdmissibleQ"] = criteria["maxAdmissibleQ"].maximum(criteria["minAdmissibleQ"]), criteria["maxAdmissibleQ"].minimum(criteria["minAdmissibleQ"])
         self.criteria = criteria
         return agent_mpd_dqn.local_policy( self.cfg.satisfia_agent_params,
                                            criteria,
