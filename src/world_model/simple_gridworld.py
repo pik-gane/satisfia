@@ -88,25 +88,25 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
     - already implemented:   
         - '#' (hash): wall
         - ' ' (blank): empty space
+        - ',': Empty tile that turns into a wall after leaving it (so that one cannot go back)
         - '~': Uneven ground (Agents/boxes might fall off to any side except to where agent came from, 
                with equal probability)
         - '^': Pinnacle (Climbing on it will result in falling off to any side except to where agent came from, 
                with equal probability)
+        - '|': A pane of glass, will break if anything moves into it from left or right, and can be pushed up or down 
         - 'A': agent's initial location 
+        - 'F': A fragile object or organism (might move around on its own, is destroyed when stepped upon by the agent)
         - 'X': Box (can be pushed around but not pulled, can slide and fall off. Heavy, so agent can only push one at a time)
 
     - not yet implemented, but are planned to be implemented in the future:
-        - ',': Empty tile that turns into a wall after leaving it (so that one cannot go back)
         - '-': Slippery ground (Agents and boxes might slide along in a straight line; after sliding by one tile, 
                a coin is tossed to decide whether we slide another tile, and this is repeated 
                until the coin shows heads or we hit an obstacle. All this motion takes place within a single time step.)
         - '%': Death trap (Episode ends when agent steps on it) 
-        - '|': A pane of glass, will break if anything moves into it from left or right, and can be pushed up or down 
         - 'B': Button (can be stepped on)
         - 'C': Collaborator (might move around)
         - 'D': Door (can only be entered after having collected a key)
         - 'E': Enemy (might move around on its own)
-        - 'F': A fragile object or organism (might move around on its own, is destroyed when stepped upon by the agent)
         - 'f': A stationary even more fragile object that is destroyed when *anything* moves onto it
         - 'Δ': Delta (positive or negative, can be collected once, does not end the episode)
         - 'G': Goal or exit door (acting while on it ends the episode)
