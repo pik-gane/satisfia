@@ -1,3 +1,7 @@
+from beartype.vale import Is
+
+EvenValidator = Is[lambda x: x % 2 == 0]
+
 import sys
 sys.path.insert(0, "./src/")
 
@@ -15,6 +19,7 @@ from satisfia.agents.makeMDPAgentSatisfia import AspirationAgent, AgentMDPPlanni
 from satisfia.util.interval_tensor import IntervalTensor
 
 import gymnasium as gym
+from gymnasium.wrappers import TimeLimit
 import torch
 from torch import tensor
 from torch.nn import Module
@@ -109,7 +114,7 @@ def plot_totals_vs_aspiration( agents: Iterable[AspirationAgent] | Dict[str, Asp
                                sample_size: int,
                                reference_agents: Iterable[AspirationAgent] | Dict[str, AspirationAgent] | AspirationAgent = [],
                                error_bar_confidence: float = 0.95,
-                               n_jobs: int = 1,
+                               n_jobs: int = -1,
                                title: str = "Totals for agent(s)",
                                save_to: str | None = None ):
 
@@ -181,25 +186,26 @@ def plot_totals_vs_aspiration( agents: Iterable[AspirationAgent] | Dict[str, Asp
 # this is only for the test_box gridworld
 reachable_states = [(0, 2, 2)] + [(time, y, 2) for time in range(1, 10) for y in [1, 2, 3]]
 
-cfg = DQNConfig( aspiration_sampler = UniformPointwiseAspirationSampler(-20, 10),
+cfg = DQNConfig( aspiration_sampler = UniformPointwiseAspirationSampler(-10, 10),
                  criterion_coefficients_for_loss = dict( maxAdmissibleQ = 1.,
-                                                         minAdmissibleQ = 1., ) ,
+                                                         minAdmissibleQ = 0., ) ,
                                                          # Q = 1. ),
                  exploration_rate_scheduler =
                     PiecewiseLinearScheduler([0., 0.5, 1.], [1., 0.01, 0.01]),
                  noisy_network_exploration = False,
                  # noisy_network_exploration_rate_scheduler =
                  #    PiecewiseLinearScheduler([0., 0.1, 1.], [1., 0.05, 0.05]),
-                 num_envs = 10,
+                 num_envs = 1,
                  async_envs = False,
-                 discount = 1,
-                 soft_target_network_update_coefficient = 0,
-                 learning_rate_scheduler = lambda _: 1e-2,
-                 total_timesteps = 50_000,
-                 training_starts = 500,
-                 batch_size = 4096,
-                 training_frequency = 10,
-                 target_network_update_frequency = 100,
+                 discount = 0.99,
+                 soft_target_network_update_coefficient = 0.999,
+                 learning_rate_scheduler = lambda _: 5e-4,
+                 total_timesteps = 2_000_000,
+                 training_starts = 64,
+                 batch_size = 64,
+                 buffer_size = 100_000,
+                 training_frequency = 1,
+                 target_network_update_frequency = 4,
                  satisfia_agent_params = { "lossCoeff4FeasibilityPowers": 0,
                                            "lossCoeff4LRA1": 0,
                                            "lossCoeff4Time1": 0,
@@ -208,15 +214,15 @@ cfg = DQNConfig( aspiration_sampler = UniformPointwiseAspirationSampler(-20, 10)
                  device = device,
                  plotted_criteria = None, # ["maxAdmissibleQ", "minAdmissibleQ"],
                  plot_criteria_frequency = 100,
-                 states_for_plotting_criteria = [(time, 2, 2) for time in range(10)],
-                 state_aspirations_for_plotting_criteria = [(0, 0), (1e3, 1e3)], # [(-5, -5), (-1, -1), (1, 1)],
+                 states_for_plotting_criteria = [(1, 3, 0, 1, 0, 2, 0, 5, 0), (6, 3, 0, 1, 0, 2, 0, 5, 0), (3, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 5, 0), (7, 5, 0, 1, 0, 2, 0, 6, 0), (8, 4, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 2, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 6, 0), (9, 5, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 2, 0, 5, 0), (6, 5, 0, 1, 0, 2, 0, 6, 0), (8, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 6, 0), (7, 5, 0, 1, 0, 3, 0, 6, 0), (4, 4, 0, 1, 0, 3, 0, 5, 0), (4, 5, 0, 1, 0, 2, 0, 6, 0), (6, 4, 0, 1, 0, 3, 0, 5, 0), (9, 4, 0, 1, 0, 3, 0, 6, 0), (8, 5, 0, 1, 0, 2, 0, 6, 0), (3, 3, 0, 1, 0, 2, 0, 6, 0), (3, 5, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 3, 0, 6, 0), (2, 4, 0, 1, 0, 3, 0, 6, 0), (6, 4, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 2, 0, 5, 0), (7, 3, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 6, 0), (4, 5, 0, 1, 0, 3, 0, 6, 0), (5, 5, 0, 1, 0, 3, 0, 6, 0), (0, 4, 0, 1, 0, 3, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 5, 0), (8, 4, 0, 1, 0, 3, 0, 5, 0), (2, 3, 0, 1, 0, 2, 0, 5, 0), (9, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 5, 0), (6, 4, 0, 1, 0, 3, 0, 6, 0), (6, 3, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 6, 0), (1, 4, 0, 1, 0, 3, 0, 5, 0), (3, 3, 0, 1, 0, 2, 0, 5, 0), (5, 5, 0, 1, 0, 2, 0, 6, 0), (2, 5, 0, 1, 0, 3, 0, 6, 0), (9, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 5, 0), (3, 4, 0, 1, 0, 3, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 5, 0), (2, 4, 0, 1, 0, 3, 0, 5, 0), (6, 4, 0, 1, 0, 2, 0, 5, 0), (1, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 6, 0), (6, 5, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 3, 0, 6, 0), (7, 3, 0, 1, 0, 2, 0, 6, 0), (2, 4, 0, 1, 0, 2, 0, 5, 0)],
+                 state_aspirations_for_plotting_criteria = [(0, 0)], # [(-5, -5), (-1, -1), (1, 1)],
                  actions_for_plotting_criteria = [0, 1, 2, 3, 4] )
 
 def train_and_plot( env_name: str,
                     gridworld: bool = True,
                     max_achievable_total: float | None = None,
                     min_achievable_total: float | None = None ):
-    
+
     print(env_name)
 
     def make_env():
@@ -225,6 +231,7 @@ def train_and_plot( env_name: str,
             env = RestrictToPossibleActionsWrapper(env)
         else:
             env = gym.make(env_name)
+            env = TimeLimit(env, 1_000)
             env = RescaleDeltaWrapper(env, from_interval=(-500, 100), to_interval=(-5, 1))
         return env
 
@@ -237,11 +244,11 @@ def train_and_plot( env_name: str,
             output_not_depending_on_agent_parameters_sizes = { "maxAdmissibleQ": n_actions,
                                                                "minAdmissibleQ": n_actions },
             output_depending_on_agent_parameters_sizes = dict(), # { "Q": n_actions },
-            common_hidden_layer_sizes = [32, 32],
+            common_hidden_layer_sizes = [64, 64],
             hidden_layer_not_depending_on_agent_parameters_sizes = [16],
             hidden_layer_depending_on_agent_parameters_sizes = [], # [64],
             batch_size = cfg.num_envs,
-            layer_norms = True,
+            layer_norms = False,
             dropout = 0
         )
         if pretrained is not None:
@@ -257,7 +264,7 @@ def train_and_plot( env_name: str,
 
     planning_agent = AgentMDPPlanning(cfg.satisfia_agent_params, make_env()) if gridworld else None
 
-    model = run_or_load( f"dqn-{env_name}-no-discount-longer-training.pickle",
+    model = run_or_load( f"dqn-{env_name}-no-discount.pickle",
                          train_dqn,
                          make_env,
                          make_model,
@@ -291,15 +298,15 @@ def train_and_plot( env_name: str,
                                env = make_env(),
                                aspirations = np.linspace( min_achievable_total - 1,
                                                           max_achievable_total + 1,
-                                                          20 ),
-                               sample_size = 1000,
+                                                          10 ),
+                               sample_size = 250,
                                # reference_agents = planning_agent,
                                title = f"totals for agent with no discount and longer training in {env_name}" )
 
-# train_and_plot( 'LunarLander-v2',
-#                 gridworld = False,
-#                 min_achievable_total = -5,
-#                 max_achievable_total = 1 )
+train_and_plot( 'LunarLander-v2',
+                gridworld = False,
+                min_achievable_total = -5,
+                max_achievable_total = 5 )
 
 
 all_gridworlds = [ "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW24", "GW25", "GW26",
@@ -309,7 +316,10 @@ all_gridworlds = [ "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW
 gridworlds_without_delta = ["GW23", "GW24"]
 
 gridworlds_requiring_longer_training = [ "GW28", "test_box", "GW29", "GW26", "GW30", "GW32"]
+# still don't work even after longer training: test_box, GW30, GW28, GW29
 
-Parallel(n_jobs=-1)(delayed(train_and_plot)(gridworld_name) for gridworld_name in all_gridworlds)
+# train_and_plot("test_box")
+
+# Parallel(n_jobs=-1)(delayed(train_and_plot)(gridworld_name) for gridworld_name in all_gridworlds)
 # for gridworld_name in all_gridworlds:
 #     train_and_plot(gridworld_name)

@@ -59,7 +59,7 @@ class DQNConfig:
     total_timesteps: int = 500_000
     num_envs: int = 1
     async_envs: bool = True
-    buffer_size = 10_000
+    buffer_size: int = 10_000
     learning_rate_scheduler: Callable[[float], float] = \
         ConstantScheduler(1e-3)
     batch_size: int = 128

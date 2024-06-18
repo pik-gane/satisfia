@@ -3,7 +3,7 @@ import satisfia.agents.learning.dqn.agent_mdp_dqn as agent_mpd_dqn
 from satisfia.agents.learning.dqn.criteria import complete_criteria
 from satisfia.util.interval_tensor import IntervalTensor, relative_position, interpolate
 
-from torch import Tensor, empty, ones, full_like, randint, bernoulli, no_grad
+from torch import Tensor, empty, ones, full_like, randint, bernoulli, no_grad, allclose
 from torch.nn import Module
 from torch.distributions.categorical import Categorical
 
@@ -20,7 +20,7 @@ class ExplorationStrategy:
     @no_grad()
     def __call__(self, observations: Tensor, timestep: int):
         actions = self.satisfia_policy_actions(observations).sample()
-
+        
         exploration_rate = self.cfg.exploration_rate_scheduler(timestep / self.cfg.total_timesteps)
         explore = bernoulli(full_like(actions, exploration_rate, dtype=float)).bool()
         actions[explore] = randint( low=0,
@@ -33,8 +33,8 @@ class ExplorationStrategy:
     @no_grad()
     def satisfia_policy_actions(self, observations: Tensor) -> Categorical:
         criteria = self.target_network(observations, self.aspirations)
-        complete_criteria(criteria)
         # criteria["maxAdmissibleQ"], criteria["minAdmissibleQ"] = criteria["maxAdmissibleQ"].maximum(criteria["minAdmissibleQ"]), criteria["maxAdmissibleQ"].minimum(criteria["minAdmissibleQ"])
+        complete_criteria(criteria)
         self.criteria = criteria
         return agent_mpd_dqn.local_policy( self.cfg.satisfia_agent_params,
                                            criteria,

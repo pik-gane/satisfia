@@ -33,7 +33,13 @@ def train_dqn( make_env:   Callable[[], Env],
     q_network = make_model()
     target_network = make_model() 
     target_network.load_state_dict(q_network.state_dict())
-    optimizer = AdamW(q_network.parameters(), lr=cfg.learning_rate_scheduler(0), weight_decay=0)
+
+    # we set weight decay to zero because we had some mild Q value underestimation problems and were
+    # suspecting they were because of the weight decay, but we are not sure at all this is correct
+    # and not sure aet all setting weigth decay to zero is helpful
+    optimizer = AdamW( q_network.parameters(),
+                       lr           = cfg.learning_rate_scheduler(0),
+                       weight_decay = 0 )
 
     make_envs = [ (lambda: AutoResetWrapper(make_env()))
                   for _ in range(cfg.num_envs) ]
@@ -49,8 +55,12 @@ def train_dqn( make_env:   Callable[[], Env],
 
     replay_buffer = ReplayBuffer(cfg.buffer_size, device=cfg.device)
 
+    seen_observations = set()
+
     observations, _ = envs.reset()
     for timestep in tqdm(range(cfg.total_timesteps), desc="training dqn"):
+        for observation in observations:
+            seen_observations.add(tuple(observation.tolist()))
 
         actions = exploration_strategy(tensor(observations, device=cfg.device), timestep=timestep)
 
@@ -124,11 +134,13 @@ def train_dqn( make_env:   Callable[[], Env],
                     + (1 - cfg.soft_target_network_update_coefficient) * q_network_param.data
                 )
 
+    # print(seen_observations)
+
     if cfg.plotted_criteria is not None:
         stats.plot_criteria(q_network, RestrictToPossibleActionsWrapper(make_env()))
 
-    # if cfg.soft_target_network_update_coefficient != 0
-    # returning the q_network is not the same as returning the target network
+    # if cfg.soft_target_network_update_coefficient != 0 returning the q_network is not the same as
+    # returning the target network
     return target_network
 
 def set_learning_rate(optimizer: Optimizer, learning_rate: float) -> None:
