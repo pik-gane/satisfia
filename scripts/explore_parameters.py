@@ -169,10 +169,7 @@ def step():
                 if key not in Qs:
                     Qs[key] = []
 #                    Qs[key].append(agent.Q(state, action, aleph))
-                Qs[key].append(f"{aleph[0]},{aleph[1]}:{
-                    #agent.relativeQ2(state, action, aleph, agent.Q(state, action, aleph))
-                    agent.Q(state, action, aleph)
-                    }")  # variance of Total
+                Qs[key].append(f'{aleph[0]},{aleph[1]}:{agent.Q(state, action, aleph)}')  # variance of Total
             
             env.render(additional_data={
                 'cell': Vs,
