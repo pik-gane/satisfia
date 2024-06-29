@@ -1,0 +1,22 @@
+{
+	"grid": [
+		"######", 
+		"# A ##",
+		"# d  #",
+		"#  D##",
+		"### G#",
+		"######"
+	],
+	"delta_grid": [
+		"      ", 
+		"      ",
+		"      ",
+		"      ",
+		"    G ",
+		"      "
+	  ],
+	"expected_deltas": { "G": 1 },
+	"aleph0": 1,
+	"max_episode_length": 12,
+	"timeout_delta": -10
+}
