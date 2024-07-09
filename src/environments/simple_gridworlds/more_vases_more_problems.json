@@ -1,20 +1,20 @@
 {
 	"grid": [
 		"######",
-        "#    #", 
-		"#AFFG#",
-        "#    #",
+        "##   #", 
+		"#A||G#",
+        "##   #",
 		"######"
 	],
 	"delta_grid": [
 		"      ",
         "      ", 
-		"    G ",
+		"  ||G ",
         "      ",
 		"      "
 	  ],
-	"expected_deltas": { "G": 1, "F": -1},
+	"expected_deltas": { "G": 1, "|": -1},
 	"aleph0": 1,
-	"max_episode_length": 12,
+	"max_episode_length": 5,
 	"timeout_delta": -10
 }
