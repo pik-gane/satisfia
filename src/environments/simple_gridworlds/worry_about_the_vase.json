@@ -9,11 +9,11 @@
 	"delta_grid": [
 		"     ",
         "     ", 
-		"  |G ",
+		"   G ",
         "     ",
 		"     "
 	  ],
-	"expected_deltas": { "G": 1, "|": -1},
+	"expected_deltas": { "G": 1},
 	"aleph0": 1,
 	"max_episode_length": 4,
 	"timeout_delta": -10
