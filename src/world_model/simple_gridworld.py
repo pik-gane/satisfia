@@ -97,6 +97,8 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
         - 'A': agent's initial location 
         - 'F': A fragile object or organism (might move around on its own, is destroyed when stepped upon by the agent)
         - 'X': Box (can be pushed around but not pulled, can slide and fall off. Heavy, so agent can only push one at a time)
+        - 'Δ': Delta (positive or negative, can be collected once, does not end the episode)
+        - 'G': Goal or exit door (acting while on it ends the episode)
 
     - not yet implemented, but are planned to be implemented in the future:
         - '-': Slippery ground (Agents and boxes might slide along in a straight line; after sliding by one tile, 
@@ -108,8 +110,6 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
         - 'D': Door (can only be entered after having collected a key)
         - 'E': Enemy (might move around on its own)
         - 'f': A stationary even more fragile object that is destroyed when *anything* moves onto it
-        - 'Δ': Delta (positive or negative, can be collected once, does not end the episode)
-        - 'G': Goal or exit door (acting while on it ends the episode)
         - 'I': (Potential) interruption (agent might get stuck in forever)
         - 'K': Key (must be collected to be able to pass a door)
         - 'O': Ball (when pushed, will move straight until meeting an obstacle)
