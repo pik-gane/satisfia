@@ -1,0 +1,12 @@
+BootStrap: docker
+From: nvidia/cuda:11.6.2-devel-ubuntu20.04
+
+%files
+    ./ /
+
+%post
+    apt-get update && apt-get install -y python3-pip
+    pip3 install -r requirements.txt
+
+%runscript
+    python3 /scripts/test_dqn.py
