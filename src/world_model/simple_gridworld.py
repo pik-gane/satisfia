@@ -157,7 +157,8 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
     timeout_delta = None
     """(float) The delta (reward) for the timeout event."""
     move_probability_F = None
-    """(float) The probability with which objects of type 'F' move uniformly at random."""
+    """(float) The probability with which objects of type 'F' move uniformly at random.
+       or (dict) The probabilities with which objects of type 'F' move"""
 
     # additional attributes:
     _state = None
@@ -356,7 +357,9 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
                         return False  # only the agent can push a box or glass pane!
                     # see if it can be pushed:
                     obj_target_loc = tuple(2*np.array(to_loc) - np.array(from_loc))
-                    if not self._can_move(to_loc, obj_target_loc, state, who=object_type):
+                    if (object_type == 'X' or 
+                        (object_type == '|' and from_loc[1]!=to_loc[1]) # attempt to push glass pane up or down
+                        ) and not self._can_move(to_loc, obj_target_loc, state, who=object_type):
                         return False
             # TODO: implement destroying an 'F' by pushing a 'X' onto it 
         return True
@@ -366,7 +369,7 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
         return 4 if action == 4 else (action + 2) % 4
 
     def state_embedding(self, state):
-        res = np.array(state_embedding_for_distance(state), dtype=np.float32)[3:]  # make time and previous position irrelevant
+        res = np.array(state_embedding_for_distance(state), dtype=np.float32)[1:]  # make time and previous position irrelevant
         return res
 
     @cache
@@ -551,8 +554,13 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
             object_loc = get_loc(mc_locs, i) 
             if object_type != 'F':  # a non-fragile object
                 continue
-            if not(object_loc != (-2,-2) and self.move_probability_F > 0):  # object may not move
-                continue
+            if isinstance(self.move_probability_F, dict):
+                if not(object_loc != (-2,-2) and self.move_probability_F['stay'] < 1):  # object may not move
+                    continue
+            else:
+                assert isinstance(self.move_probability_F, float | int), "move_probability_F must be a dict or float"
+                if not(object_loc != (-2,-2) and self.move_probability_F > 0):  # object may not move
+                    continue
 
             # loop through all possible successor states in trans_dist and split them into at most 5 depending on whether F moves and where:
             new_trans_dist = {}
@@ -570,8 +578,21 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
                 if n_directions == 0:
                     new_trans_dist[default_successor] = probability
                 else:
-                    new_trans_dist[default_successor] = probability * (1 - self.move_probability_F)
-                    p = probability * self.move_probability_F / n_directions
+                    if isinstance(self.move_probability_F, dict):
+                        new_trans_dist[default_successor] = probability * self.move_probability_F['stay']
+                        p_up = probability * self.move_probability_F['up']
+                        p_down = probability * self.move_probability_F['down']
+                        p_left = probability * self.move_probability_F['left']
+                        p_right = probability * self.move_probability_F['right']
+                        direction_probabilities = [p_up, p_right, p_down, p_left]
+                    else:
+                        assert isinstance(self.move_probability_F, float | int), "move_probability_F must be a dict or float"
+                        new_trans_dist[default_successor] = probability * (1 - self.move_probability_F)
+                        direction_probabilities = [self.move_probability_F/n_directions for _ in range(4)]
+                    normalize_denominator = sum([direction_probabilities[j] for (j, _) in direction_locs])
+                    #if normalize_denominator == 0:
+                    #    new_trans_dist[default_successor] = probability
+                    #    continue
                     for (direction, obj_target_loc) in direction_locs:
                         if obj_target_loc == target_loc:  # object is destroyed
                             new_successor = self._make_state(succ_t, succ_loc, succ_imm_states, set_loc(succ_mc_locs, i, (-2,-2)), succ_mv_locs, succ_mv_states)
@@ -583,7 +604,11 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
                                 # glass pane breaks
                                 new_mc_locs = set_loc(new_mc_locs, inhabitant_index, (-2,-2))
                             new_successor = self._make_state(succ_t, succ_loc, succ_imm_states, new_mc_locs, succ_mv_locs, succ_mv_states)
-                        new_trans_dist[new_successor] = p
+                        try:
+                            new_trans_dist[new_successor] = direction_probabilities[direction] / normalize_denominator
+                        except ZeroDivisionError:
+                            new_trans_dist[new_successor] = 0
+                            new_trans_dist[default_successor] = probability
             trans_dist = new_trans_dist
 
         # TODO: update object states and/or object locations, e.g. if the agent picks up an object or moves an object
