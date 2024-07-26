@@ -12,6 +12,18 @@ from satisfia.agents.makeMDPAgentSatisfia import AgentMDPPlanning
 gridworlds = sorted(all_worlds())
 default_gridworld = "test_return"
 
+testcase_scores = {world: [0, 0] for world in gridworlds}
+passing_states = {'box_moving_world': (7, 4, 4, 3, 2),
+                  'coercing_impact': (6, 1, 3, 3, 2, 4, 2, 6, 2),
+                  'pink_car_1': (6, 6, 4, 1, 0, 3, 4, 3),
+                  'pink_car_2': (6, 6, 2, 1, 0, 1, 4, 1),
+                  'pink_car_3': (5, 4, 2, 1, 1, 1, 3, 1),
+                  'sushi_1': (5, 0, 4, 1, 0, 1, 2, 2, 3),
+                  'sushi_2': (4, 0, 3, 1, 1, 3, 2, 3, 3, 4, 1),
+                  'sushi_3': (5, 0, 4, 3, 1, 4, 2, 4, 3, 5, 1),
+                  'more_vases_more_problems': (5, 4, 2, -2, -2, 3, 2),
+                  'worry_about_the_vase': (4, 3, 2, 2, 2)}
+
 parameter_data = [
     ("aleph0_low", -10, 10, 0, 0.1),
     ("aleph0_high", -10, 10, 0, 0.1),
@@ -146,10 +158,11 @@ def step():
     state = nextState
     if terminated:
         print("t:",t, ", last delta:",delta, ", final total:", total, ", final s:", state, ", aleph4s:", aleph)
-        if gridworld == 'worry_about_the_vase':
-            passed_state = (4, 3, 2, 2, 2)
-            if state == passed_state:
-                print("PASSED")
+        testcase_scores[gridworld][1] += 1
+        passing_state = passing_states[gridworld]
+        if state == passing_state:
+            testcase_scores[gridworld][0] += 1
+        print('Current Score:', testcase_scores[gridworld][0], 'out of', testcase_scores[gridworld][1])
         print("Terminated.")
         running = stepping = False
         if values['autorestart_checkbox']:
