@@ -17,5 +17,5 @@
 	"aleph0": 0,
 	"max_episode_length": 5,
 	"timeout_delta": 0,
-    "move_probability_F": 1
+    "move_probability_F": {"up": 0.9, "right": 0, "down": 0, "left": 0.1, "stay": 0}
 }
