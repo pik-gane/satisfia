@@ -204,11 +204,15 @@ def reset_env(start=False):
         'uninformedPolicy': uninformedPolicy,
         'referenceState': env.initial_state()
     })
-    print("\n\nRESTART gridworld", gridworld, parameter_values)
+    print("\n\nRESTART gridworld", gridworld)
+    for key, val in parameter_values.items():
+        print('    ', key, ':', val)
     state, info = env.reset()
+    print(f'{env.move_probability_F = }')
     print("Initial state:", env.state_embedding(state), ", initial aleph:", aleph)
     agent = AgentMDPPlanning(parameter_values, world=env)
     # agent.localPolicy(state, aleph)  # call it once to precompute tables and save time for later
+    print(f'{agent.ETerminalState_state(state, aleph, "default") = }')
     initialMu0 = list(agent.ETerminalState_state(state, aleph, "default"))
     initialMu20 = list(agent.ETerminalState2_state(state, aleph, "default"))
     t = 0
