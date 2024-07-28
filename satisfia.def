@@ -1,0 +1,6 @@
+BootStrap: docker
+From: nordbyerik/test_docker_singularity
+
+
+%runscript
+    python3 /scripts/test_dqn.py
