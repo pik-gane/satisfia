@@ -579,17 +579,19 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
                     new_trans_dist[default_successor] = probability
                 else:
                     if isinstance(self.move_probability_F, dict):
-                        new_trans_dist[default_successor] = probability * self.move_probability_F['stay']
+                        p_stay = probability * self.move_probability_F['stay']
                         p_up = probability * self.move_probability_F['up']
                         p_down = probability * self.move_probability_F['down']
                         p_left = probability * self.move_probability_F['left']
                         p_right = probability * self.move_probability_F['right']
+                        new_trans_dist[default_successor] = p_stay
                         direction_probabilities = [p_up, p_right, p_down, p_left]
                     else:
                         assert isinstance(self.move_probability_F, float | int), "move_probability_F must be a dict or float"
-                        new_trans_dist[default_successor] = probability * (1 - self.move_probability_F)
-                        direction_probabilities = [self.move_probability_F/n_directions for _ in range(4)]
-                    normalize_denominator = sum([direction_probabilities[j] for (j, _) in direction_locs])
+                        p_stay = probability * (1 - self.move_probability_F)
+                        new_trans_dist[default_successor] = p_stay
+                        direction_probabilities = [probability * self.move_probability_F / n_directions for _ in range(4)]
+                    normalize_denominator = sum([direction_probabilities[j] for (j, _) in direction_locs]) + p_stay
                     #if normalize_denominator == 0:
                     #    new_trans_dist[default_successor] = probability
                     #    continue
