@@ -94,14 +94,14 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
         return res
 
     @cache
-    def transition_probability(self, state: State, action: Action, successor: State, n_samples:Optional[int] = None):
+    def transition_probability(self, state: Optional[State], action: Optional[Action], successor: State, n_samples:Optional[int] = None):
         """Return the probability of the successor state after performing action in state,
         or, if state and action are None, of successor being the initial state,
         and a boolean flag indicating whether the probability is exact."""
         return self.transition_distribution(state, action, n_samples).get(successor, (0, True))
     
     @cache
-    def transition_distribution(self, state:State, action:Action, n_samples:Optional[int] = None):
+    def transition_distribution(self, state:Optional[State], action:Optional[Action], n_samples:Optional[int] = None):
         """Return a dictionary mapping possible successor states after performing action in state,
         or, if state and action are None, of possible initial states,
         to tuples of the form (probability: float, exact: boolean)."""
