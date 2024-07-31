@@ -118,19 +118,28 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
 
     def expectation_of_fct_of_reward(self, state:State, action:Action, f, additional_args = (), n_samples:Optional[int]= None):
         """Return the expected value of f(reward, *additional_args) after taking action in state."""
-        return sum(successor_probability * reward_probability * f(reward, *additional_args)
+        try:
+            return sum(successor_probability * reward_probability * f(reward, *additional_args)
                        for (successor, (successor_probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()
                        if successor_probability > 0
                        for ((observation, reward), (reward_probability, _)) in self.observation_and_reward_distribution(state, action, successor, n_samples = n_samples).items()
                        if reward_probability > 0
                        )
+        except TypeError:
+            return tuple(sum(successor_probability * reward_probability * np.array(f(reward, *additional_args))
+                       for (successor, (successor_probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()
+                       if successor_probability > 0
+                       for ((observation, reward), (reward_probability, _)) in self.observation_and_reward_distribution(state, action, successor, n_samples = n_samples).items()
+                       if reward_probability > 0
+                       ))
+
     
     expectation_of_fct_of_delta = expectation_of_fct_of_reward
 
     @cache
     def raw_moment_of_reward(self, state:State, action:Action, degree:int = 1, n_samples:Optional[int] = None):
         """Return a raw moment of reward after taking action in state."""
-        return self.expectation_of_fct_of_reward(state, action, lambda reward: reward**degree, n_samples = n_samples)
+        return self.expectation_of_fct_of_reward(state, action, lambda reward: reward**degree if not isinstance(reward, tuple) else tuple([entry**degree for entry in reward]), n_samples = n_samples)
     
     raw_moment_of_delta = raw_moment_of_reward
 
@@ -224,8 +233,9 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
         succ_probs = list(transition_distribution.values())
         try:
             drawn_succ_index = choice(len(successors), p = [succ_prob for (succ_prob, _) in succ_probs])
-        except:
+        except Exception as e:
             print("!", successors, succ_probs)
+            raise e
         successor = successors[drawn_succ_index]
         succ_prob, succ_prob_exact = succ_probs[drawn_succ_index] 
         # draw an observation and reward according to the observation and reward distribution:
