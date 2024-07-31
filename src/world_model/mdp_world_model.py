@@ -4,7 +4,7 @@ from . import WorldModel
 
 ObsType = TypeVar("ObsType")
 Action = TypeVar("Action")
-State= TypeVar("State")
+State = TypeVar("State")
 
  
 class MDPWorldModel(Generic[ObsType, Action, State],WorldModel[ObsType, Action, State]):

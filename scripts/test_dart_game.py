@@ -11,11 +11,8 @@ rounding errors when calculating aspiration4state break inequalities in localPol
 environment vs world model
 """
 
-import os
 import sys
 sys.path.insert(0,'./src/')
-script_directory = os.path.dirname(os.path.abspath(sys.argv[0])) 
-print(script_directory)
 
 import time
 from numpy import random
