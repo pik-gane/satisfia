@@ -1,11 +1,6 @@
 from typing import Any, Generic, Optional, TypeVar
 
-from . import WorldModel
-
-ObsType = TypeVar("ObsType")
-Action = TypeVar("Action")
-State= TypeVar("State")
-
+from . import WorldModel, ObsType, Action, State
  
 class MDPWorldModel(Generic[ObsType, Action, State],WorldModel[ObsType, Action, State]):
     """
