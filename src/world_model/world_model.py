@@ -11,9 +11,27 @@ from functools import cache
 # TODO: define Exceptions for: action set empty, action not possible in state
 ObsType = TypeVar("ObsType")
 Action = TypeVar("Action")
-State= TypeVar("State")
+State = TypeVar("State")
 
- 
+class TuplePlus(tuple):
+    """A tuple of numbers that supports element-wise addition, subtraction, multiplication, division, and exponentiation."""
+    def __neg__(self):
+        return TuplePlus(-a for a in self)
+    def __add__(self, other):
+        return TuplePlus(a + b for a, b in zip(self, other))
+    def __sub__(self, other):
+        return TuplePlus(a - b for a, b in zip(self, other))
+    def __mul__(self, scalar):
+        return TuplePlus(a * scalar for a in self)
+    def __rmul__(self, scalar):
+        return TuplePlus(a * scalar for a in self)
+    def __truediv__(self, scalar):
+        return TuplePlus(a / scalar for a in self)
+    def __rtruediv__(self, scalar):
+        return TuplePlus(a / scalar for a in self)
+    def __pow__(self, scalar):
+        return TuplePlus(a ** scalar for a in self)
+    
 class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
     """An abstract base class for potentially probabilistic world models, 
     extending gymnasion.Env by providing methods for enquiring transition probabilities between 
