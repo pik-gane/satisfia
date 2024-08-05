@@ -1,31 +1,23 @@
 {
-  "upload_type": "software", //choose one and delete the other. Either "software" or "dataset"
-
+  "upload_type": "software",
   "title": "Code for ADT2024 paper",
-  
   "creators": [
     {
       "name": "Heitzig, Jobst",
       "affiliation": "Potsdam Institute for Climate Impact Research (PIK)",
-      "orcid": "0000-0002-0442-8077" //fill out orcid in the format 0000-0000-0000-0000
+      "orcid": "0000-0002-0442-8077"
     }
   ],
-
   "contributors": [
     {
       "name": "Heitzig, Jobst",
-      "type": "ContactPerson",  // Every Software, Data or Model publication should have a responsible contact person at PIK. This contact should be visible in the Zenodo record! If the Contact person is also a creator, he/her have to be listed twice, once in creators, once in contributors!
+      "type": "ContactPerson", 
       "affiliation": "Potsdam Institute for Climate Impact Research (PIK)",
-      "orcid": "0000-0002-0442-8077" //fill out orcid in the format 0000-0000-0000-0000
+      "orcid": "0000-0002-0442-8077" 
     }
   ],
-
   "description": "Python code for aspiration-based agents fulfilling multi-dimensional goals in sequential decision problems.",
-
   "access_right": "open",
-  
-  "license": "BSD-2-Clause", // Tools: BSD-2-Clause (see list https://spdx.org/licenses). Models: AGPL-3.0-only (Affero-GPL) with contributors agreement. Text: CC-BY-4.0 
-
-  "keywords": ["Potsdam Institute for Climate Impact Research", "PIK", "Software", "PaperCompanion", "as-is" ], //delete "PaperCompanion" if your record does not accompany a publication. Keep one or more of the keywords Software, Data and Model (depending of the type of record). For SDM records choose one of "active-development" / "maintained" / "as-is" / "deprecated". Add further keywords from the PIK taglist according to the PIK tagging guidelines.
-  
+  "license": "BSD-2-Clause",
+  "keywords": ["Potsdam Institute for Climate Impact Research", "PIK", "Software", "PaperCompanion", "as-is" ]
 }
