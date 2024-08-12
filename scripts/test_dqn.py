@@ -38,8 +38,8 @@ from plotly.graph_objects import Figure, Scatter, Layout
 
 from copy import deepcopy
 
-# device = "cuda" if torch.cuda.is_available() else "cpu"
-device = "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
+# device = "cpu"
 print("using", device)
 
 def multi_tqdm(num_tqdms: int) -> List[Callable[[Iterable], Iterable]]:
@@ -322,7 +322,8 @@ gridworlds_requiring_longer_training = [ "GW28", "test_box", "GW29", "GW26", "GW
 # still don't work even after longer training: test_box, GW30, GW28, GW29
 
 # train_and_plot("GW1")
-
+# TODO: Add a variable which decides whether to load file
+# TODO: Output file added to a folder which we can git ignore. add to results
 Parallel(n_jobs=-1)(delayed(train_and_plot)(gridworld_name) for gridworld_name in gridworld_simple)
 # for gridworld_name in all_gridworlds:
 #     train_and_plot(gridworld_name)

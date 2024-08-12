@@ -62,6 +62,7 @@ def train_dqn( make_env:   Callable[[], Env],
         for observation in observations:
             seen_observations.add(tuple(observation.tolist()))
 
+        # NOTE: Want to explore using eplison greedy or other non-model related strategies
         actions = exploration_strategy(tensor(observations, device=cfg.device), timestep=timestep)
 
         next_observations, deltas, dones, truncations, _ = envs.step(actions.cpu().numpy())

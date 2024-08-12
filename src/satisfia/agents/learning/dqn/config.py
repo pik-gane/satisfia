@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from satisfia.agents.makeMDPAgentSatisfia import AgentMDPPlanning
 from satisfia.util.interval_tensor import IntervalTensor
 
