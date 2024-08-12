@@ -72,7 +72,9 @@ def simulate_episode(env, aleph):
 		"lossCoeff4Entropy": 0, # weight of action entropy in loss function, must be >= 0
 		"lossCoeff4KLdiv": 0, # weight of KL divergence in loss function, must be >= 0
 		"lossCoeff4OtherLoss": 0, # weight of other loss components specified by otherLossIncrement, must be >= 0
-		"uninformedPolicy": uniform_random_policy()
+		"uninformedPolicy": uniform_random_policy(),
+		"delta_dim": 2, # dimension of the aspiration space
+		"ref_dirs": [[1, 0], [-1, -1], [-1, 1]] # directions for computing reference triangles
 		}, world=env)
 	total = delta = np.array([0, 0])
 	for t in range(1000):
