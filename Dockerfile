@@ -1,55 +1,46 @@
-FROM nvidia/cuda:12.5.1-cudnn-devel-ubuntu22.04
+# Stage 1: Build environments
+FROM pytorch/pytorch:1.12.0-cuda11.3-cudnn8-runtime
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     wget \
     bzip2 \
     ca-certificates \
-    libglib2.0-0 \
-    libxext6 \
-    libsm6 \
-    libxrender1 \
-    libgl1-mesa-glx \
-    libosmesa6-dev \
-    libglfw3
+    swig \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Miniconda
-RUN wget https://repo.anaconda.com/miniconda/Miniconda3-py310_23.10.0-1-Linux-x86_64.sh -O miniconda.sh && \
-    bash miniconda.sh -b -p -d /opt/conda && \
-    rm miniconda.sh
+#ENV CONDA_DIR /opt/conda
+#RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py310_23.10.0-1-Linux-x86_64.sh -O miniconda.sh && \
+#    /bin/bash miniconda.sh -b -p $CONDA_DIR && \
+#    rm miniconda.sh && \
+#    echo "export PATH=$CONDA_DIR/bin:$PATH" > /etc/profile.d/conda.sh
 
-# Set path to conda
-ENV PATH /opt/conda/bin:$PATH
+#ENV PATH $CONDA_DIR/bin:$PATH
 
 # Copy the requirements file
-COPY requirements.txt /workspaces/satisfia/requirements.txt
+COPY requirements.txt /tmp/requirements.txt
 
-# Create and activate environments
-RUN conda create -n mujoco python=3.10 -y && \
-    conda create -n atari python=3.9 -y && \
-    conda create -n default python=3.10 -y
+# Create and set up atari environment
+RUN conda create -n atari python=3.9 -y && \
+    conda run -n atari pip install --no-cache-dir gymnasium[atari] gymnasium[accept-rom-license] gymnasium[box2d]&& \
+    conda run -n atari pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Install packages in mujoco environment
-RUN conda run -n mujoco pip install gymnasium[mujoco] && \
-    conda run -n mujoco pip install -r /workspaces/satisfia/requirements.txt
+# Create base environment and install common packages
 
-# Install packages in atari environment
-RUN conda run -n atari pip install gymnasium[atari] gymnasium[accept-rom-license] && \
-    conda run -n atari pip install -r /workspaces/satisfia/requirements.txt
+RUN conda create -n base_env python=3.10 -y && \
+    conda run -n base_env pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Install packages in default environment
-RUN conda run -n default pip install -r /workspaces/satisfia/requirements.txt
+# Create and set up mujoco environment
+RUN conda create -n mujoco --clone base_env -y && \
+    conda run -n mujoco pip install --no-cache-dir gymnasium[mujoco]
 
-# Copy the rest of the files
-COPY ./scripts /workspaces/satisfia/scripts
-COPY ./src /workspaces/satisfia/src
-COPY . .
-
-# Set the working directory
-WORKDIR /workspaces/satisfia/
-
-# Set default environment to 'default'
-RUN echo "conda activate default" >> ~/.bashrc
+# Clean up
+RUN conda clean -afy && \
+    find $CONDA_DIR -follow -type f -name '*.a' -delete && \
+    find $CONDA_DIR -follow -type f -name '*.pyc' -delete && \
+    find $CONDA_DIR -follow -type f -name '*.js.map' -delete
 
 # Set the shell to bash
 SHELL ["/bin/bash", "--login", "-c"]
