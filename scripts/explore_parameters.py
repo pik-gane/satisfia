@@ -126,7 +126,9 @@ def step():
     global gridworld, parameter_values, env, agent, running, stepping, terminated, t, state, total, aleph, aleph0, delta, initialMu0, initialMu20, visited_state_alephs, visited_action_alephs
     print()
     env._fps = values['speed_slider']
-    action, aleph4action = agent.localPolicy(state, aleph).sample()[0]
+    # action, aleph4action = agent.localPolicy(state, aleph).sample()[0]
+    action = agent.act() 
+    aleph4action = agent.last_aleph4action
     visited_state_alephs.add((state, aleph))
     visited_action_alephs.add((state, action, aleph4action))
     if values['lossCoeff4WassersteinTerminalState'] != 0:
@@ -144,8 +146,10 @@ def step():
     if parameter_values['verbose'] or parameter_values['debug']:
         print("t:", t, ", last delta:" ,delta, ", total:", total, ", s:", state, ", aleph4s:", aleph, ", a:", action, ", aleph4a:", aleph4action)
     nextState, delta, terminated, _, info = env.step(action)
-    total += delta
-    aleph = agent.propagateAspiration(state, action, aleph4action, delta, nextState)
+    agent.observe(nextState, delta, terminated)
+    total = agent.total # total += delta
+    aleph = agent.last_aleph4state # agent.propagateAspiration(state, action, aleph4action, delta, nextState)
+
     state = nextState
     if terminated:
         print("t:",t, ", last delta:",delta, ", final total:", total, ", final s:", state, ", aleph4s:", aleph)
@@ -183,6 +187,8 @@ def step():
         t += 1
         if stepping: stepping = False
 
+agent = None
+
 def reset_env(start=False):
     # TODO: only regenerate env if different from before!
     global gridworld, parameter_values, env, agent, running, stepping, terminated, t, state, total, aleph, aleph0, delta, initialMu0, initialMu20, visited_state_alephs, visited_action_alephs
@@ -191,6 +197,7 @@ def reset_env(start=False):
     if gridworld != old_gridworld:
         env, aleph0 = make_simple_gridworld(gw=gridworld, render_mode="human", fps=values['speed_slider'])
 #        env = env.get_prolonged_version(5)
+        agent = AgentMDPPlanning(world=env)
     if values['override_aleph_checkbox']:
         aleph = (values['aleph0_low'], values['aleph0_high'])
     else:
@@ -201,6 +208,7 @@ def reset_env(start=False):
     if parameter_values['lossTemperature'] == 0:
         parameter_values['lossTemperature'] = 1e-6
     parameter_values.update({
+        'initialAspiration': aleph,
         'verbose': values['verbose_checkbox'],
         'debug': values['debug_checkbox'],
         'allowNegativeCoeffs': True,
@@ -209,9 +217,10 @@ def reset_env(start=False):
         'wassersteinFromInitial': values['wasserstein_checkbox'],
     })
     print("\n\nRESTART gridworld", gridworld, parameter_values)
+    agent.reset(parameter_values)
     state, info = env.reset()
+    agent.observe(state)
     print("Initial state:", env.state_embedding(state), ", initial aleph:", aleph)
-    agent = AgentMDPPlanning(parameter_values, world=env)
     # agent.localPolicy(state, aleph)  # call it once to precompute tables and save time for later
     initialMu0 = list(agent.ETerminalState_state(state, aleph, "default"))
     initialMu20 = list(agent.ETerminalState2_state(state, aleph, "default"))

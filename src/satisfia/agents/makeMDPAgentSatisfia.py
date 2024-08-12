@@ -23,7 +23,13 @@ class AspirationAgent(ABC):
     reachable_states = None
     default_transition = None
 
+
+    ### Methods for initialization, resetting, clearing caches:
+
     def __init__(self, params):
+        if params: self.reset(params)
+
+    def reset(self, params):
         """
         If world is provided, maxAdmissibleQ, minAdmissibleQ, Q, Q2, ..., Q6 are not needed because they are computed from the world. Otherwise, these functions must be provided, e.g. as learned using some reinforcement learning algorithm. Their signature is
         - maxAdmissibleQ|minAdmissibleQ: (state, action) -> float
@@ -41,7 +47,9 @@ class AspirationAgent(ABC):
         if lossCoeff4StateDistance > 0, referenceState must be provided
 
         """
+
         defaults = {
+            "initialAspiration": None,
             # admissibility parameters:
             "maxLambda": 1, # upper bound on local relative aspiration in each step (must be minLambda...1)    # TODO: rename to lambdaHi
             "minLambda": 0, # lower bound on local relative aspiration in each step (must be 0...maxLambda)    # TODO: rename to lambdaLo
@@ -102,6 +110,15 @@ class AspirationAgent(ABC):
         self.params = defaults.copy()
         self.params.update(params)
         # TODO do I need to add params_.options
+
+        self.clear_caches()
+        self.last_state = None
+        self.last_aleph4state = params["initialAspiration"]
+        self.last_action = None
+        self.last_aleph4action = None
+        self.last_delta = None
+        self.terminated = False
+        self.total = None
 
         self.stateActionPairsSet = set()
 
@@ -216,8 +233,22 @@ class AspirationAgent(ABC):
             → aspiration4state
         → simulate (RECURSION)"""
 
+    def clear_caches(self):
+        """Clear all function caches (called by reset())"""
+        # loop through all parent classes:
+        for cls in self.__class__.__mro__: 
+            # loop through all attributes of the class:
+            for key, value in cls.__dict__.items():
+                # check if the attribute is a cached function:
+                if callable(value):
+                    if hasattr(value, "cache_clear"):
+                        value.cache_clear()
+
     def __getitem__(self, name):
         return self.params[name]
+
+
+    ### Methods for computing feasibility sets / reference simplices:
 
     @cache
     def maxAdmissibleV(self, state): # recursive
@@ -258,6 +289,9 @@ class AspirationAgent(ABC):
     # The resulting admissibility interval for actions.
     def admissibility4action(self, state, action):
         return self.minAdmissibleQ(state, action), self.maxAdmissibleQ(state, action)
+
+
+    # Methods for computing aspirations:
 
     # When in state, we can get any expected total in the interval
     # [minAdmissibleV(state), maxAdmissibleV(state)].
@@ -324,6 +358,9 @@ class AspirationAgent(ABC):
             print(pad(state),"| | ╰ aspiration4action, state",prettyState(state),"action",action,"aleph4state",aleph4state,":",res,"(steadfast)") 
         return res
 
+
+    ### Methods for computing loss components independent of actual policy:
+
     @cache
     def disorderingPotential_state(self, state): # recursive
         if self.debug or self.verbose:
@@ -374,6 +411,9 @@ class AspirationAgent(ABC):
         if self.debug or self.verbose:
             print(pad(state),"| | | | ╰ agency_state", prettyState(state), ":", res)
         return res
+
+
+    # Methods for computing the policy, propagating aspirations, acting, and observing:
 
     # Based on the admissibility information computed above, we can now construct the policy,
     # which is a mapping taking a state and an aspiration interval as input and returning
@@ -537,6 +577,39 @@ class AspirationAgent(ABC):
         So the above rescaling formula is correctly taking account of received delta even without explicitly
         including Edel in the formula.
         """
+
+    def observe(self, state, delta=None, terminated=False):
+        """Called after env.reset() or env.step()"""
+        self.last_delta = delta
+        if delta is not None:
+            if self.total is None:
+                self.total = delta
+            else:
+                self.total += delta
+        self.terminated = terminated
+        if not terminated:
+            if self.last_state is not None:
+                # propagate the aspiration:
+                self.last_aleph4state = self.propagateAspiration(self.last_state, self.last_action, self.last_aleph4action, delta, state)
+            # otherwise it was set in reset()
+        self.last_state = state
+        if self.verbose or self.debug:
+            print("observed state", prettyState(state), ", delta", delta, " (terminated", terminated, "); resulting total", self.total, ", aleph4state", self.last_aleph4state)
+
+    def act(self):
+        """Choose an action based on current state and aspiration"""
+        assert not self.terminated, "cannot act after termination"
+        state, aleph4state = self.last_state, self.last_aleph4state
+        assert state is not None, "cannot act without having observed a state"
+        action, aleph4action = self.localPolicy(state, aleph4state).sample()[0]
+        # TODO later: potentially consult with the principal and change the aleph4state action and/or and/or aleph4action
+        self.last_action, self.last_aleph4action = action, aleph4action
+        if self.verbose or self.debug:
+            print("acting in state", prettyState(state), ", choosing action", action, ", aleph4action", aleph4action)
+        return action
+
+
+    ### Methods for computing loss components dependent on actual policy:
 
     @cache
     def V(self, state, aleph4state): # recursive
@@ -858,6 +931,9 @@ class AspirationAgent(ABC):
     def randomTieBreaker(self, state, action):
         return random.random()
 
+
+    ### Methods for computing overall safety loss:
+
     # now we can combine all of the above quantities to a combined (safety) loss function:
 
     # state, action, aleph4state, aleph4action, estActionProbability
@@ -881,6 +957,9 @@ class AspirationAgent(ABC):
             "states": list({pair[0] for pair in self.stateActionPairsSet}),
             "locs": [state.loc for state in states],
         }
+
+
+    ### Abstract methods that need to be implemented by subclasses:
 
     @abstractmethod
     def maxAdmissibleQ(self, state, action): pass
@@ -979,7 +1058,7 @@ class AgentMDPLearning(AspirationAgent):
         self.possible_actions = possible_actions
 
 class AgentMDPPlanning(AspirationAgent):
-    def __init__(self, params, world=None):
+    def __init__(self, params=None, world=None):
         self.world = world
         super().__init__(params)
 
