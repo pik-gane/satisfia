@@ -187,7 +187,6 @@ def step():
         t += 1
         if stepping: stepping = False
 
-agent = None
 
 def reset_env(start=False):
     # TODO: only regenerate env if different from before!
