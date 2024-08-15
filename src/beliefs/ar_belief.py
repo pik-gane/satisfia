@@ -1,7 +1,8 @@
 """Implements an AR-belief structure able to represent complex combinations of ambiguity and risk."""
 
+import itertools
 import numpy as np
-from typing import Literal, Tuple, Dict, Set, List, Optional, NewType, Iterable, FrozenSet, Callable
+from typing import Literal, Tuple, Dict, Set, List, Optional, NewType, Iterable, FrozenSet, Callable, Generator
 
 NodeType = NewType("NodeType", Literal["risk", "ambiguity", "event"])
 """Possible types of nodes in an AR-belief structure
@@ -133,6 +134,10 @@ class ARBelief(object):
             return f"Ambiguity (\n  {",\n  ".join([f"{l+' ' if l else ''}{indent_later(str(b))}" for (b,l) in zip(self.children, self.labels)])}  )"
         elif self.node_type == "event":
             return f"Event {str(set(self.event))}"
+        
+    def save_figure(self, filename: str, format: str = "pdf"):
+        """Save a visual representation of the AR-belief structure to a file, laid out using graphviz."""
+        raise NotImplementedError
 
 
     # Simplification:
@@ -285,7 +290,7 @@ class ARBelief(object):
 
     # Operations:
 
-    def conditioned_on(self, condition: Event) -> "ARBelief":
+    def conditioned_on_event(self, condition: Event) -> "ARBelief":
         """Condition the AR-belief structure on an event.
         Note that likelihoods will not be renormalized."""
         if self.node_type == "event":
@@ -296,7 +301,7 @@ class ARBelief(object):
             else:
                 raise ValueError("Conditioning on a condition event that is incompatible with this belief's events")
         else:
-            children0 = [child.conditioned_on(condition) for child in self.children]
+            children0 = [child.conditioned_on_event(condition) for child in self.children]
             children = []
             labels = []
             likelihoods = [] if self.node_type == "risk" else None
@@ -341,12 +346,10 @@ class ARBelief(object):
     def unlabelled(self, keep: Optional[Iterable[Label]] = None) -> "ARBelief":
         """Remove all labels except those named in keep from the AR-belief structure."""
         labels = [l if keep is not None and l in keep else None for l in self.labels] if self.labels else None
-        if self.node_type == "risk":
-            return ARBelief(node_type="risk", children=[child.unlabelled(keep=keep) for child in self.children], labels=labels, likelihoods=self.likelihoods)
-        elif self.node_type == "ambiguity":
-            return ARBelief(node_type="ambiguity", children=[child.unlabelled(keep=keep) for child in self.children], labels=labels)
-        else:
+        if self.node_type == "event":
             return self
+        else:
+            return ARBelief(node_type=self.node_type, children=[child.unlabelled(keep=keep) for child in self.children], labels=labels, likelihoods=self.likelihoods, _verify_disjoint_events=False)
         
     def extended_by(self, events: Iterable[Event], beliefs: Iterable["ARBelief"]) -> "ARBelief":
         """Extend the AR-belief structure by replacing certain events by certain beliefs."""
@@ -356,16 +359,82 @@ class ARBelief(object):
             return beliefs[i] if i is not None else self
         else:
             children = [child.extended_by(events, beliefs) for child in self.children]
-            return ARBelief(node_type=self.node_type, children=children, labels=self.labels, likelihoods=self.likelihoods)
-        
-    
+            return ARBelief(node_type=self.node_type, children=children, labels=self.labels, likelihoods=self.likelihoods, _verify_disjoint_events=False)
+
+
+    # Scenarios:
+
+    def scenarios(self) -> Generator:
+        """Generate all scenarios represented by the AR-belief structure.
+        A scenario is the result of restricting the tree to one outgoing link for each ambiguity node."""
+        if self.node_type == "ambiguity":
+            for child in self.children:
+                for scenario in child.scenarios():
+                    yield ARBelief(node_type="ambiguity", children=[scenario], labels=[self.labels[0]], _verify_disjoint_events=False)
+        elif self.node_type == "risk":
+            # loop through all combinations of scenarios, one for each child, using itertools.product:
+            for scenario_combination in itertools.product(*[child.scenarios() for child in self.children]):
+                yield ARBelief(node_type="risk", children=list(scenario_combination), labels=self.labels, likelihoods=self.likelihoods, _verify_disjoint_events=False)
+        else:
+            yield self
+
+    def scenario_weighted_total(self, func: Callable) -> float:
+        """Compute the weighted total of event func in this given scenario, using event's likelihoods as weights."""
+        if self.node_type == "event":
+            return func(self.event)
+        elif self.node_type == "risk":
+            return np.dot(self.likelihoods, [child.scenario_weighted_total(func) for child in self.children])
+        else:
+            raise ValueError("Cannot compute expectation in an AR-belief structure with ambiguity nodes")
+
+    def scenario_total_likelihood(self) -> float:
+        """Compute the sum of all leaves' likelihoods of an AR-belief structure without ambiguity nodes."""
+        return self.scenario_weighted_total(lambda e: 1)
+
+    def scenario_expectation(self, func: Callable) -> float:
+        """Compute the expectation of event func in this AR-belief structure."""
+        return self.scenario_weighted_total(func) / self.scenario_total_likelihood()
+
+
+    # Label-defined partial scenarios:
+
+    def conditioned_on_label(self, label: Label) -> "ARBelief":
+        """Condition the AR-belief structure on the occurrence of the label on the path."""
+        belief, contains_label = self._conditioned_on_label_or_self(label)
+        if contains_label:
+            return belief
+        else:
+            raise ValueError(f"Label {label} not found in the AR-belief structure")
+
+    def _conditioned_on_label_or_self(self, label: Label) -> Tuple["ARBelief", bool]:
+        if self.node_type == "event":
+            return self, False
+        else:
+            children, contain_label = zip(*[child._conditioned_on_label_or_self(label) for child in self.children])
+            indices = [i for i in range(len(children)) if self.labels[i] == label or contain_label[i]]
+            if len(indices) == 0:
+                return self, False
+            else:
+                # return only those branches that contain the label:
+                return ARBelief(node_type=self.node_type, children=[children[i] for i in indices], labels=[self.labels[i] for i in indices], likelihoods=[self.likelihoods[i] for i in indices] if self.likelihoods is not None else None, _verify_disjoint_events=False), True
+
+
     # Evaluation:
 
-    def plausibility_weighted_worst_case_expectation(self, event_value: Callable) -> float:
-        """Compute the plausibility-weighted worst-case expectation of the AR-belief structure."""
-        raise NotImplementedError
+    def plausibility_weighted_min_expectation(self, func: Callable) -> float:
+        """Compute the plausibility-weighted worst-case expectation of given event func given the AR-belief structure."""
+        plausibilities_and_values = [(sc.scenario_total_likelihood(), sc.scenario_expectation(func)) for sc in self.scenarios()]
+        # sort by decreasing plausibility:
+        plausibilities_and_values.sort(key=lambda x: -x[0])
+        plausibilities, values = zip(*plausibilities_and_values)
+        # compute the list of plausibility decrements:
+        plausibility_decrements = [plausibilities[i] - plausibilities[i+1] for i in range(len(plausibilities)-1)] + [plausibilities[-1]]
+        return np.dot(plausibility_decrements, [min(values[:i]) for i in range(1, len(plausibilities_and_values)+1)])
     
-
+    def evaluate_action(self, action: Label, valuation: Callable) -> float:
+        """Evaluate an action according to the given event valuation given the AR-belief structure."""
+        partial_scenario = self.conditioned_on_label(action).unlabelled()
+        return partial_scenario.plausibility_weighted_min_expectation(valuation)
 
 
 if __name__ == "__main__":
@@ -398,7 +467,7 @@ if __name__ == "__main__":
     arb2 = ARBelief(data2)
     print(arb2)
     print(arb == arb2)
-    arb3 = arb2.conditioned_on({1,2,3,7})
+    arb3 = arb2.conditioned_on_event({1,2,3,7})
     print(arb3)
     arb4 = arb2.coarsened_to([{1,2,3,4,5,6,7,8,9}])
     print(arb4)
@@ -410,3 +479,49 @@ if __name__ == "__main__":
     print(arb6)
     arb7 = arb2.restricted_to_labels(["up", "down", "what"])
     print(arb7)
+    print()
+    print(arb2)
+    print("Scenarios:")
+    for arb in arb2.unlabelled().scenarios():
+        print(arb)
+
+    print()
+    data = ("a", [
+                ("r", [
+                    (0.3, ("a", {
+                    "left": ("a", {
+                                "up": ("e", [0]), 
+                                "down": ("e", [1])  }), 
+                    "right": ("r", {
+                                "up": (0.5, ("e", [0])), 
+                                "down": (0.5, ("e", [1]))  })
+                        })),
+                    (0.7, ("a", {
+                    "right": ("a", {
+                                "up": ("e", [0]), 
+                                "down": ("e", [1])  }), 
+                    "left": ("r", {
+                                "up": (0.5, ("e", [0])), 
+                                "down": (0.5, ("e", [1]))  })  }))  ]),
+                ("r", [
+                    (0.5, ("a", {
+                    "left": ("a", {
+                                "up": ("e", [0]), 
+                                "down": ("e", [1])  }), 
+                    "right": ("r", {
+                                "up": (0.5, ("e", [0])), 
+                                "down": (0.5, ("e", [1]))  })
+                        })),
+                    (0.2, ("a", {
+                    "right": ("a", {
+                                "up": ("e", [0]), 
+                                "down": ("e", [1])  }), 
+                    "left": ("r", {
+                                "up": (0.5, ("e", [0])), 
+                                "down": (0.5, ("e", [1]))  })  }))  ])  ])
+            
+    arb = ARBelief(data)
+    print()
+    print(arb)
+    for action in ["left", "right"]:
+        print(f"Action {action} has evaluation {arb.evaluate_action(action, lambda e: list(e)[0])}")
