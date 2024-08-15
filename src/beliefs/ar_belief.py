@@ -48,14 +48,19 @@ class ARBelief(object):
     all_events: Set[Event] = None
     """The set of all events represented by the AR-belief structure"""
 
+    _simplified: bool = False
+    """Whether the AR-belief structure has been simplified"""
+
+    _verified_disjoint_events: bool = False
+    """Whether the events in the AR-belief structure have been verified to be disjoint"""
 
     # Initialization and representation:
 
     def __init__(self, 
                  data: Optional[RawData] = None, 
                  node_type: Optional[NodeType] = None, 
-                 children: Optional[List] = None, 
-                 labels: Optional[List[str]] = None, 
+                 children: Optional[Iterable] = None, 
+                 labels: Optional[Iterable[str]] = None, 
                  likelihoods: Optional[np.ndarray] = None, 
                  event: Optional[Event] = None, 
                  _verify_disjoint_events = True):
@@ -112,11 +117,13 @@ class ARBelief(object):
         self.likelihoods = simplified.likelihoods
         self.event = simplified.event
         self.all_events = simplified.all_events
+        self._simplified = True
         if _verify_disjoint_events:
             es = list(self.all_events)
             for i, e1 in enumerate(es):
                 for e2 in es[i+1:]:
                     assert e1 == e2 or e1.isdisjoint(e2), f"Events {set(e1)} and {set(e2)} are not disjoint"
+            self._verified_disjoint_events = True
 
     def __str__(self) -> str:
         """Return a string representation of the AR-belief structure."""
@@ -138,6 +145,8 @@ class ARBelief(object):
         - collapsing consecutive unlabelled risk nodes
         - collapsing equal children of risk nodes and summing their likelihoods
         - removing duplicate children of ambiguity nodes"""
+        if self._simplified:
+            return self
         belief = self
         change = True
         while change:
@@ -236,7 +245,7 @@ class ARBelief(object):
         return self, False
 
 
-    # Operators:
+    # Standard operators:
 
     def __eq__(self, other: "ARBelief") -> bool:
         """Check if two AR-belief structures are equal (ignoring ordering of children)."""
@@ -276,7 +285,7 @@ class ARBelief(object):
 
     # Operations:
 
-    def condition(self, condition: Event) -> "ARBelief":
+    def conditioned_on(self, condition: Event) -> "ARBelief":
         """Condition the AR-belief structure on an event.
         Note that likelihoods will not be renormalized."""
         if self.node_type == "event":
@@ -287,7 +296,7 @@ class ARBelief(object):
             else:
                 raise ValueError("Conditioning on a condition event that is incompatible with this belief's events")
         else:
-            children0 = [child.condition(condition) for child in self.children]
+            children0 = [child.conditioned_on(condition) for child in self.children]
             children = []
             labels = []
             likelihoods = [] if self.node_type == "risk" else None
@@ -299,12 +308,12 @@ class ARBelief(object):
                         likelihoods.append(self.likelihoods[i])
             return ARBelief(node_type=self.node_type, children=children, labels=labels, likelihoods=likelihoods)
 
-    def restrict_to_labels(self, labels: List[Label]) -> "ARBelief":
+    def restricted_to_labels(self, labels: Iterable[Label]) -> "ARBelief":
         """Remove all branches starting with a non-None label not in labels."""
         if self.node_type == "event":
             return self
         else:
-            children0 = [child.restrict_to_labels(labels) for child in self.children]
+            children0 = [child.restricted_to_labels(labels) for child in self.children]
             children = []
             ls = []
             likelihoods = [] if self.node_type == "risk" else None
@@ -318,7 +327,7 @@ class ARBelief(object):
             #print(labels, self.labels, res)
             return res
 
-    def coarsen(self, coarsening: Iterable[Event]) -> "ARBelief":
+    def coarsened_to(self, coarsening: Iterable[Event]) -> "ARBelief":
         """Coarsen the AR-belief structure according to a coarsening of events."""
         if self.node_type == "event":
             # find the first event in the coarsening that contains this event:
@@ -326,26 +335,27 @@ class ARBelief(object):
             assert i is not None, "Coarsening to an event system that is not compatible with this belief's events"
             return ARBelief(node_type="event", event=coarsening[i])
         else:
-            children = [child.coarsen(coarsening) for child in self.children]
+            children = [child.coarsened_to(coarsening) for child in self.children]
             return ARBelief(node_type=self.node_type, children=children, labels=self.labels, likelihoods=self.likelihoods)
     
-    def unlabelled(self) -> "ARBelief":
-        """Remove all labels from the AR-belief structure."""
+    def unlabelled(self, keep: Optional[Iterable[Label]] = None) -> "ARBelief":
+        """Remove all labels except those named in keep from the AR-belief structure."""
+        labels = [l if keep is not None and l in keep else None for l in self.labels] if self.labels else None
         if self.node_type == "risk":
-            return ARBelief(node_type="risk", children=[child.unlabelled() for child in self.children], likelihoods=self.likelihoods)
+            return ARBelief(node_type="risk", children=[child.unlabelled(keep=keep) for child in self.children], labels=labels, likelihoods=self.likelihoods)
         elif self.node_type == "ambiguity":
-            return ARBelief(node_type="ambiguity", children=[child.unlabelled() for child in self.children])
+            return ARBelief(node_type="ambiguity", children=[child.unlabelled(keep=keep) for child in self.children], labels=labels)
         else:
             return self
         
-    def extend(self, events: Iterable[Event], beliefs: Iterable["ARBelief"]) -> "ARBelief":
+    def extended_by(self, events: Iterable[Event], beliefs: Iterable["ARBelief"]) -> "ARBelief":
         """Extend the AR-belief structure by replacing certain events by certain beliefs."""
         assert len(events) == len(beliefs)
         if self.node_type == "event":
             i = next((i for i, e in enumerate(events) if self.event == e), None)
             return beliefs[i] if i is not None else self
         else:
-            children = [child.extend(events, beliefs) for child in self.children]
+            children = [child.extended_by(events, beliefs) for child in self.children]
             return ARBelief(node_type=self.node_type, children=children, labels=self.labels, likelihoods=self.likelihoods)
         
     
@@ -356,7 +366,7 @@ class ARBelief(object):
         raise NotImplementedError
     
 
-    
+
 
 if __name__ == "__main__":
     # Example usage
@@ -388,15 +398,15 @@ if __name__ == "__main__":
     arb2 = ARBelief(data2)
     print(arb2)
     print(arb == arb2)
-    arb3 = arb2.condition({1,2,3,7})
+    arb3 = arb2.conditioned_on({1,2,3,7})
     print(arb3)
-    arb4 = arb2.coarsen([{1,2,3,4,5,6,7,8,9}])
+    arb4 = arb2.coarsened_to([{1,2,3,4,5,6,7,8,9}])
     print(arb4)
-    arb5 = arb2.unlabelled().coarsen([{1,2,3,4,5,6},{7,8,9}])
+    arb5 = arb2.unlabelled(keep=["what"]).coarsened_to([{1,2,3,4,5,6},{7,8,9}])
     print(arb5)
     subs1 = ARBelief(("e", [10,20,30]))
     subs2 = ARBelief(("r", [(0.1, ("e", [10,20,30])), (0.2, ("e", [40,50,60]))]))
-    arb6 = arb5.extend([{1,2,3,4,5,6},{7,8,9}], [subs1, subs2])
+    arb6 = arb5.extended_by([{1,2,3,4,5,6},{7,8,9}], [subs1, subs2])
     print(arb6)
-    arb7 = arb2.restrict_to_labels(["up", "down", "what"])
+    arb7 = arb2.restricted_to_labels(["up", "down", "what"])
     print(arb7)
