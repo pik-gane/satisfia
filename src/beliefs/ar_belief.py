@@ -3,6 +3,11 @@
 import itertools
 import numpy as np
 from typing import Literal, Tuple, Dict, Set, List, Optional, NewType, Iterable, FrozenSet, Callable, Generator
+try:
+    import graphviz as gv
+    _have_graphviz = True
+except ImportError:
+    _have_graphviz = False
 
 NodeType = NewType("NodeType", Literal["risk", "ambiguity", "event"])
 """Possible types of nodes in an AR-belief structure
@@ -126,18 +131,44 @@ class ARBelief(object):
                     assert e1 == e2 or e1.isdisjoint(e2), f"Events {set(e1)} and {set(e2)} are not disjoint"
             self._verified_disjoint_events = True
 
-    def __str__(self) -> str:
+    def to_str(self, leaf_func: Callable = lambda e: set(e), label_func: Callable = lambda l: l) -> str:
         """Return a string representation of the AR-belief structure."""
         if self.node_type == "risk":
-            return f"Risk [\n  {",\n  ".join([f"{p} {l+' ' if l else ''}{indent_later(str(b))}" for (p,l,b) in zip(self.likelihoods, self.labels, self.children)])}  ]"
+            return f"Risk [\n  {",\n  ".join([f"{p} {label_func(l)+' ' if l else ''}{indent_later(b.to_str(leaf_func=leaf_func, label_func=label_func))}" for (p,l,b) in zip(self.likelihoods, self.labels, self.children)])}  ]"
         elif self.node_type == "ambiguity":
-            return f"Ambiguity (\n  {",\n  ".join([f"{l+' ' if l else ''}{indent_later(str(b))}" for (b,l) in zip(self.children, self.labels)])}  )"
+            return f"Ambiguity (\n  {",\n  ".join([f"{label_func(l)+' ' if l else ''}{indent_later(b.to_str(leaf_func=leaf_func, label_func=label_func))}" for (b,l) in zip(self.children, self.labels)])}  )"
         elif self.node_type == "event":
-            return f"Event {str(set(self.event))}"
-        
+            return f"{leaf_func(self.event)}"
+
+    def __str__(self) -> str:
+        return self.to_str()
+    
+    def __hash__(self) -> int:
+        return hash(str(self))
+
     def save_figure(self, filename: str, format: str = "pdf"):
         """Save a visual representation of the AR-belief structure to a file, laid out using graphviz."""
-        raise NotImplementedError
+        if not _have_graphviz:
+            raise ImportError("graphviz is required for this method")
+        graph = gv.Digraph(strict=True, graph_attr={"rankdir":"LR"}, format=format)
+        self._add_to_graph(graph)
+        graph.render(filename)
+        # TODO: allow for keyword argument "infoset" to highlight a specific infosets
+
+    def _add_to_graph(self, graph: gv.Digraph):
+        """Add the AR-belief structure to a graphviz graph."""
+        if self.node_type == "risk":
+            graph.node(str(hash(self)), shape="square", label="")
+            for i, child in enumerate(self.children):
+                graph.edge(str(hash(self)), str(hash(child)), label=f"{self.likelihoods[i]} {self.labels[i] or ""}".strip())
+                child._add_to_graph(graph)
+        elif self.node_type == "ambiguity":
+            graph.node(str(hash(self)), shape="circle", label="")
+            for i, child in enumerate(self.children):
+                graph.edge(str(hash(self)), str(hash(child)), label=self.labels[i])
+                child._add_to_graph(graph)
+        else:
+            graph.node(str(hash(self)), shape="none", label=str(set(self.event)))
 
 
     # Simplification:
@@ -431,10 +462,13 @@ class ARBelief(object):
         plausibility_decrements = [plausibilities[i] - plausibilities[i+1] for i in range(len(plausibilities)-1)] + [plausibilities[-1]]
         return np.dot(plausibility_decrements, [min(values[:i]) for i in range(1, len(plausibilities_and_values)+1)])
     
-    def evaluate_action(self, action: Label, valuation: Callable) -> float:
+    def evaluate_action(self, action: Label, valuation: Callable, verbose: bool = False) -> float:
         """Evaluate an action according to the given event valuation given the AR-belief structure."""
-        partial_scenario = self.conditioned_on_label(action).unlabelled()
-        return partial_scenario.plausibility_weighted_min_expectation(valuation)
+        partial_scenario = self.conditioned_on_label(action)
+        if verbose:
+            print("Partial scenario evaluation for action {action}:")
+            print(partial_scenario.unlabelled(keep=[action]).to_str(leaf_func = lambda e: f"{set(e)}:{valuation(e)}", label_func = lambda l: f"**{l}**"))
+        return partial_scenario.unlabelled().plausibility_weighted_min_expectation(valuation)
 
 
 if __name__ == "__main__":
@@ -523,5 +557,7 @@ if __name__ == "__main__":
     arb = ARBelief(data)
     print()
     print(arb)
+    v = lambda e: list(e)[0]
     for action in ["left", "right"]:
-        print(f"Action {action} has evaluation {arb.evaluate_action(action, lambda e: list(e)[0])}")
+        print(f"Action {action} has evaluation {arb.evaluate_action(action, v, verbose=True)}")
+    arb.save_figure("/tmp/arb", "pdf")
