@@ -188,7 +188,12 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
         self.xygrid = xygrid = np.array(grid).T
         self.delta_xygrid = delta_xygrid = np.array(delta_grid).T if delta_grid is not None else np.full(xygrid.shape, ' ')
         self.cell_code2delta = cell_code2delta
-        self.delta_dim = np.array(list(cell_code2delta.values())[0]).shape[0]
+        typical_delta = list(cell_code2delta.values())[0]
+        try:
+            self.delta_dim = len(list(typical_delta)) 
+            print(typical_delta, self.delta_dim)
+        except:
+            self.delta_dim = 1
         if self.delta_dim > 1:
             self.ref_dirs = ref_dirs
         self.max_episode_length = max_episode_length

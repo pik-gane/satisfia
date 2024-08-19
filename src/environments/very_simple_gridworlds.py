@@ -510,4 +510,4 @@ def make_simple_gridworld(gw="GW1", time=None, **kwargs):
                             move_probability_F=move_probability_F,
                             ref_dirs=ref_dirs, 
                             **kwargs), 
-            nested_tuple(aleph0))
+            Interval(aleph0))

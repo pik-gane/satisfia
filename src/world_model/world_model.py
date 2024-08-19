@@ -184,13 +184,16 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
         trans_dists = self.transition_distribution(state, action, n_samples = n_samples)
         if not isinstance(trans_dists, list):
             trans_dists = [trans_dists]
-        res = [sum(successor_probability * reward_probability * f(reward, *additional_args)
+        res = [sum(successor_probability * reward_probability * 
+                        (f(reward, *additional_args) if self.delta_dim==1 else np.array(f(reward, *additional_args)))
                        for (successor, (successor_probability, _)) in trans_dist.items()
                        if successor_probability > 0
                        for ((observation, reward), (reward_probability, _)) in self.observation_and_reward_distribution(state, action, successor, n_samples = n_samples).items()
                        if reward_probability > 0
                        )
                 for trans_dist in trans_dists]
+        if self.delta_dim > 1:
+            res = [tuple(r) for r in res]
         return res[0] if len(res) == 1 else res
         
     expectation_of_fct_of_delta = expectation_of_fct_of_reward
@@ -198,7 +201,9 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
     @cache
     def raw_moment_of_reward(self, state:State, action:Action, degree:int = 1, n_samples:Optional[int] = None):
         """Return a raw moment of reward (or list of ambiguous raw moments) after taking action in state."""
-        return self.expectation_of_fct_of_reward(state, action, lambda reward: reward**degree, n_samples = n_samples)
+        return self.expectation_of_fct_of_reward(state, action, 
+                                                 lambda reward: reward**degree if self.delta_dim==1 else tuple(r**degree for r in reward), 
+                                                 n_samples = n_samples)
     
     raw_moment_of_delta = raw_moment_of_reward
 

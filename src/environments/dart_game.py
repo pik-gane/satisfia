@@ -9,6 +9,7 @@ class DartGame(MDPWorldModel):
         self.total_throws = total_throws
         self.observation_space = spaces.Discrete(self.total_throws+1)
         self.action_space = spaces.Discrete(5)
+        self.delta_dim = 2
 
     def transition_distribution(self, state: Any, action: Any | None, n_samples: int | None = None):
         if state is None and action is None:

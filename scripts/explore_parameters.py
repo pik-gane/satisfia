@@ -235,11 +235,12 @@ def reset_env(start=False):
     agent = AgentMDPPlanning(parameter_values, world=env)
 
     # dirty fix for 2d aspirations:
-    VR_vertices, VR_poly = agent.simplex4state(initial_state)
-    aleph0 = aleph = nested_tuple(np.mean(VR_vertices, axis=0).reshape(1,-1)
-                                  + np.array([[-1,-1],[-1,1],[1,1],[1,-1]])
-                                  )
-    print("Initial aleph:", aleph0, ", VR_vertices:", VR_vertices)
+    if env.delta_dim == 2:
+        VR_vertices, VR_poly = agent.simplex4state(initial_state)
+        aleph0 = aleph = nested_tuple(np.mean(VR_vertices, axis=0).reshape(1,-1)
+                                    + np.array([[-1,-1],[-1,1],[1,1],[1,-1]])
+                                    )
+        print("Initial aleph:", aleph0, ", VR_vertices:", VR_vertices)
 
 
     # agent.localPolicy(state, aleph)  # call it once to precompute tables and save time for later
