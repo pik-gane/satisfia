@@ -19,7 +19,7 @@ unenterable_mobile_object_types = ['A']  # can't run into agents
 unsteady_cell_types = ['~', '^', '-']
 what_can_move_into_agent = ['A']
 
-immobile_object_types = [',','Δ']
+immobile_object_types = [',','Δ','d','D']
 mobile_constant_object_types = ['X','|','F']
 mobile_variable_object_types = []
 
@@ -89,28 +89,28 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
     - already implemented:   
         - '#' (hash): wall
         - ' ' (blank): empty space
+        - ',': Empty tile that turns into a wall after leaving it (so that one cannot go back)
         - '~': Uneven ground (Agents/boxes might fall off to any side except to where agent came from, 
                with equal probability)
         - '^': Pinnacle (Climbing on it will result in falling off to any side except to where agent came from, 
                with equal probability)
+        - '|': A pane of glass, will break if anything moves into it from left or right, and can be pushed up or down 
         - 'A': agent's initial location 
+        - 'F': A fragile object or organism (might move around on its own, is destroyed when stepped upon by the agent)
         - 'X': Box (can be pushed around but not pulled, can slide and fall off. Heavy, so agent can only push one at a time)
+        - 'Δ': Delta (positive or negative, can be collected once, does not end the episode)
+        - 'G': Goal or exit door (acting while on it ends the episode)
 
     - not yet implemented, but are planned to be implemented in the future:
-        - ',': Empty tile that turns into a wall after leaving it (so that one cannot go back)
         - '-': Slippery ground (Agents and boxes might slide along in a straight line; after sliding by one tile, 
                a coin is tossed to decide whether we slide another tile, and this is repeated 
                until the coin shows heads or we hit an obstacle. All this motion takes place within a single time step.)
         - '%': Death trap (Episode ends when agent steps on it) 
-        - '|': A pane of glass, will break if anything moves into it from left or right, and can be pushed up or down 
         - 'B': Button (can be stepped on)
         - 'C': Collaborator (might move around)
         - 'D': Door (can only be entered after having collected a key)
         - 'E': Enemy (might move around on its own)
-        - 'F': A fragile object or organism (might move around on its own, is destroyed when stepped upon by the agent)
         - 'f': A stationary even more fragile object that is destroyed when *anything* moves onto it
-        - 'Δ': Delta (positive or negative, can be collected once, does not end the episode)
-        - 'G': Goal or exit door (acting while on it ends the episode)
         - 'I': (Potential) interruption (agent might get stuck in forever)
         - 'K': Key (must be collected to be able to pass a door)
         - 'O': Ball (when pushed, will move straight until meeting an obstacle)
@@ -344,7 +344,11 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
             if imm_states[self.immobile_object_indices[to_loc]] > 0:
                 return False
         if to_loc == agent_loc and who not in what_can_move_into_agent:
-            return False   
+            return False
+        if self.xygrid[to_loc] == 'D':
+            # can only move there if the door isn't closed:
+            if imm_states[self.immobile_object_indices[to_loc]] == 0:
+                return False
         # loop through all mobile objects and see if they hinder the movement:
         for i, object_type in enumerate(self.mobile_constant_object_types):
             if to_loc == (mc_locs[2*i],mc_locs[2*i+1]):
@@ -482,6 +486,13 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
             if imm_states[self.immobile_object_indices[loc]] == 0:
                 # turn state to 1:
                 imm_states = set_entry(imm_states, self.immobile_object_indices[loc], 1)
+        elif cell_type == 'd':
+            # flip switch and door states
+            previous_switch_state = imm_states[self.immobile_object_indices[loc]]
+            imm_states = set_entry(imm_states, self.immobile_object_indices[loc], (previous_switch_state + 1) % 2)
+            door_index = self.immobile_object_types.index('D')
+            door_loc = self.immobile_object_locations[2*door_index], self.immobile_object_locations[2*door_index+1]
+            imm_states = set_entry(imm_states, self.immobile_object_indices[door_loc], (previous_switch_state + 1) % 2)
 
         target_loc = self._get_target_location(loc, action)
         target_type = self.xygrid[target_loc]
@@ -685,6 +696,33 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
                         (64, 64, 64),
                         ((x+.3) * pix_square_size, (y+.8) * pix_square_size, .4*pix_square_size, .1*pix_square_size),
                     )
+                elif (cell_type == "D" and self._immobile_object_states[self.immobile_object_indices[x, y]] != 1):
+                    pygame.draw.rect(
+                        canvas,
+                        (126, 46, 31),
+                        (x * pix_square_size, y * pix_square_size, pix_square_size, pix_square_size),
+                    )
+                elif cell_type == "d":
+                    if self._immobile_object_states[self.immobile_object_indices[x, y]] == 0:
+                        # draw a switch pointing to the left
+                        pygame.draw.polygon(
+                            canvas,
+                            (224, 224, 0),
+                            (((x+.2) * pix_square_size, (y+.3) * pix_square_size), 
+                            ((x+.4) * pix_square_size, (y+.7) * pix_square_size), 
+                            ((x+.6) * pix_square_size, (y+.7) * pix_square_size),
+                            ((x+.4) * pix_square_size, (y+.3) * pix_square_size)),
+                        )
+                    else:
+                        # draw a switch pointing to the right
+                        pygame.draw.polygon(
+                            canvas,
+                            (224, 224, 0),
+                            (((x+.6) * pix_square_size, (y+.3) * pix_square_size), 
+                            ((x+.4) * pix_square_size, (y+.7) * pix_square_size), 
+                            ((x+.6) * pix_square_size, (y+.7) * pix_square_size),
+                            ((x+.8) * pix_square_size, (y+.3) * pix_square_size)),
+                        )
                 elif cell_type == "Δ":
                     if self._immobile_object_states[self.immobile_object_indices[x, y]] == 0:
                         # draw a small triangle:
@@ -734,13 +772,14 @@ class SimpleGridworld(Generic[ObsType, State], MDPWorldModel[ObsType, Action, St
 #            x, y = get_loc(self._mobile_variable_object_locations, i)
 
         # Now we draw the agent and its previous location:
-        pygame.draw.circle(
-            canvas,
-            (0, 0, 255),
-            (np.array(self._previous_agent_location) + 0.5) * pix_square_size,
-            pix_square_size / 4,
-            width = 3,
-        )
+        if self._previous_agent_location:
+            pygame.draw.circle(
+                canvas,
+                (0, 0, 255),
+                (np.array(self._previous_agent_location) + 0.5) * pix_square_size,
+                pix_square_size / 4,
+                width = 3,
+            )
         pygame.draw.circle(
             canvas,
             (0, 0, 255),

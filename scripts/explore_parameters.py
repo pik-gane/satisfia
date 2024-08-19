@@ -86,6 +86,8 @@ parameter_sliders = {}
 for pd in parameter_data:
     parameter_sliders[pd[0]] = sg.Slider(range=(pd[1], pd[2]), default_value=pd[3], resolution=pd[4], orientation='h', key=pd[0], 
                                          disabled = pd[0] in ['aleph0_low', 'aleph0_high'])
+wasserstein_checkbox = sg.Checkbox("wasserstein from initial", default=False, key='wasserstein_checkbox')
+
 
 # Create buttons for starting, pausing, stepping, and continuing the simulation
 reset_env_button = sg.Button("Reset", key='reset_env_button')
@@ -109,6 +111,7 @@ layout = [
         ]
         for r in range(len(parameter_data) // 2)
         ], element_justification='r')],
+    [wasserstein_checkbox],
     [sg.Text("Simulation:"),
      reset_env_button, restart_button, pause_button, step_button, continue_button], 
     [autorestart_checkbox, sg.Text("Speed"), speed_slider]
@@ -182,10 +185,7 @@ def step():
                 if key not in Qs:
                     Qs[key] = []
 #                    Qs[key].append(agent.Q(state, action, aleph))
-                Qs[key].append(f"{aleph[0]},{aleph[1]}:{
-                    #agent.relativeQ2(state, action, aleph, agent.Q(state, action, aleph))
-                    agent.Q(state, action, aleph)
-                    }")  # variance of Total
+                Qs[key].append(f"{aleph[0]},{aleph[1]}:{agent.Q(state, action, aleph)}")
             
             env.render(additional_data={
                 'cell': Vs,
@@ -225,7 +225,8 @@ def reset_env(start=False):
         'debug': values['debug_checkbox'],
         'allowNegativeCoeffs': True,
         'uninformedPolicy': uninformedPolicy,
-        'referenceState': env.initial_state()
+        'referenceState': env.initial_state(),
+        'wassersteinFromInitial': values['wasserstein_checkbox'],
     })
     print("\n\nRESTART gridworld", gridworld, parameter_values)
     state, info = env.reset()
@@ -251,6 +252,8 @@ def reset_env(start=False):
     visited_action_alephs = set()
     running = start
     stepping = False
+    env.render()
+
 
 wait = time.monotonic()
 with writer.saving(plt.figure(figsize=(12,12)), "/tmp/writer_test.mp4", 100):

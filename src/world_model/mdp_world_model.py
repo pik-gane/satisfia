@@ -1,11 +1,6 @@
 from typing import Any, Generic, Optional, TypeVar
 
-from . import WorldModel
-
-ObsType = TypeVar("ObsType")
-Action = TypeVar("Action")
-State = TypeVar("State")
-
+from . import WorldModel, ObsType, Action, State
  
 class MDPWorldModel(Generic[ObsType, Action, State],WorldModel[ObsType, Action, State]):
     """
@@ -19,7 +14,7 @@ class MDPWorldModel(Generic[ObsType, Action, State],WorldModel[ObsType, Action, 
         else:
             return super().reset(seed=seed, options=options)
 
-    def transition_distribution(self, state: State, action: Optional[Action], n_samples: int):
+    def transition_distribution(self, state: Optional[State], action: Optional[Action], n_samples: int):
         """Return a dictionary mapping possible successor states after performing action in state,
         or, if state and action are None, of possible initial states,
         to tuples of the form (probability: float, exact: boolean).

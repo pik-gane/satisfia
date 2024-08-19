@@ -1,5 +1,5 @@
-from collections.abc import Callable, Iterable
-from typing import Generic, NamedTuple, Optional, TypeVar 
+from collections.abc import Callable
+from typing import Generic, NamedTuple, Optional, TypeVar, NewType, Tuple, Dict, List, Any
 import numpy as np
 from numpy import random
 from numpy.random import choice
@@ -11,12 +11,37 @@ from functools import cache
 # TODO: define Exceptions for: action set empty, action not possible in state
 ObsType = TypeVar("ObsType")
 Action = TypeVar("Action")
-State= TypeVar("State")
+State = TypeVar("State")
 
- 
+Probability = Tuple[NewType("Probability", float), bool]
+AmbiguousProbability = NewType("AmbiguousProbability", List[Probability])
+PotentiallyAmbiguousProbability = Probability | AmbiguousProbability
+Distribution = Dict[Any, Probability]
+AmbiguousDistribution = List[Distribution]
+PotentiallyAmbiguousDistribution = Distribution | AmbiguousDistribution
+
+class TuplePlus(tuple):
+    """A tuple of numbers that supports element-wise addition, subtraction, multiplication, division, and exponentiation."""
+    def __neg__(self):
+        return TuplePlus(-a for a in self)
+    def __add__(self, other):
+        return TuplePlus(a + b for a, b in zip(self, other))
+    def __sub__(self, other):
+        return TuplePlus(a - b for a, b in zip(self, other))
+    def __mul__(self, scalar):
+        return TuplePlus(a * scalar for a in self)
+    def __rmul__(self, scalar):
+        return TuplePlus(a * scalar for a in self)
+    def __truediv__(self, scalar):
+        return TuplePlus(a / scalar for a in self)
+    def __rtruediv__(self, scalar):
+        return TuplePlus(a / scalar for a in self)
+    def __pow__(self, scalar):
+        return TuplePlus(a ** scalar for a in self)
+    
 class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
     """An abstract base class for potentially probabilistic world models, 
-    extending gymnasion.Env by providing methods for enquiring transition probabilities between 
+    extending gymnasium.Env by providing methods for enquiring transition probabilities between 
     environmental states.
 
     In addition to all not implemented methods, implementations must also either... 
@@ -27,13 +52,13 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
     In all additional methods:
 
     - state is a detailed description of the current state of the environment that suffices to determine the
-      probability distribution of possible successor states arising from a state and action.
+      unique or ambiguous probability distribution of possible successor states arising from a state and action.
     - result is a tuple (observation, reward, terminated) that could be returned by step().
     - history is a list of the form [observation, action, result, action, ..., result] (a full history) 
       or of the form [result, action, result, action, ..., result] (a truncated history), where:
         - observation is the observation returned by reset(),
         - the other results are the main parts of the return values of consecutively calling step(action) after the given history up to that point.
-    - n_samples is the number of samples to use for estimating the probability if no exact computation is possible.
+    - n_samples is the number of samples to use for estimating probabilities if no exact computation is possible.
     """
     class Result(NamedTuple):
         observation: ObsType
@@ -64,7 +89,7 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
         raise NotImplementedError()
     
     @cache
-    def possible_actions(self, state: Optional[State] = None):
+    def possible_actions(self, state: Optional[State] = None) -> List[Action]:
         """Return the list of all actions possible in a given state or in the current state if state is None.
         
         This default implementation assumes that the action space is of type gymnasium.spaces.Discrete,
@@ -72,7 +97,7 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
         space = self.action_space
         return range(space.start, space.start + space.n)
     
-    def default_policy(self, state: State):
+    def default_policy(self, state: State) -> Optional[Action]:
         """Return a default action, if any"""
         return None
 
@@ -82,12 +107,19 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
         or, if action is None, of all possible successor states after any action in state,
         or, if state and action are None, a list of possible initial states."""
         if action is None:
-            return {succs
-                    for act in self.possible_actions(state)
-                    for succs in self.possible_successors(state, act, n_samples)
-                }
+            res = set()
+            for action in self.possible_actions(state):
+                res.update(self.possible_successors(state, action, n_samples=n_samples))
+            return list(res)
         else:
-            return set(self.transition_distribution(state, action, n_samples).keys())
+            data = self.transition_distribution(state, action, n_samples)
+            if isinstance(data, dict):
+                keys = data.keys()
+            else:
+                keys = set()
+                for d in data:
+                    keys.update(d.keys())
+            return list(keys)
     
     @cache
     def reachable_states(self, state: State) -> set[State]:
@@ -102,53 +134,77 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
         return res
 
     @cache
-    def transition_probability(self, state: State, action: Action, successor: State, n_samples:Optional[int] = None):
+    def transition_probability(self, state: Optional[State], action: Optional[Action], successor: State, n_samples:Optional[int] = None) -> PotentiallyAmbiguousProbability:
         """Return the probability of the successor state after performing action in state,
         or, if state and action are None, of successor being the initial state,
-        and a boolean flag indicating whether the probability is exact."""
-        return self.transition_distribution(state, action, n_samples).get(successor, (0, True))
+        and a boolean flag indicating whether the information is exact.
+        If the probability is ambiguous, return a list of pairs (p, exact)"""
+        dist = self.transition_distribution(state, action, n_samples)
+        if isinstance(dist, dict):
+            return dist.get(successor, (0, True))
+        else: # ambiguous distribution
+            return [d.get(successor, (0, True)) for d in dist]
     
     @cache
-    def transition_distribution(self, state:State, action:Action, n_samples:Optional[int] = None):
+    def transition_distribution(self, state:Optional[State], action:Optional[Action], n_samples:Optional[int] = None) -> PotentiallyAmbiguousDistribution:
         """Return a dictionary mapping possible successor states after performing action in state,
         or, if state and action are None, of possible initial states,
-        to tuples of the form (probability: float, exact: boolean)."""
-        return {successor: self.transition_probability(state, action, successor, n_samples) 
+        to tuples of the form (probability: float, exact: boolean) or,
+        if the transition distribution is ambiguous, return a list of such dictionaries."""
+        data = {successor: self.transition_probability(state, action, successor, n_samples) 
                 for successor in self.possible_successors(state, action, n_samples)}
+        if all(isinstance(p, tuple) for p in data.values()):
+            return data
+        else:
+            lens = [len(p) for p in data.values() if isinstance(p, list)]
+            maxlen = max(lens)
+            dists = [{} for _ in range(maxlen)]
+            for succ, prob_or_probs in data.items():
+                if isinstance(prob_or_probs, tuple):
+                    for d in dists:
+                        d[succ] = prob_or_probs
+                else:
+                    assert len(prob_or_probs) == maxlen, "ambiguous distribution must have the same length for all successors"
+                    for i, prob in enumerate(prob_or_probs):
+                        dists[i][succ] = prob
+            return dists
     
-    def observation_and_reward_distribution(self, state:Optional[State], action:Optional[Action], successor:State, n_samples:Optional[int] = None):
+    def observation_and_reward_distribution(self, state:Optional[State], action:Optional[Action], successor:State, n_samples:Optional[int] = None) -> Distribution:
         """Return a dictionary mapping possible pairs of observation and reward after performing action in state
         and reaching successor, or, if state and action are None, of starting in successor as the initial state,
-        to tuples of the form (probability: float, exact: boolean)."""
+        to tuples of the form (probability: float, exact: boolean).
+        Note that this distribution is currently not allowed to be ambiguous."""
         raise NotImplementedError()
 
     # methods for enquiring expected values in states:
 
     def expectation_of_fct_of_reward(self, state:State, action:Action, f, additional_args = (), n_samples:Optional[int]= None):
-        """Return the expected value of f(reward, *additional_args) after taking action in state."""
-        return sum(successor_probability * reward_probability * f(reward, *additional_args)
-                       for (successor, (successor_probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()
+        """Return the expected value of f(reward, *additional_args) after taking action in state or,
+        if the transition distribution is ambiguous, return a list of possible values."""
+        trans_dists = self.transition_distribution(state, action, n_samples = n_samples)
+        if not isinstance(trans_dists, list):
+            trans_dists = [trans_dists]
+        res = [sum(successor_probability * reward_probability * f(reward, *additional_args)
+                       for (successor, (successor_probability, _)) in trans_dist.items()
                        if successor_probability > 0
                        for ((observation, reward), (reward_probability, _)) in self.observation_and_reward_distribution(state, action, successor, n_samples = n_samples).items()
                        if reward_probability > 0
                        )
-    
+                for trans_dist in trans_dists]
+        return res[0] if len(res) == 1 else res
+        
     expectation_of_fct_of_delta = expectation_of_fct_of_reward
 
     @cache
     def raw_moment_of_reward(self, state:State, action:Action, degree:int = 1, n_samples:Optional[int] = None):
-        """Return a raw moment of reward after taking action in state."""
-        return self.expectation_of_fct_of_reward(
-            state, action, 
-            lambda reward: (np.array(reward) if isinstance(reward, Iterable) else reward)**degree, 
-            n_samples = n_samples)
-        # TODO: if reward is multi-dimensional, return the full tensor of raw moments rather than only its diagonal
+        """Return a raw moment of reward (or list of ambiguous raw moments) after taking action in state."""
+        return self.expectation_of_fct_of_reward(state, action, lambda reward: reward**degree, n_samples = n_samples)
     
     raw_moment_of_delta = raw_moment_of_reward
 
     @cache
     def expected_reward(self, state:State, action:Action, n_samples:Optional[int] = None):
-        """Return the expected reward after taking action in state."""
+        """Return the expected reward (or list of ambiguous expected reward) after taking action in state."""
         return self.raw_moment_of_reward(state, action, 1, n_samples = n_samples)
     
     expected_delta = expected_reward
@@ -156,50 +212,94 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
     def expectation( self, state:State, action:Action,
             f:Callable, additional_args=(), n_samples:Optional[int] = None):
         """Return the expected value of f(successor, *additional_args) after taking action in state."""
-        return sum(probability * f(successor, *additional_args)
-                       for (successor, (probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()
+        trans_dists = self.transition_distribution(state, action, n_samples = n_samples)
+        if not isinstance(trans_dists, list):
+            trans_dists = [trans_dists]
+        res = [sum(probability * f(successor, *additional_args)
+                       for (successor, (probability, _)) in trans_dist.items()
                        if probability > 0)
-
+                for trans_dist in trans_dists]
+        return res[0] if len(res) == 1 else res
+    
     def expectation_of_fct_of_probability(self, state: State, action: Action,
                                                       f:Callable,
                                           additional_args=(), n_samples = None):
         """Return the expected value of f(successor, probability, *additional_args) after taking action in state,
         where probability is the probability of reaching successor after taking action in state."""
-        return sum(probability * f(successor, probability, *additional_args)
-                       for (successor, (probability, _)) in self.transition_distribution(state, action, n_samples = n_samples).items()
+        trans_dists = self.transition_distribution(state, action, n_samples = n_samples)
+        if not isinstance(trans_dists, list):
+            trans_dists = [trans_dists]
+        res = [sum(probability * f(successor, probability, *additional_args)
+                       for (successor, (probability, _)) in trans_dist.items()
                        if probability > 0)
-
+                for trans_dist in trans_dists]
+        return res[0] if len(res) == 1 else res
+    
     # methods for enquiring observation probabilities given histories:
 
     @cache
     def possible_results(self, history, action: Action, n_samples: Optional[int] = None):
         """Return a list of possible results of calling step(action) after the given history,
         or, if history and action are None, of calling reset()."""
-        return list(self.result_distribution(history, action, n_samples).keys())
+        data = self.result_distribution(history, action, n_samples)
+        if isinstance(data, dict):
+            keys = data.keys()
+        else:
+            keys = set()
+            for d in data:
+                keys.update(d.keys())
+        return list(keys)
     
     @cache
     def result_probability(self, history, action:Action, result, n_samples:Optional[int] = None):
         """Return the probability of the given result of calling step(action) after the given history,
         or, if history and action are None, of calling reset(),
-        and a boolean flag indicating whether the probability is exact."""
-        return self.result_distribution(history, action, n_samples).get(result, (0, True))
+        and a boolean flag indicating whether the probability is exact.
+        If the probability is ambiguous, return a list of pairs (p, exact)"""
+        dists = self.result_distribution(history, action, n_samples)
+        if isinstance(dists, dict):
+            dists = [dists]
+        res = [dist.get(result, (0, True)) for dist in dists]
+        return res[0] if len(res) == 1 else res
     
     @cache
-    def result_distribution(self, history, action:Action, n_samples :Optional[int]= None):
+    def result_distribution(self, history, action:Action, n_samples :Optional[int]= None) -> PotentiallyAmbiguousDistribution:
         """Return a dictionary mapping results of calling step(action) after the given history,
         or, if action is None, of calling reset(history[0] or None),
-        to tuples of the form (probability: float, exact: boolean)."""
-        return {result: self.result_probability(history, action, result, n_samples) 
+        to tuples of the form (probability: float, exact: boolean) or,
+        if the transition distribution is ambiguous, return a list of such dictionaries."""
+        data = {result: self.result_probability(history, action, result, n_samples) 
                 for result in self.possible_results(history, action, n_samples)}
+        if all(isinstance(p, tuple) for p in data.values()):
+            return data
+        else:
+            lens = [len(p) for p in data.values() if isinstance(p, list)]
+            maxlen = max(lens)
+            dists = [{} for _ in range(maxlen)]
+            for result, prob_or_probs in data.items():
+                if isinstance(prob_or_probs, tuple):
+                    for d in dists:
+                        d[result] = prob_or_probs
+                else:
+                    assert len(prob_or_probs) == maxlen, "ambiguous distribution must have the same length for all possible results"
+                    for i, prob in enumerate(prob_or_probs):
+                        dists[i][result] = prob
+            return dists
     
     # methods for enquiring expected values after histories:
 
     def expectation_of_fct_of_reward_after_history(self, history, action: Action, 
                                                    f:Callable, additional_args =(), n_samples:Optional[int] = None):
-        """Return the expected value of f(reward, *additional_args) when calling step(action) after the given history."""
-        return sum(probability * f(result.reward, *additional_args)
-                       for (result, (probability, _)) in self.result_distribution(history, action, n_samples = None)
+        """Return the expected value of f(reward, *additional_args) when calling step(action) after the given history or,
+        if the transition distribution is ambiguous, return a list of possible values.."""
+        res_dists = self.result_distribution(history, action, n_samples = None)
+        if not isinstance(res_dists, list):
+            res_dists = [res_dists]
+        res = [sum(probability * f(result.reward, *additional_args)
+                       for (result, (probability, _)) in res_dist.items()
                        if probability > 0)
+                for res_dist in res_dists]
+        return res[0] if len(res) == 1 else res
     
     expectation_of_fct_of_delta_after_history = expectation_of_fct_of_reward_after_history
 
@@ -220,18 +320,24 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
 
     def expectation_after_history(self, history, action, f, additional_args = (), n_samples = None):
         """Return the expected value of f(step(action), *additional_args) after the giving history."""
-        return sum(probability * f(result, *additional_args)
-                       for (result, (probability, _)) in self.result_distribution(history, action, n_samples = 
-                       None)
+        res_dists = self.result_distribution(history, action, n_samples = None)
+        if not isinstance(res_dists, list):
+            res_dists = [res_dists]
+        res = [sum(probability * f(result, *additional_args)
+                       for (result, (probability, _)) in res_dist.items()
                        if probability > 0)
+                for res_dist in res_dists]
+        return res[0] if len(res) == 1 else res
 
     # Our default implementation of standard gymnasium.Env methods uses sampling from the above distribution:
 
     def _sample_successor_observation_reward(self, action: Optional[Action] = None) -> tuple[State, ObsType, float, dict]:
         """Auxiliary method for sampling successor, observation, and reward given action in current state.
         Also returns an info dict as the fourth item."""
-        # draw a successor according to the transition distribution:
+        # draw a successor according to the transition distribution or, if ambiguous, from a possible transition distribution drawn uniformly at random:
         transition_distribution = self.transition_distribution(None if action is None else self._state, action)
+        if isinstance(transition_distribution, list):
+            transition_distribution = choice(transition_distribution)
         successors = list(transition_distribution.keys())
         succ_probs = list(transition_distribution.values())
         try:

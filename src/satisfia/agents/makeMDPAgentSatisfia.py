@@ -98,6 +98,7 @@ class AspirationAgent(ABC):
             "lossCoeff4Time": 0, # weight of time in loss function, must be >= 0
             "lossCoeff4DeltaVariation": 0, # weight of variation of Delta in loss function, must be >= 0
             "lossCoeff4WassersteinTerminalState": 0, # weight of Wasserstein distance to default terminal state distribution in loss function, must be >= 0
+            "wassersteinFromInitial": False, # True: reference for Wasserstein distance is computed from results of stopping now, False: reference is computed from results of stopping right at the beginning
             "lossCoeff4Entropy": 0, # weight of action entropy in loss function, must be >= 0
             "lossCoeff4KLdiv": 0, # weight of KL divergence in loss function, must be >= 0
             "lossCoeff4TrajectoryEntropy": 0, # weight of trajectory entropy in loss function, must be >= 0
@@ -1183,7 +1184,7 @@ class AspirationAgent(ABC):
                                    self.world.transition_probability(state, otherActionAndAleph[0], nextState)[0]))
         def X(actionAndAleph):
             action, aleph4action = actionAndAleph
-            return self.world.expectation(state, action, Y, (action,)) + self.causation_action(state, aleph4state, action, aleph4action) # recursion
+            return self.world.expectation(state, action, Y, action) + self.causation_action(state, aleph4state, action, aleph4action) # recursion
         res = locPol.expectation(X)
         if self.debug or self.verbose:
             print(pad(state),"╰ causation_state", prettyState(state), aleph4state, ":", res)
@@ -1729,8 +1730,9 @@ class AgentMDPPlanning(AspirationAgent):
     def wassersteinTerminalState_action(self, state, action, aleph4action):
         if self.debug:
             print(pad(state),"| | | | wassersteinTerminalState_action", prettyState(state), action, aleph4action, '...')
-        mu0 = self.ETerminalState_state(state, None, "default")
-        mu20 = self.ETerminalState2_state(state, None, "default")
+        refstate = self.params["referenceState"] if self.params["wassersteinFromInitial"] else state
+        mu0 = self.ETerminalState_state(refstate, None, "default")
+        mu20 = self.ETerminalState2_state(refstate, None, "default")
         muPi = self.ETerminalState_action(state, action, aleph4action, "actual")
         mu2Pi = self.ETerminalState2_action(state, action, aleph4action, "actual")
         sigma0 = np.maximum(mu20 - mu0**2, 0)**0.5
