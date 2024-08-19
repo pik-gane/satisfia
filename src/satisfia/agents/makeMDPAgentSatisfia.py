@@ -24,7 +24,7 @@ linprog_options = {'tol':1e-5}
 prettyState = str
 
 def pad(state):
-    return " :            " * state[0]  # state[0] is the time step
+    return " :            " * (state[0] if isinstance(state, tuple) else 1)  # state[0] is the time step
 
 def probability_add(p, key, weight):
     if weight < 0:
@@ -514,7 +514,7 @@ class AspirationAgent(ABC):
                     if self.debug: print(linprogres)
                     #print("ta",target,QRa_vertices)
                     if target in QRa_vertices:
-                        print("OOOPS!", dir_index)
+                        print("OOOPS 1!", dir_index)
                         return nested_tuple(shifting_direction), nested_tuple(shifting_direction + Es_center + 0 * Es_shape)  
                     return None, None
                 l = linprogres.x
@@ -524,12 +524,12 @@ class AspirationAgent(ABC):
                 r = 0
                 sdn = np.linalg.norm(shifting_direction)
                 l = 0 if sdn==0 else (QRa_vertices[0] - Es_center) @ shifting_direction / sdn**2
-                if l < 0 or np.linalg.norm(l*shifting_direction + Es_center - QRa_vertices[0]) > 1e-10:
+                if l < 0 or np.linalg.norm(l*shifting_direction + Es_center - QRa_vertices[0]) > 1e-5:
                     # action is not in directional action set
                     if self.debug: print(Es_center, shifting_direction, QRa_vertices)
                     #print("ta",target,QRa_vertices)
                     if target in QRa_vertices:
-                        print("OOOPS!", dir_index)
+                        print("OOOPS 2!", dir_index)
                         return nested_tuple(shifting_direction), nested_tuple(shifting_direction + Es_center + 0 * Es_shape)  
                     return None, None
 
@@ -857,13 +857,15 @@ class AspirationAgent(ABC):
             Ea_n = Ea_shape.shape[0]
             flat_Ea_shape = Ea_shape.flatten()
             EaT = Ea_center.reshape((-1,1))
-            QRaT = np.transpose(self.simplex4action(state, action)[0])
+            QRa = self.simplex4action(state, action)[0]
+            QRaT = np.transpose(QRa)
+            VR_vertices, VR_poly = self.simplex4state(nextState)
+            print("Ea:", Ea_center, "\n", Ea_shape, "\nQRa:", QRa, "\nVR:", VR_vertices)
             A = np.concatenate([QRaT, np.ones((1, QRaT.shape[1]))], axis=0)
             B = np.concatenate([EaT, [[1]]], axis=0)
             P = np.linalg.lstsq(A, B)[0]  # TODO: verify this is correct if A is singular!
             # Compute the new center as the corresponding convex combination 
             # of the vertices of VR = simplex4state(nextState):
-            VR_vertices, VR_poly = self.simplex4state(nextState)
             VR_A, VR_b = VR_poly.A, VR_poly.b
             new_center = np.dot(P.T, VR_vertices).flatten()
 

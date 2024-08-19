@@ -48,6 +48,7 @@ def simulate_episode(env, aleph):
 
 	state, info = env.reset()
 	agent = AgentMDPPlanning({
+		"debug": True,
 		# admissibility parameters:
 		"maxLambda": 1, # upper bound on local relative aspiration in each step (must be minLambda...1)	# TODO: rename to lambdaHi
 		"minLambda": 0, # lower bound on local relative aspiration in each step (must be 0...maxLambda)	# TODO: rename to lambdaLo
@@ -91,7 +92,7 @@ def simulate_episode(env, aleph):
 
 
 env = DartGame()
-aleph0 = (0, 0)
+aleph0 = ((0, 0),)
 #move_randomly(env)
 simulate_episode(env, aleph0)
 #env.render()
