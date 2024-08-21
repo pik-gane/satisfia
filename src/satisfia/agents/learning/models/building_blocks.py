@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from satisfia.util.interval_tensor import IntervalTensor
 
 from torch import Tensor, cat, stack, empty, zeros, ones, no_grad

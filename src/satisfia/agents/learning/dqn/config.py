@@ -59,6 +59,7 @@ class UniformPointwiseAspirationSampler:
 @dataclass
 class DQNConfig:
     total_timesteps: int = 500_000
+    env_type: str = "mujoco"
     num_envs: int = 1
     async_envs: bool = True
     buffer_size: int = 10_000

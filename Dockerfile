@@ -8,16 +8,9 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     swig \
     build-essential \
+    libglfw3 \
+    libglfw3-dev \
     && rm -rf /var/lib/apt/lists/*
-
-# Install Miniconda
-#ENV CONDA_DIR /opt/conda
-#RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py310_23.10.0-1-Linux-x86_64.sh -O miniconda.sh && \
-#    /bin/bash miniconda.sh -b -p $CONDA_DIR && \
-#    rm miniconda.sh && \
-#    echo "export PATH=$CONDA_DIR/bin:$PATH" > /etc/profile.d/conda.sh
-
-#ENV PATH $CONDA_DIR/bin:$PATH
 
 # Copy the requirements file
 COPY requirements.txt /tmp/requirements.txt

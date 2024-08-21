@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from satisfia.agents.learning.dqn.config import DQNConfig
 import satisfia.agents.learning.dqn.agent_mdp_dqn as agent_mpd_dqn
 from satisfia.agents.learning.dqn.criteria import complete_criteria

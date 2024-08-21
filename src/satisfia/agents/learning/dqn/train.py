@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from satisfia.agents.learning.dqn.config import DQNConfig
 from satisfia.agents.learning.dqn.bellman_formula import bellman_formula
 from satisfia.agents.learning.dqn.criteria import complete_criteria
@@ -45,14 +47,17 @@ def train_dqn( make_env:   Callable[[], Env],
                   for _ in range(cfg.num_envs) ]
     envs = AsyncVectorEnv(make_envs) if cfg.async_envs else SyncVectorEnv(make_envs)
 
+    if cfg.env_type == "mujoco":
+        num_actions = envs.action_space.shape[0]
+    else:
+        num_actions = envs.action_space.nvec[0]
     exploration_strategy = ExplorationStrategy(
         target_network
             if cfg.frozen_model_for_exploration is None
                 else cfg.frozen_model_for_exploration,
         cfg,
-        num_actions=envs.action_space.nvec[0]
+        num_actions=num_actions
     )
-
     replay_buffer = ReplayBuffer(cfg.buffer_size, device=cfg.device)
 
     seen_observations = set()

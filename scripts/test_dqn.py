@@ -1,3 +1,6 @@
+
+from __future__ import annotations
+
 from beartype.vale import Is
 
 EvenValidator = Is[lambda x: x % 2 == 0]
@@ -217,31 +220,47 @@ cfg = DQNConfig( aspiration_sampler = UniformPointwiseAspirationSampler(-10, 10)
                  device = device,
                  plotted_criteria = ["maxAdmissibleQ", "minAdmissibleQ"],
                  plot_criteria_frequency = 100,
-                 states_for_plotting_criteria = [(time, 2, 2) for time in range(10)], #[(1, 3, 0, 1, 0, 2, 0, 5, 0), (6, 3, 0, 1, 0, 2, 0, 5, 0), (3, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 5, 0), (7, 5, 0, 1, 0, 2, 0, 6, 0), (8, 4, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 2, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 6, 0), (9, 5, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 2, 0, 5, 0), (6, 5, 0, 1, 0, 2, 0, 6, 0), (8, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 6, 0), (7, 5, 0, 1, 0, 3, 0, 6, 0), (4, 4, 0, 1, 0, 3, 0, 5, 0), (4, 5, 0, 1, 0, 2, 0, 6, 0), (6, 4, 0, 1, 0, 3, 0, 5, 0), (9, 4, 0, 1, 0, 3, 0, 6, 0), (8, 5, 0, 1, 0, 2, 0, 6, 0), (3, 3, 0, 1, 0, 2, 0, 6, 0), (3, 5, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 3, 0, 6, 0), (2, 4, 0, 1, 0, 3, 0, 6, 0), (6, 4, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 2, 0, 5, 0), (7, 3, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 6, 0), (4, 5, 0, 1, 0, 3, 0, 6, 0), (5, 5, 0, 1, 0, 3, 0, 6, 0), (0, 4, 0, 1, 0, 3, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 5, 0), (8, 4, 0, 1, 0, 3, 0, 5, 0), (2, 3, 0, 1, 0, 2, 0, 5, 0), (9, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 5, 0), (6, 4, 0, 1, 0, 3, 0, 6, 0), (6, 3, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 6, 0), (1, 4, 0, 1, 0, 3, 0, 5, 0), (3, 3, 0, 1, 0, 2, 0, 5, 0), (5, 5, 0, 1, 0, 2, 0, 6, 0), (2, 5, 0, 1, 0, 3, 0, 6, 0), (9, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 5, 0), (3, 4, 0, 1, 0, 3, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 5, 0), (2, 4, 0, 1, 0, 3, 0, 5, 0), (6, 4, 0, 1, 0, 2, 0, 5, 0), (1, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 6, 0), (6, 5, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 3, 0, 6, 0), (7, 3, 0, 1, 0, 2, 0, 6, 0), (2, 4, 0, 1, 0, 2, 0, 5, 0)],
+                 states_for_plotting_criteria = np.random.uniform(-1, 1, 8), # [(1, 3, 0, 1, 0, 2, 0, 5, 0), (6, 3, 0, 1, 0, 2, 0, 5, 0), (3, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 5, 0), (7, 5, 0, 1, 0, 2, 0, 6, 0), (8, 4, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 2, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 6, 0), (9, 5, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 2, 0, 5, 0), (6, 5, 0, 1, 0, 2, 0, 6, 0), (8, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 6, 0), (7, 5, 0, 1, 0, 3, 0, 6, 0), (4, 4, 0, 1, 0, 3, 0, 5, 0), (4, 5, 0, 1, 0, 2, 0, 6, 0), (6, 4, 0, 1, 0, 3, 0, 5, 0), (9, 4, 0, 1, 0, 3, 0, 6, 0), (8, 5, 0, 1, 0, 2, 0, 6, 0), (3, 3, 0, 1, 0, 2, 0, 6, 0), (3, 5, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 3, 0, 6, 0), (2, 4, 0, 1, 0, 3, 0, 6, 0), (6, 4, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 2, 0, 5, 0), (7, 3, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 6, 0), (4, 5, 0, 1, 0, 3, 0, 6, 0), (5, 5, 0, 1, 0, 3, 0, 6, 0), (0, 4, 0, 1, 0, 3, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 5, 0), (8, 4, 0, 1, 0, 3, 0, 5, 0), (2, 3, 0, 1, 0, 2, 0, 5, 0), (9, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 5, 0), (6, 4, 0, 1, 0, 3, 0, 6, 0), (6, 3, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 6, 0), (1, 4, 0, 1, 0, 3, 0, 5, 0), (3, 3, 0, 1, 0, 2, 0, 5, 0), (5, 5, 0, 1, 0, 2, 0, 6, 0), (2, 5, 0, 1, 0, 3, 0, 6, 0), (9, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 5, 0), (3, 4, 0, 1, 0, 3, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 5, 0), (2, 4, 0, 1, 0, 3, 0, 5, 0), (6, 4, 0, 1, 0, 2, 0, 5, 0), (1, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 6, 0), (6, 5, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 3, 0, 6, 0), (7, 3, 0, 1, 0, 2, 0, 6, 0), (2, 4, 0, 1, 0, 2, 0, 5, 0)],
                  state_aspirations_for_plotting_criteria = [(0, 0)], # [(-5, -5), (-1, -1), (1, 1)],
-                 actions_for_plotting_criteria = [0, 1, 2, 3, 4] )
+                 actions_for_plotting_criteria = [0, 1, 2, 3, 4],
+                 env_type='mujoco'
+                 )
 
-def train_and_plot( env_name: str,
-                    gridworld: bool = True,
-                    max_achievable_total: float | None = None,
-                    min_achievable_total: float | None = None ):
+def train_and_plot(env_name: str,
+                   env_type: str = "gym",  # Can be "gym", "atari", or "gridworld"
+                   max_achievable_total: float | None = None,
+                   min_achievable_total: float | None = None):
 
     print(env_name)
 
     def make_env():
-        if gridworld:
+        if env_type == "gridworld":
             env, _ = make_simple_gridworld(env_name, time=10)
             env = RestrictToPossibleActionsWrapper(env)
-        else:
+        elif env_type == "atari":
+            env = gym.make(env_name, render_mode="rgb_array")
+            # Add any necessary Atari wrappers here
+        else:  # gym (including MuJoCo)
             env = gym.make(env_name)
             env = TimeLimit(env, 1_000)
             env = RescaleDeltaWrapper(env, from_interval=(-500, 100), to_interval=(-5, 1))
         return env
 
+
     def make_model(pretrained=None):
         # to do: compute d_observation properly
-        d_observation = len(make_env().observation_space) if gridworld else 8
-        n_actions = make_env().action_space.n
+        print("Observation Space")
+        print(make_env().observation_space)
+        print("Action Space")
+        print(make_env().action_space)
+        if env_type=='gridworld':
+            d_observation = len(make_env().observation_space) 
+        else:
+            d_observation = make_env().observation_space.shape[0]
+        if env_type=="mujoco": 
+            n_actions = make_env().action_space.shape[0]
+        else:
+            n_actions = make_env().action_space.n
         model = SatisfiaMLP(
             input_size = d_observation,
             output_not_depending_on_agent_parameters_sizes = { "maxAdmissibleQ": n_actions,
@@ -265,7 +284,7 @@ def train_and_plot( env_name: str,
         #                                   "Q": n_actions } ],
         #                               batch_size=cfg.num_envs ).to(device)
 
-    planning_agent = AgentMDPPlanning(cfg.satisfia_agent_params, make_env()) if gridworld else None
+    planning_agent = AgentMDPPlanning(cfg.satisfia_agent_params, make_env()) if env_type=='gridworld' else None
 
     model = run_or_load( f"dqn-{env_name}-no-discount.pickle",
                          train_dqn,
@@ -276,10 +295,13 @@ def train_and_plot( env_name: str,
                              planning_agent_for_plotting_ground_truth=planning_agent
                          ) )
     model = model.to(device)
-
+    if env_type=="mujoco": 
+        n_actions = make_env().action_space.shape[0]
+    else:
+        n_actions = make_env().action_space.n
     learning_agent = AgentMDPDQN( cfg.satisfia_agent_params,
                                   model,
-                                  num_actions = make_env().action_space.n,
+                                  num_actions = n_actions,
                                   device = device )
 
     # for state in [(time, 2, 2) for time in range(10)]:
@@ -306,10 +328,10 @@ def train_and_plot( env_name: str,
                                # reference_agents = planning_agent,
                                title = f"totals for agent with no discount and longer training in {env_name}" )
 
-#train_and_plot( 'LunarLander-v2',
-#                gridworld = False,
-#                min_achievable_total = -5,
-#                max_achievable_total = 5 )
+train_and_plot( 'Ant-v4',
+               env_type = "mujoco",
+                min_achievable_total = -5,
+                max_achievable_total = 5 )
 
 
 all_gridworlds = [ "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW24", "GW25", "GW26",
@@ -327,3 +349,4 @@ gridworlds_requiring_longer_training = [ "GW28", "test_box", "GW29", "GW26", "GW
 Parallel(n_jobs=-1)(delayed(train_and_plot)(gridworld_name) for gridworld_name in gridworld_simple)
 # for gridworld_name in all_gridworlds:
 #     train_and_plot(gridworld_name)
+
