@@ -1,3 +1,7 @@
+from beartype.vale import Is
+
+EvenValidator = Is[lambda x: x % 2 == 0]
+
 import sys
 sys.path.insert(0, "./src/")
 
@@ -34,20 +38,10 @@ from plotly.graph_objects import Figure, Scatter, Layout
 
 from copy import deepcopy
 
-# Setting up the device depending on whether CUDA is available and user input
-if torch.cuda.is_available():
-    user_input = input("CUDA is available. Enter 'y' to use CUDA or 'n' to use cpu.")
-    if user_input == 'y':
-        print("Using CUDA.")
-        device = "cuda"
-    else:
-        print("Using CPU.")
-        device = "cpu"
-else:
-    print("CUDA is not available. Using CPU.")
-    device = "cpu"
+# device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cpu"
+print("using", device)
 
-# Function to create multiple tqdm progress bars in the terminal
 def multi_tqdm(num_tqdms: int) -> List[Callable[[Iterable], Iterable]]:
     def itr_wrapper(itr: Iterable, progress_bar: tqdm, desc: str | None = None, total: int | None = None) -> Generator:
         progress_bar.desc = desc
@@ -65,34 +59,28 @@ def multi_tqdm(num_tqdms: int) -> List[Callable[[Iterable], Iterable]]:
     progress_bars = [tqdm() for _ in range(num_tqdms)]
     return [partial(itr_wrapper, progress_bar=progress_bar) for progress_bar in progress_bars]
 
-# Function to create a custom confidence interval
 def confidence_interval(xs: List[float], confidence: float):
     return scipy.stats.t.interval(confidence, len(xs)-1, loc=np.mean(xs), scale=scipy.stats.sem(xs))
 
-# Function to create custom error bars
 def error_bars(xs: List[float], confidence: float):
     mean_ = mean(xs)
     lower_confidence, upper_confidence = confidence_interval(xs, confidence)
     return mean_ - lower_confidence, upper_confidence - mean_
 
-# Function to load and dump pickle files
 def run_or_load(filename, function, *args, **kwargs):
-    # If the filename exists, load the file and return the data
     if isfile(filename):
         with open(filename, "rb") as f:
             return pickle.load(f)
-        
-    # Otherwise, run the function and save the data to the file
+    
     result = function(*args, **kwargs)
     with open(filename, "wb") as f:
         pickle.dump(result, f)
     return result
 
-# Function to run the AspirationAgent in the environment and compute the total reward
 def compute_total(agent: AspirationAgent, env: gym.Env, aspiration4state: float | Tuple[float, float]) -> float:
     if isinstance(aspiration4state, (int, float)):
         aspiration4state = (aspiration4state, aspiration4state)
-
+    
     total_env = deepcopy(env)
     total_env = ObservationToTupleWrapper(total_env)
 
@@ -108,7 +96,6 @@ def compute_total(agent: AspirationAgent, env: gym.Env, aspiration4state: float 
         observation = next_observation
     return total
 
-# Function to create a scatter plot with error bars, using the custom confidence interval and error bars functions
 def scatter_with_y_error_bars( x: Iterable[float],
                                y: Iterable[Iterable[float]],
                                confidence: float,
@@ -124,7 +111,6 @@ def scatter_with_y_error_bars( x: Iterable[float],
                                     arrayminus = [upper for lower, upper in error_bars_] ),
                     **plotly_kwargs )
 
-# Function to create a scatter plot of the total rewards for the agent(s) against the aspiration
 def plot_totals_vs_aspiration( agents: Iterable[AspirationAgent] | Dict[str, AspirationAgent] | AspirationAgent,
                                env: gym.Env,
                                aspirations: Iterable[int | Tuple[int, int]] | int | Tuple[int, int],
@@ -134,8 +120,7 @@ def plot_totals_vs_aspiration( agents: Iterable[AspirationAgent] | Dict[str, Asp
                                n_jobs: int = -1,
                                title: str = "Totals for agent(s)",
                                save_to: str | None = None ):
-    
-    # Converting the agents and aspirations to the correct format
+
     if not isinstance(agents, Iterable):
         agents = [agents]
     if not isinstance(agents, Dict):
@@ -147,7 +132,6 @@ def plot_totals_vs_aspiration( agents: Iterable[AspirationAgent] | Dict[str, Asp
     if not isinstance(aspirations, Iterable):
         aspirations = [aspirations]
     
-    # Creating progress bar wrappers
     agent_tqdm, aspiration_tqdm, sample_tqdm = multi_tqdm(3)
 
     totals = dict()
@@ -205,7 +189,6 @@ def plot_totals_vs_aspiration( agents: Iterable[AspirationAgent] | Dict[str, Asp
 # this is only for the test_box gridworld
 reachable_states = [(0, 2, 2)] + [(time, y, 2) for time in range(1, 10) for y in [1, 2, 3]]
 
-# Defining the config values for DQN
 cfg = DQNConfig( aspiration_sampler = UniformPointwiseAspirationSampler(-10, 10),
                  criterion_coefficients_for_loss = dict( maxAdmissibleQ = 1.,
                                                          minAdmissibleQ = 0., ) ,
@@ -220,7 +203,7 @@ cfg = DQNConfig( aspiration_sampler = UniformPointwiseAspirationSampler(-10, 10)
                  discount = 0.99,
                  soft_target_network_update_coefficient = 0.999,
                  learning_rate_scheduler = lambda _: 5e-4,
-                 total_timesteps = 2_000_000,
+                 total_timesteps = 2_000,
                  training_starts = 64,
                  batch_size = 64,
                  buffer_size = 100_000,
@@ -234,19 +217,17 @@ cfg = DQNConfig( aspiration_sampler = UniformPointwiseAspirationSampler(-10, 10)
                  device = device,
                  plotted_criteria = ["maxAdmissibleQ", "minAdmissibleQ"],
                  plot_criteria_frequency = 100,
-                 states_for_plotting_criteria = [(1, 3, 0, 1, 0, 2, 0, 5, 0), (6, 3, 0, 1, 0, 2, 0, 5, 0), (3, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 5, 0), (7, 5, 0, 1, 0, 2, 0, 6, 0), (8, 4, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 2, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 6, 0), (9, 5, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 2, 0, 5, 0), (6, 5, 0, 1, 0, 2, 0, 6, 0), (8, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 6, 0), (7, 5, 0, 1, 0, 3, 0, 6, 0), (4, 4, 0, 1, 0, 3, 0, 5, 0), (4, 5, 0, 1, 0, 2, 0, 6, 0), (6, 4, 0, 1, 0, 3, 0, 5, 0), (9, 4, 0, 1, 0, 3, 0, 6, 0), (8, 5, 0, 1, 0, 2, 0, 6, 0), (3, 3, 0, 1, 0, 2, 0, 6, 0), (3, 5, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 3, 0, 6, 0), (2, 4, 0, 1, 0, 3, 0, 6, 0), (6, 4, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 2, 0, 5, 0), (7, 3, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 6, 0), (4, 5, 0, 1, 0, 3, 0, 6, 0), (5, 5, 0, 1, 0, 3, 0, 6, 0), (0, 4, 0, 1, 0, 3, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 5, 0), (8, 4, 0, 1, 0, 3, 0, 5, 0), (2, 3, 0, 1, 0, 2, 0, 5, 0), (9, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 5, 0), (6, 4, 0, 1, 0, 3, 0, 6, 0), (6, 3, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 6, 0), (1, 4, 0, 1, 0, 3, 0, 5, 0), (3, 3, 0, 1, 0, 2, 0, 5, 0), (5, 5, 0, 1, 0, 2, 0, 6, 0), (2, 5, 0, 1, 0, 3, 0, 6, 0), (9, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 5, 0), (3, 4, 0, 1, 0, 3, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 5, 0), (2, 4, 0, 1, 0, 3, 0, 5, 0), (6, 4, 0, 1, 0, 2, 0, 5, 0), (1, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 6, 0), (6, 5, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 3, 0, 6, 0), (7, 3, 0, 1, 0, 2, 0, 6, 0), (2, 4, 0, 1, 0, 2, 0, 5, 0)],
+                 states_for_plotting_criteria = [(time, 2, 2) for time in range(10)], #[(1, 3, 0, 1, 0, 2, 0, 5, 0), (6, 3, 0, 1, 0, 2, 0, 5, 0), (3, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 5, 0), (7, 5, 0, 1, 0, 2, 0, 6, 0), (8, 4, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 2, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 6, 0), (9, 5, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 2, 0, 5, 0), (6, 5, 0, 1, 0, 2, 0, 6, 0), (8, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 6, 0), (7, 5, 0, 1, 0, 3, 0, 6, 0), (4, 4, 0, 1, 0, 3, 0, 5, 0), (4, 5, 0, 1, 0, 2, 0, 6, 0), (6, 4, 0, 1, 0, 3, 0, 5, 0), (9, 4, 0, 1, 0, 3, 0, 6, 0), (8, 5, 0, 1, 0, 2, 0, 6, 0), (3, 3, 0, 1, 0, 2, 0, 6, 0), (3, 5, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 3, 0, 6, 0), (2, 4, 0, 1, 0, 3, 0, 6, 0), (6, 4, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 2, 0, 5, 0), (7, 3, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 6, 0), (4, 5, 0, 1, 0, 3, 0, 6, 0), (5, 5, 0, 1, 0, 3, 0, 6, 0), (0, 4, 0, 1, 0, 3, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 5, 0), (8, 4, 0, 1, 0, 3, 0, 5, 0), (2, 3, 0, 1, 0, 2, 0, 5, 0), (9, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 5, 0), (6, 4, 0, 1, 0, 3, 0, 6, 0), (6, 3, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 6, 0), (1, 4, 0, 1, 0, 3, 0, 5, 0), (3, 3, 0, 1, 0, 2, 0, 5, 0), (5, 5, 0, 1, 0, 2, 0, 6, 0), (2, 5, 0, 1, 0, 3, 0, 6, 0), (9, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 5, 0), (3, 4, 0, 1, 0, 3, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 5, 0), (2, 4, 0, 1, 0, 3, 0, 5, 0), (6, 4, 0, 1, 0, 2, 0, 5, 0), (1, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 6, 0), (6, 5, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 3, 0, 6, 0), (7, 3, 0, 1, 0, 2, 0, 6, 0), (2, 4, 0, 1, 0, 2, 0, 5, 0)],
                  state_aspirations_for_plotting_criteria = [(0, 0)], # [(-5, -5), (-1, -1), (1, 1)],
                  actions_for_plotting_criteria = [0, 1, 2, 3, 4] )
 
-# Function to train the agent and plot the total rewards against the aspiration
 def train_and_plot( env_name: str,
                     gridworld: bool = True,
                     max_achievable_total: float | None = None,
                     min_achievable_total: float | None = None ):
 
-    print("Environment: " + env_name)
+    print(env_name)
 
-    # Creating the environment, either a gridworld or a gym environment
     def make_env():
         if gridworld:
             env, _ = make_simple_gridworld(env_name, time=10)
@@ -256,11 +237,9 @@ def train_and_plot( env_name: str,
             env = TimeLimit(env, 1_000)
             env = RescaleDeltaWrapper(env, from_interval=(-500, 100), to_interval=(-5, 1))
         return env
-    
-    # Creating a Satisfia MLP model
+
     def make_model(pretrained=None):
         # to do: compute d_observation properly
-        print(make_env().observation_space)
         d_observation = len(make_env().observation_space) if gridworld else 8
         n_actions = make_env().action_space.n
         model = SatisfiaMLP(
@@ -286,10 +265,8 @@ def train_and_plot( env_name: str,
         #                                   "Q": n_actions } ],
         #                               batch_size=cfg.num_envs ).to(device)
 
-    # Creating the planning agent
     planning_agent = AgentMDPPlanning(cfg.satisfia_agent_params, make_env()) if gridworld else None
 
-    # Loading the model if it exists, otherwise calling train_dqn() with the other arguments and saving the trained model
     model = run_or_load( f"dqn-{env_name}-no-discount.pickle",
                          train_dqn,
                          make_env,
@@ -298,11 +275,8 @@ def train_and_plot( env_name: str,
                              cfg,
                              planning_agent_for_plotting_ground_truth=planning_agent
                          ) )
-    
-    # Moving the model to the device(relevant for CUDA)
     model = model.to(device)
 
-    # Creating the learning agent
     learning_agent = AgentMDPDQN( cfg.satisfia_agent_params,
                                   model,
                                   num_actions = make_env().action_space.n,
@@ -318,7 +292,6 @@ def train_and_plot( env_name: str,
     #                      planning_agent.Q(state, action, state_aspiration)
     #                    - learning_agent.Q(state, action, state_aspiration) )
 
-
     first_observation, _ = make_env().reset()
     if max_achievable_total is None:
         max_achievable_total = planning_agent.maxAdmissibleV(first_observation)
@@ -329,15 +302,14 @@ def train_and_plot( env_name: str,
                                aspirations = np.linspace( min_achievable_total - 1,
                                                           max_achievable_total + 1,
                                                           10 ),
-                               sample_size = 250,
+                               sample_size = 500,
                                # reference_agents = planning_agent,
                                title = f"totals for agent with no discount and longer training in {env_name}" )
 
-# Calling the train_and_plot() function with the CarRacing-v2 environment
-train_and_plot( 'ALE/AirRaid-v5',
-                gridworld = False,
-                min_achievable_total = -5,
-                max_achievable_total = 5 )
+#train_and_plot( 'LunarLander-v2',
+#                gridworld = False,
+#                min_achievable_total = -5,
+#                max_achievable_total = 5 )
 
 
 all_gridworlds = [ "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW24", "GW25", "GW26",
@@ -345,11 +317,12 @@ all_gridworlds = [ "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW
                    "test_box" ]
 
 gridworlds_without_delta = ["GW23", "GW24"]
-
+gridworld_simple = ['GW1', 'GW4']
 gridworlds_requiring_longer_training = [ "GW28", "test_box", "GW29", "GW26", "GW30", "GW32"]
 # still don't work even after longer training: test_box, GW30, GW28, GW29
 
-# Calling the train_and_plot() function with all the gridworlds, with n_jobs=-1 to use all available cores 
-''' Parallel(n_jobs=-1)(delayed(train_and_plot)(gridworld_name) for gridworld_name in all_gridworlds)
-    for gridworld_name in all_gridworlds:
-        train_and_plot(gridworld_name)'''
+# train_and_plot("GW1")
+
+Parallel(n_jobs=-1)(delayed(train_and_plot)(gridworld_name) for gridworld_name in gridworld_simple)
+for gridworld_name in all_gridworlds:
+    train_and_plot(gridworld_name)

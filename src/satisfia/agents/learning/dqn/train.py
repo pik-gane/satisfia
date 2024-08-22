@@ -23,6 +23,11 @@ from tqdm import tqdm
 from typing import Callable, Tuple, List, Dict
 from plotly.colors import DEFAULT_PLOTLY_COLORS
 from plotly.graph_objects import Figure
+from satisfia.util import 
+
+# CODE INSERTED BY AWWAB
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = 'cpu'
 
 def train_dqn( make_env:   Callable[[], Env],
                make_model: Callable[[], Module],
@@ -30,8 +35,8 @@ def train_dqn( make_env:   Callable[[], Env],
     
     stats = DQNTrainingStatistics(cfg)
 
-    q_network = make_model()
-    target_network = make_model() 
+    q_network = make_model().to(device)
+    target_network = make_model().to(device)
     target_network.load_state_dict(q_network.state_dict())
 
     # we set weight decay to zero because we had some mild Q value underestimation problems and were
@@ -60,23 +65,25 @@ def train_dqn( make_env:   Callable[[], Env],
     observations, _ = envs.reset()
     for timestep in tqdm(range(cfg.total_timesteps), desc="training dqn"):
         for observation in observations:
+            print(type(tuple(observation.tolist())))
+            print(tuple(observation.tolist()))
             seen_observations.add(tuple(observation.tolist()))
 
-        actions = exploration_strategy(tensor(observations, device=cfg.device), timestep=timestep)
+        actions = exploration_strategy(tensor(observations, device=cfg.device).to(device), timestep=timestep)
 
         next_observations, deltas, dones, truncations, _ = envs.step(actions.cpu().numpy())
 
         aspirations = exploration_strategy.aspirations
         exploration_strategy.propagate_aspirations( actions,
-                                                    tensor(next_observations, device=cfg.device) )
+                                                    tensor(next_observations, device=cfg.device).to(device) )
 
-        exploration_strategy.on_done(tensor(dones), timestep=timestep)
+        exploration_strategy.on_done(tensor(dones).to(device), timestep=timestep)
 
-        replay_buffer.add( observations      = tensor(observations,        device=cfg.device),
+        replay_buffer.add( observations      = tensor(observations,        device=cfg.device).to(device),
                            actions           = actions,
-                           deltas            = tensor(deltas,              device=cfg.device),
-                           dones             = tensor(dones | truncations, device=cfg.device),
-                           next_observations = tensor(next_observations,   device=cfg.device),
+                           deltas            = tensor(deltas,              device=cfg.device).to(device),
+                           dones             = tensor(dones | truncations, device=cfg.device).to(device),
+                           next_observations = tensor(next_observations,   device=cfg.device).to(device),
                            aspirations       = aspirations,
                            next_aspirations  = exploration_strategy.aspirations )
 

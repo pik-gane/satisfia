@@ -86,3 +86,10 @@ def midpoint(interval):
 def isSubsetOf(interval1, interval2):
 	# is interval1 a subset of interval2?
 	return (interval2[0] <= interval1[0]) and (interval2[1] >= interval1[1])
+
+def nested_tuple(iterable_or_not):
+    """convert nested iterable into nested tuple"""
+    if isinstance(iterable_or_not, Iterable):
+        return tuple(nested_tuple(i) for i in iterable_or_not)
+    else:
+        return iterable_or_not

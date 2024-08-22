@@ -67,7 +67,8 @@ class DQNConfig:
     training_frequency: int = 10
     target_network_update_frequency: int = 500
     soft_target_network_update_coefficient: float = 0.
-    discount: float = 0.99
+    # why? was previously set to 0.99
+    discount: float = 1
     criterion_coefficients_for_loss: Dict[str, float] = \
         field(default_factory=lambda: dict(maxAdmissibleQ=1., minAdmissibleQ=1.))
     criterion_loss_fns: Dict[str, Callable[[Tensor, Tensor], Tensor]] = \
@@ -85,7 +86,7 @@ class DQNConfig:
     satisfia_agent_params: Dict[str, Any] = \
         field(default_factory=lambda: dict(defaultPolicy=None))
     aspiration_sampler: Callable[[int], IntervalTensor] = None
-    device: str = "cpu"
+    device: str = 'cpu'
     plotted_criteria: List[str] | None = None
     plot_criteria_smoothness: int = 1
     plot_criteria_frequency: int | None = None
