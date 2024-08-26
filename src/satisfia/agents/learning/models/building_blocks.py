@@ -50,13 +50,11 @@ class NoisyLinear(Module):
             self.weight_noise = Parameter(zeros(batch_size, out_features, in_features))
             self.bias_noise   = Parameter(zeros(batch_size, out_features)) if bias else None
         
-    def forward(self, x, noisy=True):
+    def forward(self, x, noisy=False):
         assert x.dim() == 2
-        if noisy and self.batch_size is not None:
-            assert x.size(0) == self.batch_size
 
-        weight = self.weight + self.weight_noise if noisy else self.weight
-        bias   = self.bias   + self.bias_noise   if noisy else self.bias
+        weight = self.weight
+        bias   = self.bias
         return (x.unsqueeze(-2) * weight).sum(-1) + bias
 
     @no_grad()
@@ -141,7 +139,7 @@ class NoisyMLP(Module):
         else:
             self.dropout = None
 
-    def forward(self, x: Tensor, noisy: bool = True):
+    def forward(self, x: Tensor, noisy: bool = False):
         for i, noisy_linear in enumerate(self.noisy_linears):
             x = noisy_linear(x, noisy=noisy)
 
@@ -215,7 +213,7 @@ class SatisfiaMLP(Module):
             batch_size = batch_size
         )
 
-    def forward(self, observations: Tensor, aspirations: Tensor, noisy: bool = True):
+    def forward(self, observations: Tensor, aspirations: Tensor, noisy: bool = False): #HERE!!!
         agent_parameters_emebdding = stack((aspirations.lower, aspirations.upper), -1)
 
         common_hidden = self.common_layers(

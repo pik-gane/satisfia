@@ -3,6 +3,28 @@
 import numpy as np
 import random
 import matplotlib.pyplot as plt
+
+def compute_total(agent: AspirationAgent, env: gym.Env, aspiration4state: float | Tuple[float, float]) -> float:
+    if isinstance(aspiration4state, (int, float)):
+        aspiration4state = (aspiration4state, aspiration4state)
+
+    env = ObservationToTupleWrapper(env)
+
+    total = 0.
+    observation, _ = env.reset()
+    done = False
+    while not done:
+        action, aspiration4action = agent.localPolicy(observation, aspiration4state).sample()[0]
+        next_observation, delta, done, truncated, _ = env.step(action)
+        done = done or truncated
+        total += delta
+        aspiration4state = agent.propagateAspiration(observation, action, aspiration4action, Edel=None, nextState=next_observation)
+        observation = next_observation
+    return total
+
+
+
+
 class ROC_Curve:
     def __init__(self, min_value, max_value, no_bins):
         self.min = min_value

@@ -20,14 +20,12 @@ def bellman_formula( replay_buffer_sample: ReplayBufferSample,
                        if coefficient != 0 ]
 
     next_criteria = target_network( replay_buffer_sample.next_observations,
-                                    replay_buffer_sample.next_aspirations,
-                                    noisy=False )
+                                    replay_buffer_sample.next_aspirations)
     complete_criteria(next_criteria)
     
     if cfg.double_q_learning:
         next_criteria_from_q_network = q_network( replay_buffer_sample.next_observations,
-                                                  replay_buffer_sample.aspirations,
-                                                  noisy=False )
+                                                  replay_buffer_sample.aspirations)
     complete_criteria(next_criteria)
 
     if any( criterion_name in criterion_names

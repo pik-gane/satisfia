@@ -1,8 +1,8 @@
 from satisfia.agents.makeMDPAgentSatisfia import AgentMDPPlanning
 from satisfia.util.interval_tensor import IntervalTensor
-
 from torch import Tensor, rand
 from torch.nn import Module, MSELoss
+from torch.nn.modules.loss import WeightedMSELoss
 from dataclasses import dataclass, field
 from more_itertools import pairwise
 from typing import Any, Tuple, List, Dict, Callable
@@ -63,7 +63,7 @@ class DQNConfig:
     learning_rate_scheduler: Callable[[float], float] = \
         ConstantScheduler(1e-3)
     batch_size: int = 128
-    training_starts: int = 10_000
+    training_starts: int = 100_000
     training_frequency: int = 10
     target_network_update_frequency: int = 500
     soft_target_network_update_coefficient: float = 0.
@@ -93,3 +93,4 @@ class DQNConfig:
     state_aspirations_for_plotting_criteria: List | None = None
     actions_for_plotting_criteria: List | None = None
     planning_agent_for_plotting_ground_truth: AgentMDPPlanning | None = None
+    temperature: float = 0.5

@@ -6,6 +6,8 @@ from satisfia.util.interval_tensor import IntervalTensor, relative_position, int
 from torch import Tensor, empty, ones, full_like, randint, bernoulli, no_grad, allclose
 from torch.nn import Module
 from torch.distributions.categorical import Categorical
+import torch.nn.functional as F
+import random
 
 class ExplorationStrategy:
     def __init__(self, target_network: Module, cfg: DQNConfig, num_actions: int):
@@ -19,7 +21,7 @@ class ExplorationStrategy:
 
     @no_grad()
     def __call__(self, observations: Tensor, timestep: int):
-        actions = self.satisfia_policy_actions(observations).sample()
+        actions = self.Boltzmann_periodic_policy_actions(observations, timestep=timestep, period=1).sample()
         
         exploration_rate = self.cfg.exploration_rate_scheduler(timestep / self.cfg.total_timesteps)
         explore = bernoulli(full_like(actions, exploration_rate, dtype=float)).bool()
@@ -29,6 +31,36 @@ class ExplorationStrategy:
                                     device=self.cfg.device )
 
         return actions
+
+    @no_grad()
+    def Boltzmann_probabilistic_policy_actions(self, observations, probability):
+        criteria = self.target_network(observations)
+        complete_criteria(criteria)
+        self.criteria = criteria
+        max_q_values = self.target_network(observations)['maxAdmissibleQ']
+        min_q_values = self.target_network(observations)['minAdmissibleQ']
+        temperature = self.cfg.temperature
+        if random.random() >probability:
+            boltzmann_probabilities = F.softmax(max_q_values / temperature, dim=-1)
+        else:
+            boltzmann_probabilities = F.softmax(min_q_values / temperature, dim=-1)
+        policy_distribution = Categorical(probs=boltzmann_probabilities)
+        return policy_distribution
+    
+    @no_grad()
+    def Boltzmann_periodic_policy_actions(self, observations, timestep, period):
+        criteria = self.target_network(observations, self.aspirations)
+        complete_criteria(criteria)
+        self.criteria = criteria
+        max_q_values = self.target_network(observations, self.aspirations)['maxAdmissibleQ']
+        min_q_values = self.target_network(observations, self.aspirations)['minAdmissibleQ']
+        temperature = self.cfg.temperature
+        if  timestep%(2*period)<=period:
+            boltzmann_probabilities = F.softmax(max_q_values / temperature, dim=-1)
+        else:
+            boltzmann_probabilities = F.softmax(min_q_values / temperature, dim=-1)
+        policy_distribution = Categorical(probs=boltzmann_probabilities)
+        return policy_distribution
 
     @no_grad()
     def satisfia_policy_actions(self, observations: Tensor) -> Categorical:
