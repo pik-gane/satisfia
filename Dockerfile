@@ -1,5 +1,29 @@
-# Stage 1: Build environments
-FROM pytorch/pytorch:1.12.0-cuda11.3-cudnn8-runtime
+# ARG for choosing GPU or CPU
+ARG PLATFORM="cpu"
+
+# ARG for selecting which environment to set up
+ARG ENV_SETUP="base" # Options: "atari", "base", "mujoco", "all"
+
+# ARGs for base images with different Python versions
+ARG BASE_IMAGE_ATARI="python:3.9-slim"
+ARG BASE_IMAGE_BASE="python:3.10-slim"
+ARG BASE_IMAGE_MUJOCO="python:3.10-slim"
+
+# GPU base image
+ARG BASE_IMAGE_GPU="pytorch/pytorch:1.12.0-cuda11.3-cudnn8-runtime"
+
+# Use a multi-stage build to handle GPU/CPU and environment-specific base image selection
+FROM ${BASE_IMAGE_GPU} AS base_gpu
+FROM ${BASE_IMAGE_ATARI} AS base_atari
+FROM ${BASE_IMAGE_BASE} AS base_base
+FROM ${BASE_IMAGE_MUJOCO} AS base_mujoco
+
+# Select the appropriate base image
+FROM base_${ENV_SETUP} AS base_cpu
+
+FROM base_${PLATFORM} as base
+
+ARG ENV_SETUP
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -15,25 +39,29 @@ RUN apt-get update && apt-get install -y \
 # Copy the requirements file
 COPY requirements.txt /tmp/requirements.txt
 
-# Create and set up atari environment
-RUN conda create -n atari python=3.9 -y && \
-    conda run -n atari pip install --no-cache-dir gymnasium[atari] gymnasium[accept-rom-license] gymnasium[box2d]&& \
-    conda run -n atari pip install --no-cache-dir -r /tmp/requirements.txt
+ENV ENV_SETUP=$ENV_SETUP
 
-# Create base environment and install common packages
+# Atari environment setup
+RUN if [ "${ENV_SETUP}" = "atari" ]; then \
+    pip install --no-cache-dir gymnasium[atari] gymnasium[accept-rom-license] gymnasium[box2d] && \
+    pip install --no-cache-dir -r /tmp/requirements.txt; \
+    fi
 
-RUN conda create -n base_env python=3.10 -y && \
-    conda run -n base_env pip install --no-cache-dir -r /tmp/requirements.txt
+# Base environment setup
+RUN if [ "$ENV_SETUP" = "base" ]; then \
+    pip install --no-cache-dir -r /tmp/requirements.txt; \
+    fi
 
-# Create and set up mujoco environment
-RUN conda create -n mujoco --clone base_env -y && \
-    conda run -n mujoco pip install --no-cache-dir gymnasium[mujoco]
+# Mujoco environment setup
+RUN if [ "$ENV_SETUP" = "mujoco" ]; then \
+    pip install --no-cache-dir -r /tmp/requirements.txt && \
+    pip install --no-cache-dir mujoco gymnasium[mujoco]; \
+    fi
 
-# Clean up
-RUN conda clean -afy && \
-    find $CONDA_DIR -follow -type f -name '*.a' -delete && \
-    find $CONDA_DIR -follow -type f -name '*.pyc' -delete && \
-    find $CONDA_DIR -follow -type f -name '*.js.map' -delete
+# Clean up system dependencies to reduce image size
+RUN apt-get purge -y --auto-remove build-essential swig && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Set the shell to bash
-SHELL ["/bin/bash", "--login", "-c"]
+SHELL ["/bin/bash", "-c"]
