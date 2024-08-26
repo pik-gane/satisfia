@@ -23,6 +23,21 @@ from tqdm import tqdm
 from typing import Callable, Tuple, List, Dict
 from plotly.colors import DEFAULT_PLOTLY_COLORS
 from plotly.graph_objects import Figure
+import csv
+
+def save_fig_data_to_csv(fig, csv_path):
+    data = fig['data']
+    with open(csv_path, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        headers = ['x', 'y', 'name']
+        writer.writerow(headers)
+        
+        for trace in data:
+            x = trace['x']
+            y = trace['y']
+            name = trace['name']
+            for x_val, y_val in zip(x, y):
+                writer.writerow([x_val, y_val, name])
 
 def train_dqn( make_env:   Callable[[], Env],
                make_model: Callable[[], Module],
@@ -95,8 +110,7 @@ def train_dqn( make_env:   Callable[[], Env],
             replay_buffer_sample = replay_buffer.sample(cfg.batch_size).to(cfg.device)
 
             predicted_criteria = q_network( replay_buffer_sample.observations,
-                                            replay_buffer_sample.aspirations,
-                                            noisy=False )
+                                            replay_buffer_sample.aspirations)
             complete_criteria(predicted_criteria)
 
             td_target = bellman_formula( replay_buffer_sample,
@@ -189,7 +203,7 @@ class DQNTrainingStatistics:
                     tensor([state_aspiration_low],  dtype=torch.float, device=self.cfg.device), 
                     tensor([state_aspiration_high], dtype=torch.float, device=self.cfg.device)
                 )
-                criteria = model(state_as_tensor, state_aspiration_as_tensor, noisy=False)
+                criteria = model(state_as_tensor, state_aspiration_as_tensor)
                 complete_criteria(criteria)
                 for criterion in self.cfg.plotted_criteria:
                     for action in self.cfg.actions_for_plotting_criteria:

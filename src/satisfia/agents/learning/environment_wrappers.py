@@ -58,9 +58,11 @@ class ObservationToTupleWrapper(Wrapper):
 
     def step(self, *args, **kwargs):
         observation, delta, done, truncated, info = self.env.step(*args, **kwargs)
-        return self.to_tuple(observation), delta, done, truncated, info
+        wrapped_observation = self.to_tuple(observation)
+        return wrapped_observation, delta, done, truncated, info
 
     def to_tuple(self, x):
         if isinstance(x, (Tensor, np.ndarray)):
             x = tuple(x.tolist())
+            print(f"Converted tuple shape: {len(x)}")  # Should match original dimension
         return x

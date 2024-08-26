@@ -165,7 +165,7 @@ class AgentMDPDQN(AspirationAgent):
         aspiration_low, aspiration_high = aspiration
         aspiration = IntervalTensor( tensor([aspiration_low],  dtype=torch.float, device=self.device),
                                      tensor([aspiration_high], dtype=torch.float, device=self.device) )
-        output = self.model(state, aspiration, noisy=False)
+        output = self.model(state, aspiration)
         return {key: value.squeeze(0) for key, value in output.items()}
 
     def maxAdmissibleQ(self, state, action):

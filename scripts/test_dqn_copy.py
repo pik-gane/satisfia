@@ -232,10 +232,10 @@ def train_and_plot(gym_env: str, min_achievable_total: float, max_achievable_tot
             input_size = d_observation,
             output_not_depending_on_agent_parameters_sizes = { "maxAdmissibleQ": n_actions,
                                                                "minAdmissibleQ": n_actions },
-            output_depending_on_agent_parameters_sizes = { "Q": n_actions },
+            #output_depending_on_agent_parameters_sizes = { "Q": n_actions },
             common_hidden_layer_sizes = [64, 64],
             hidden_layer_not_depending_on_agent_parameters_sizes = [64],
-            hidden_layer_depending_on_agent_parameters_sizes = [64],
+            #hidden_layer_depending_on_agent_parameters_sizes = [64],
             batch_size = cfg.num_envs,
             layer_norms = True,
             dropout = 0
