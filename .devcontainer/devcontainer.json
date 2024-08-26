@@ -1,6 +1,6 @@
 {
     "name": "Satisfia Dev Container",
-    "image": "nordbyerik/satisfia_mujoco_gpu",
+    "image": "nordbyerik/satisfia_mujoco_cpu:latest",
     "customizations": {
         "vscode": {
             "extensions": [
