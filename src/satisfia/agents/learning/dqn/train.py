@@ -73,7 +73,7 @@ def train_dqn( make_env:   Callable[[], Env],
         next_observations, deltas, dones, truncations, _ = envs.step(actions.cpu().numpy())
 
         aspirations = exploration_strategy.aspirations
-        exploration_strategy.propagate_aspirations( actions,
+        exploration_strategy.propagate_aspirations( actions, # XXX: Propagate the aspirations
                                                     tensor(next_observations, device=cfg.device) )
 
         exploration_strategy.on_done(tensor(dones), timestep=timestep)

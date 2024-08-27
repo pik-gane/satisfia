@@ -1,6 +1,3 @@
-
-from __future__ import annotations
-
 from beartype.vale import Is
 
 EvenValidator = Is[lambda x: x % 2 == 0]
@@ -39,10 +36,8 @@ import dataclasses
 from plotly.colors import DEFAULT_PLOTLY_COLORS
 from plotly.graph_objects import Figure, Scatter, Layout
 
-from copy import deepcopy
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
-# device = "cpu"
+# device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cpu"
 print("using", device)
 
 def multi_tqdm(num_tqdms: int) -> List[Callable[[Iterable], Iterable]]:
@@ -83,16 +78,15 @@ def run_or_load(filename, function, *args, **kwargs):
 def compute_total(agent: AspirationAgent, env: gym.Env, aspiration4state: float | Tuple[float, float]) -> float:
     if isinstance(aspiration4state, (int, float)):
         aspiration4state = (aspiration4state, aspiration4state)
-    
-    total_env = deepcopy(env)
-    total_env = ObservationToTupleWrapper(total_env)
+
+    env = ObservationToTupleWrapper(env)
 
     total = 0.
-    observation, _ = total_env.reset()
+    observation, _ = env.reset()
     done = False
     while not done:
         action, aspiration4action = agent.localPolicy(observation, aspiration4state).sample()[0]
-        next_observation, delta, done, truncated, _ = total_env.step(action)
+        next_observation, delta, done, truncated, _ = env.step(action)
         done = done or truncated
         total += delta
         aspiration4state = agent.propagateAspiration(observation, action, aspiration4action, Edel=None, nextState=next_observation)
@@ -206,7 +200,7 @@ cfg = DQNConfig( aspiration_sampler = UniformPointwiseAspirationSampler(-10, 10)
                  discount = 0.99,
                  soft_target_network_update_coefficient = 0.999,
                  learning_rate_scheduler = lambda _: 5e-4,
-                 total_timesteps = 2_000,
+                 total_timesteps = 5_000,
                  training_starts = 64,
                  batch_size = 64,
                  buffer_size = 100_000,
@@ -218,73 +212,52 @@ cfg = DQNConfig( aspiration_sampler = UniformPointwiseAspirationSampler(-10, 10)
                                            "lossCoeff4Entropy1": 0,
                                            "defaultPolicy": None },
                  device = device,
-                 plotted_criteria = ["maxAdmissibleQ", "minAdmissibleQ"],
+                 plotted_criteria = None, # ["maxAdmissibleQ", "minAdmissibleQ"],
                  plot_criteria_frequency = 100,
-                 states_for_plotting_criteria = np.random.uniform(-1, 1, 8), # [(1, 3, 0, 1, 0, 2, 0, 5, 0), (6, 3, 0, 1, 0, 2, 0, 5, 0), (3, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 5, 0), (7, 5, 0, 1, 0, 2, 0, 6, 0), (8, 4, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 2, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 6, 0), (9, 5, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 2, 0, 5, 0), (6, 5, 0, 1, 0, 2, 0, 6, 0), (8, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 6, 0), (7, 5, 0, 1, 0, 3, 0, 6, 0), (4, 4, 0, 1, 0, 3, 0, 5, 0), (4, 5, 0, 1, 0, 2, 0, 6, 0), (6, 4, 0, 1, 0, 3, 0, 5, 0), (9, 4, 0, 1, 0, 3, 0, 6, 0), (8, 5, 0, 1, 0, 2, 0, 6, 0), (3, 3, 0, 1, 0, 2, 0, 6, 0), (3, 5, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 3, 0, 6, 0), (2, 4, 0, 1, 0, 3, 0, 6, 0), (6, 4, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 2, 0, 5, 0), (7, 3, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 6, 0), (4, 5, 0, 1, 0, 3, 0, 6, 0), (5, 5, 0, 1, 0, 3, 0, 6, 0), (0, 4, 0, 1, 0, 3, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 5, 0), (8, 4, 0, 1, 0, 3, 0, 5, 0), (2, 3, 0, 1, 0, 2, 0, 5, 0), (9, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 5, 0), (6, 4, 0, 1, 0, 3, 0, 6, 0), (6, 3, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 6, 0), (1, 4, 0, 1, 0, 3, 0, 5, 0), (3, 3, 0, 1, 0, 2, 0, 5, 0), (5, 5, 0, 1, 0, 2, 0, 6, 0), (2, 5, 0, 1, 0, 3, 0, 6, 0), (9, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 5, 0), (3, 4, 0, 1, 0, 3, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 5, 0), (2, 4, 0, 1, 0, 3, 0, 5, 0), (6, 4, 0, 1, 0, 2, 0, 5, 0), (1, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 6, 0), (6, 5, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 3, 0, 6, 0), (7, 3, 0, 1, 0, 2, 0, 6, 0), (2, 4, 0, 1, 0, 2, 0, 5, 0)],
+                 states_for_plotting_criteria = [(1, 3, 0, 1, 0, 2, 0, 5, 0), (6, 3, 0, 1, 0, 2, 0, 5, 0), (3, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 5, 0), (7, 5, 0, 1, 0, 2, 0, 6, 0), (8, 4, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 2, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 6, 0), (9, 5, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 2, 0, 5, 0), (6, 5, 0, 1, 0, 2, 0, 6, 0), (8, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 6, 0), (7, 5, 0, 1, 0, 3, 0, 6, 0), (4, 4, 0, 1, 0, 3, 0, 5, 0), (4, 5, 0, 1, 0, 2, 0, 6, 0), (6, 4, 0, 1, 0, 3, 0, 5, 0), (9, 4, 0, 1, 0, 3, 0, 6, 0), (8, 5, 0, 1, 0, 2, 0, 6, 0), (3, 3, 0, 1, 0, 2, 0, 6, 0), (3, 5, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 3, 0, 6, 0), (2, 4, 0, 1, 0, 3, 0, 6, 0), (6, 4, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 2, 0, 5, 0), (7, 3, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 6, 0), (4, 5, 0, 1, 0, 3, 0, 6, 0), (5, 5, 0, 1, 0, 3, 0, 6, 0), (0, 4, 0, 1, 0, 3, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 5, 0), (8, 4, 0, 1, 0, 3, 0, 5, 0), (2, 3, 0, 1, 0, 2, 0, 5, 0), (9, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 5, 0), (6, 4, 0, 1, 0, 3, 0, 6, 0), (6, 3, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 6, 0), (1, 4, 0, 1, 0, 3, 0, 5, 0), (3, 3, 0, 1, 0, 2, 0, 5, 0), (5, 5, 0, 1, 0, 2, 0, 6, 0), (2, 5, 0, 1, 0, 3, 0, 6, 0), (9, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 5, 0), (3, 4, 0, 1, 0, 3, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 5, 0), (2, 4, 0, 1, 0, 3, 0, 5, 0), (6, 4, 0, 1, 0, 2, 0, 5, 0), (1, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 6, 0), (6, 5, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 3, 0, 6, 0), (7, 3, 0, 1, 0, 2, 0, 6, 0), (2, 4, 0, 1, 0, 2, 0, 5, 0)],
                  state_aspirations_for_plotting_criteria = [(0, 0)], # [(-5, -5), (-1, -1), (1, 1)],
-                 actions_for_plotting_criteria = [0, 1, 2, 3, 4],
-                 env_type='mujoco'
-                 )
+                 actions_for_plotting_criteria = [0, 1, 2, 3, 4] )
 
-def train_and_plot(env_name: str,
-                   env_type: str = "gym",  # Can be "gym", "atari", or "gridworld"
-                   max_achievable_total: float | None = None,
-                   min_achievable_total: float | None = None):
+def train_and_plot( env_name: str,
+                    gridworld: bool = True,
+                    max_achievable_total: float | None = None,
+                    min_achievable_total: float | None = None ):
 
     print(env_name)
 
     def make_env():
-        if env_type == "gridworld":
+        if gridworld:
             env, _ = make_simple_gridworld(env_name, time=10)
             env = RestrictToPossibleActionsWrapper(env)
-        elif env_type == "atari":
-            env = gym.make(env_name, render_mode="rgb_array")
-            # Add any necessary Atari wrappers here
-        else:  # gym (including MuJoCo)
+        else:
             env = gym.make(env_name)
             env = TimeLimit(env, 1_000)
             env = RescaleDeltaWrapper(env, from_interval=(-500, 100), to_interval=(-5, 1))
         return env
 
-
     def make_model(pretrained=None):
         # to do: compute d_observation properly
-        print("Observation Space")
-        print(make_env().observation_space)
-        print("Action Space")
-        print(make_env().action_space)
-        if env_type=='gridworld':
-            d_observation = len(make_env().observation_space) 
-        else:
-            d_observation = make_env().observation_space.shape[0]
-        if env_type=="mujoco": 
-            n_actions = make_env().action_space.shape[0]
-        else:
-            n_actions = make_env().action_space.n
+        d_observation = len(make_env().observation_space) if gridworld else 8
+        n_actions = make_env().action_space.n
         model = SatisfiaMLP(
             input_size = d_observation,
-            output_not_depending_on_agent_parameters_sizes = { "maxAdmissibleQ": n_actions,
-                                                               "minAdmissibleQ": n_actions },
-            output_depending_on_agent_parameters_sizes = dict(), # { "Q": n_actions },
+            output_not_depending_on_agent_parameters_sizes = { "maxAdmissibleQ": cfg.num_atoms,
+                                                               "minAdmissibleQ": cfg.num_atoms },
+            output_depending_on_agent_parameters_sizes = dict(), #{ "Q": n_actions },
             common_hidden_layer_sizes = [64, 64],
             hidden_layer_not_depending_on_agent_parameters_sizes = [16],
             hidden_layer_depending_on_agent_parameters_sizes = [], # [64],
             batch_size = cfg.num_envs,
             layer_norms = False,
-            dropout = 0
+            dropout = 0,
+            atoms=cfg.num_atoms,
+            num_actions=n_actions,
         )
         if pretrained is not None:
             model.load_state_dict(pretrained)
         return model
-        # return NoisyMLPReturningDict( [ d_observation + d_aspiration,
-        #                                 64,
-        #                                 64,
-        #                                 { "maxAdmissibleQ": n_actions,
-        #                                   "minAdmissibleQ": n_actions,
-        #                                   "Q": n_actions } ],
-        #                               batch_size=cfg.num_envs ).to(device)
 
-    planning_agent = AgentMDPPlanning(cfg.satisfia_agent_params, make_env()) if env_type=='gridworld' else None
+    planning_agent = AgentMDPPlanning(cfg.satisfia_agent_params, make_env()) if gridworld else None
 
     model = run_or_load( f"dqn-{env_name}-no-discount.pickle",
                          train_dqn,
@@ -295,43 +268,33 @@ def train_and_plot(env_name: str,
                              planning_agent_for_plotting_ground_truth=planning_agent
                          ) )
     model = model.to(device)
-    if env_type=="mujoco": 
-        n_actions = make_env().action_space.shape[0]
-    else:
-        n_actions = make_env().action_space.n
+
     learning_agent = AgentMDPDQN( cfg.satisfia_agent_params,
                                   model,
-                                  num_actions = n_actions,
+                                  num_actions = make_env().action_space.n,
                                   device = device )
 
-    # for state in [(time, 2, 2) for time in range(10)]:
-    #     for action in range(5):
-    #         for state_aspiration in [(0, 0), (1, 1), (2, 2)]:
-    #             action_aspiration = planning_agent.aspiration4action(state, action, state_aspiration)
-    #             print( state,
-    #                    action,
-    #                    action_aspiration,
-    #                      planning_agent.Q(state, action, state_aspiration)
-    #                    - learning_agent.Q(state, action, state_aspiration) )
 
     first_observation, _ = make_env().reset()
     if max_achievable_total is None:
         max_achievable_total = planning_agent.maxAdmissibleV(first_observation)
     if min_achievable_total is None:
         min_achievable_total = planning_agent.minAdmissibleV(first_observation)
+    
+
     plot_totals_vs_aspiration( agents = learning_agent,
                                env = make_env(),
                                aspirations = np.linspace( min_achievable_total - 1,
                                                           max_achievable_total + 1,
                                                           10 ),
-                               sample_size = 500,
+                               sample_size = 250,
                                # reference_agents = planning_agent,
                                title = f"totals for agent with no discount and longer training in {env_name}" )
 
-train_and_plot( 'Ant-v4',
-               env_type = "mujoco",
-                min_achievable_total = -5,
-                max_achievable_total = 5 )
+#train_and_plot( 'LunarLander-v2',
+#                gridworld = False,
+#               min_achievable_total = -5,
+#                max_achievable_total = 5 )
 
 
 all_gridworlds = [ "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW24", "GW25", "GW26",
@@ -339,14 +302,14 @@ all_gridworlds = [ "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW
                    "test_box" ]
 
 gridworlds_without_delta = ["GW23", "GW24"]
-gridworld_simple = ['GW1', 'GW4']
+
 gridworlds_requiring_longer_training = [ "GW28", "test_box", "GW29", "GW26", "GW30", "GW32"]
 # still don't work even after longer training: test_box, GW30, GW28, GW29
 
-# train_and_plot("GW1")
-# TODO: Add a variable which decides whether to load file
-# TODO: Output file added to a folder which we can git ignore. add to results
-Parallel(n_jobs=-1)(delayed(train_and_plot)(gridworld_name) for gridworld_name in gridworld_simple)
+# train_and_plot("test_box")
+
+small_gridworlds = ['GW1', 'GW2']
+Parallel(n_jobs=-1)(delayed(train_and_plot)(gridworld_name) for gridworld_name in small_gridworlds)
 # for gridworld_name in all_gridworlds:
 #     train_and_plot(gridworld_name)
-
+>>>>>>> Stashed changes
