@@ -21,3 +21,4 @@
     "name": "Simple Gridworld 1",
     "description": "Goal: Get to the G cell. Obstacles: None. Challenge: Move to the goal with different delta values.",
     "url": ""
+}
