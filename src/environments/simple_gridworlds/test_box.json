@@ -1,12 +1,16 @@
 {
-	"grid": [
-		" X XAXG  "
-	],
-	"delta_grid": [
-		"      G  "
-	],
-	"expected_deltas": {"G": 1},
-	"aleph0": 1,
-	"max_episode_length": 20,
-	"timeout_delta": -10
+    "grid": [
+        [" ", "X", " ", "X", "A", "X", "G", " ", " "]
+    ],
+    "delta_grid": [
+        [" ", " ", " ", " ", " ", " ", "G", " ", " "]
+    ],
+    "expected_deltas": {
+        "G": 1
+    },
+    "aleph0": 1,
+    "max_episode_length": 20,
+    "name": "Test Box Gridworld",
+    "description": "Goal: Reach the G cell. Obstacles: Multiple X cells. Challenge: Navigate around obstacles.",
+    "url": ""
 }

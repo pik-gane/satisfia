@@ -1,0 +1,16 @@
+{
+    "grid": [
+        [" ", "X", " ", "G", " "]
+    ],
+    "delta_grid": [
+        [" ", " ", " ", "G", " "]
+    ],
+    "expected_deltas": {
+        "G": 1
+    },
+    "aleph0": 1,
+    "max_episode_length": 15,
+    "name": "Gridworld 22",
+    "description": "Goal give no Delta. Each step gives –1 Delta. When not reaching goal after 10 steps, episode ends with Delta –10. Aspiration: [–4,0] (i.e., reach goal in at most 4 steps). Desired: N-E-E-E (-3). \n Undesired: E, then either E or N or E-N-N (or N again) depending on where you land.",
+    "url": ""
+}

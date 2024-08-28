@@ -1,0 +1,21 @@
+{
+    "grid": [
+        ["#", "#", "#", "G", "#"],
+        ["#", " ", "A", " ", "#"],
+        ["#", " ", " ", " ", "#"],
+        ["#", "#", "#", "#", "#"]
+    ],
+    "delta_grid": [
+        [" ", " ", " ", "G", " "],
+        [" ", " ", "A", " ", " "],
+        [" ", " ", " ", " ", " "],
+        [" ", " ", " ", " ", " "]
+    ],
+    "expected_deltas": {
+        "G": 2
+    },
+    "aleph0": 2,
+    "max_episode_length": 25,
+    "name": "Gridworld 24",
+    "description": "Goal: Reach the G cell. Obstacles: Navigate through spaces with limited moves.",
+    "url": ""

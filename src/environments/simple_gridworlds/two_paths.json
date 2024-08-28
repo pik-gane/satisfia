@@ -1,0 +1,22 @@
+{
+    "grid": [
+        ["A", " ", " ", "G"],
+        [" ", " ", " ", " "],
+        [" ", " ", " ", " "],
+        [" ", " ", " ", "G"]
+    ],
+    "delta_grid": [
+        ["A", " ", " ", "G"],
+        [" ", " ", " ", " "],
+        [" ", " ", " ", " "],
+        [" ", " ", " ", "G"]
+    ],
+    "expected_deltas": {
+        "G": 1
+    },
+    "aleph0": 1,
+    "max_episode_length": 30,
+    "name": "Two Paths Gridworld",
+    "description": "Goal: Reach either G cell. Obstacles: None. Challenge: Choose the optimal path to reach the goal.",
+    "url": ""
+}

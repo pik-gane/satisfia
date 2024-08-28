@@ -1,0 +1,24 @@
+{
+    "grid": [
+        ["#", "#", "#", "#", "#"],
+        ["#", "A", " ", " ", "#"],
+        ["#", "G", "G", "G", "#"],
+        ["#", "#", "#", "#", "#"]
+    ],
+    "delta_grid": [
+        [" ", " ", " ", " ", " "],
+        [" ", " ", " ", " ", " "],
+        [" ", "Ga", "Gb", "Gc", " "],
+        [" ", " ", " ", " ", " "]
+    ],
+    "expected_deltas": {
+        "Ga": 1,
+        "Gb": 2,
+        "Gc": 3
+    },
+    "aleph0": [1.5, 2.5],
+    "max_episode_length": 12,
+    "name": "Simple Gridworld 3",
+    "description": "Goal: Reach the G cell. Obstacles: None. Challenge: Multiple goals with different delta values and increased length.",
+    "url": ""
+}

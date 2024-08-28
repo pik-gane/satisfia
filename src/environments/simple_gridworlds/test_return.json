@@ -1,0 +1,20 @@
+{
+    "grid": [
+        ["#", "#", "#", "#", "#"],
+        ["#", "A", " ", " ", "#"],
+        ["#", "#", "#", "#", "#"]
+    ],
+    "delta_grid": [
+        [" ", " ", " ", " ", " "],
+        [" ", " ", "Δ", " ", " "],
+        [" ", " ", " ", " ", " "]
+    ],
+    "expected_deltas": {
+        "Δ": 1
+    },
+    "aleph0": 1,
+    "max_episode_length": 2,
+    "name": "Test Return Gridworld",
+    "description": "Goal: Reach the Delta and return to the origin. Obstacles: None.",
+    "url": ""
+}

@@ -1,0 +1,23 @@
+{
+    "grid": [
+        ["#", "#", "#", "#", "#"],
+        ["#", "#", "G", "#", "#"],
+        ["#", "G", "A", "G", "#"],
+        ["#", "#", "#", "#", "#"]
+    ],
+    "delta_grid": [
+        [" ", " ", " ", " ", " "],
+        [" ", " ", "G2", " ", " "],
+        [" ", "G1", " ", "G3", " "],
+        [" ", " ", " ", " ", " "]
+    ],
+    "expected_deltas": {
+        "G1": 1,
+        "G2": 2,
+        "G3": 3
+    },
+    "aleph0": [1.9, 2.1],
+    "max_episode_length": 10,
+    "name": "Simple Gridworld 1",
+    "description": "Goal: Get to the G cell. Obstacles: None. Challenge: Move to the goal with different delta values.",
+    "url": ""
