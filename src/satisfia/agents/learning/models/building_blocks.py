@@ -159,6 +159,20 @@ class NoisyMLP(Module):
         for noisy_linear in self.noisy_linears:
             noisy_linear.new_noise(std=std, which_in_batch=which_in_batch)
 
+class MinMaxLayer(Module):
+    def __init__(self):
+        super().__init__()
+    
+    def forward(self, output: Dict[str, Tensor]) -> Dict[str, Tensor]:
+        processed_output = {}
+        for key, value in output.items():
+            Qmin_k, Qmax_k = value[:, 0], value[:, 1]
+            M_k = (Qmin_k + Qmax_k) / 2
+            new_Qmin_k = minimum(Qmin_k, M_k)
+            new_Qmax_k = maximum(Qmax_k, M_k)
+            processed_output[key] = stack((new_Qmin_k, new_Qmax_k), dim=-1)
+        return processed_output
+
 
 class SatisfiaMLP(Module):
     def __init__(self, input_size: int,
@@ -230,7 +244,9 @@ class SatisfiaMLP(Module):
             cat((common_hidden, agent_parameters_emebdding), -1),
             noisy = noisy
         )
-
+        output_not_depending_on_agent_parameters = self.min_max_layer(
+            output_not_depending_on_agent_parameters
+        )
         assert set(output_not_depending_on_agent_parameters.keys()) \
                    .isdisjoint(set(output_depending_on_agent_parameters.keys()))
 
