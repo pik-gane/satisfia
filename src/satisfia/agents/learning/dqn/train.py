@@ -226,7 +226,7 @@ class DQNTrainingStatistics:
                         if criterion in ["maxAdmissibleQ", "minAdmissibleQ"]:
                             possible_action = action in self.cfg.planning_agent_for_plotting_ground_truth.possible_actions(state)
                             criterion_value = \
-                                criterion_function(state, action) if possible_action else None
+                                criterion_function(state, action) 
                         elif criterion in ["Q"]:
                             agent = AgentMDPDQN( self.cfg.satisfia_agent_params,
                                                  model
