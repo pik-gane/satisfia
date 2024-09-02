@@ -6,6 +6,7 @@ from torch.nn.modules.loss import WeightedMSELoss
 from dataclasses import dataclass, field
 from more_itertools import pairwise
 from typing import Any, Tuple, List, Dict, Callable
+from satisfia.agents.learning.dqn.updated_loss import WeightedMSELoss
 
 class ConstantScheduler:
     def __init__(self, value: float):
@@ -71,9 +72,9 @@ class DQNConfig:
     criterion_coefficients_for_loss: Dict[str, float] = \
         field(default_factory=lambda: dict(maxAdmissibleQ=1., minAdmissibleQ=1.))
     criterion_loss_fns: Dict[str, Callable[[Tensor, Tensor], Tensor]] = \
-        field(default_factory=lambda: dict( maxAdmissibleQ = MSELoss(),
-                                            minAdmissibleQ = MSELoss(),
-                                            Q              = MSELoss() ))
+        field(default_factory=lambda: dict( maxAdmissibleQ = WeightedMSELoss(),
+                                            minAdmissibleQ = WeightedMSELoss(),
+                                            Q              = WeightedMSELoss()))
     double_q_learning: bool = True
     exploration_rate_scheduler: Callable[[float], float] = \
         PiecewiseLinearScheduler([0., 0.5, 1.], [1., 0.05, 0.05])

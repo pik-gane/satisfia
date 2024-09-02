@@ -303,7 +303,7 @@ def train_and_plot( env_name: str,
                                # reference_agents = planning_agent,
                                title = f"totals for agent with no discount and longer training in {env_name}" )
 
-train_and_plot( 'GW5',
+train_and_plot( 'GW22',
                 gridworld = True,
                 min_achievable_total = -5,
                 max_achievable_total = 5 )

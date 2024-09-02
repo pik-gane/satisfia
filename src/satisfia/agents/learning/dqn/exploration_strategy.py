@@ -3,14 +3,14 @@ import satisfia.agents.learning.dqn.agent_mdp_dqn as agent_mpd_dqn
 from satisfia.agents.learning.dqn.criteria import complete_criteria
 from satisfia.util.interval_tensor import IntervalTensor, relative_position, interpolate
 
-from torch import Tensor, empty, ones, full_like, randint, bernoulli, no_grad, allclose
+from torch import Tensor, empty, ones, full_like, randint, bernoulli, no_grad, allclose, isnan, ones_like
 from torch.nn import Module
 from torch.distributions.categorical import Categorical
 import torch.nn.functional as F
 import random
 
 class ExplorationStrategy:
-    def __init__(self, target_network: Module, cfg: DQNConfig, num_actions: int):
+    def __init__(self, target_network: Module, cfg: DQNConfig, num_actions):
         self.target_network = target_network
         self.cfg = cfg
         self.num_actions = num_actions
@@ -21,8 +21,8 @@ class ExplorationStrategy:
 
     @no_grad()
     def __call__(self, observations: Tensor, timestep: int):
-        actions = self.Boltzmann_periodic_policy_actions(observations, timestep=timestep, period=1).sample()
-        
+        actions = self.Boltzmann_periodic_policy_actions(observations, timestep=timestep, period=20).sample()
+        #actions = self.satisfia_policy_actions(observations).sample()
         exploration_rate = self.cfg.exploration_rate_scheduler(timestep / self.cfg.total_timesteps)
         explore = bernoulli(full_like(actions, exploration_rate, dtype=float)).bool()
         actions[explore] = randint( low=0,
@@ -45,10 +45,11 @@ class ExplorationStrategy:
         else:
             boltzmann_probabilities = F.softmax(min_q_values / temperature, dim=-1)
         policy_distribution = Categorical(probs=boltzmann_probabilities)
+        self.action_probs = policy_distribution
         return policy_distribution
     
     @no_grad()
-    def Boltzmann_periodic_policy_actions(self, observations, timestep, period):
+    def Boltzmann_periodic_policy_actions(self, observations, timestep, period=30):
         criteria = self.target_network(observations, self.aspirations)
         complete_criteria(criteria)
         self.criteria = criteria
@@ -59,8 +60,21 @@ class ExplorationStrategy:
             boltzmann_probabilities = F.softmax(max_q_values / temperature, dim=-1)
         else:
             boltzmann_probabilities = F.softmax(min_q_values / temperature, dim=-1)
+        #if isnan(boltzmann_probabilities).any():
+            #print(observations, timestep)
+        boltzmann_probabilities = ones_like(boltzmann_probabilities)
         policy_distribution = Categorical(probs=boltzmann_probabilities)
         return policy_distribution
+    
+    def action_probabilities(self, observations, timestep):
+        probabilities_dict = {}
+        max_q_values = self.target_network(observations, self.aspirations)['maxAdmissibleQ']
+        min_q_values = self.target_network(observations, self.aspirations)['minAdmissibleQ']
+        probabilities_dict['maxAdmissibleQ'] = F.softmax(max_q_values, dim=-1)
+        probabilities_dict['minAdmissibleQ'] = F.softmax(min_q_values, dim=-1)
+        return probabilities_dict
+    
+
 
     @no_grad()
     def satisfia_policy_actions(self, observations: Tensor) -> Categorical:

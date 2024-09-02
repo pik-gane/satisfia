@@ -1,6 +1,6 @@
 from satisfia.util.interval_tensor import IntervalTensor
 
-from torch import Tensor, cat, stack, empty, zeros, ones, no_grad
+from torch import Tensor, cat, stack, empty, zeros, ones, no_grad, minimum, maximum
 from torch.nn import Module, Linear, ReLU, LayerNorm, Dropout, Parameter, ModuleList, ModuleDict
 from more_itertools import pairwise
 from math import sqrt
@@ -51,10 +51,14 @@ class NoisyLinear(Module):
             self.bias_noise   = Parameter(zeros(batch_size, out_features)) if bias else None
         
     def forward(self, x, noisy=False):
+        if not isinstance(x, Tensor):
+            x = Tensor(x)
         assert x.dim() == 2
+        if noisy and self.batch_size is not None:
+            assert x.size(0) == self.batch_size
 
-        weight = self.weight
-        bias   = self.bias
+        weight = self.weight + self.weight_noise if noisy else self.weight
+        bias   = self.bias   + self.bias_noise   if noisy else self.bias
         return (x.unsqueeze(-2) * weight).sum(-1) + bias
 
     @no_grad()
@@ -88,7 +92,7 @@ class NoisyLinearReturningDict(Module):
             for key, out_feats in out_features.items()
         })
 
-    def forward(self, x, noisy=True):
+    def forward(self, x, noisy=False):
         return { key: noisy_linear(x, noisy=noisy)
                  for key, noisy_linear in self.noisy_linears.items() }
 
@@ -159,6 +163,7 @@ class NoisyMLP(Module):
         for noisy_linear in self.noisy_linears:
             noisy_linear.new_noise(std=std, which_in_batch=which_in_batch)
 
+
 class MinMaxLayer(Module):
     def __init__(self):
         super().__init__()
@@ -170,9 +175,12 @@ class MinMaxLayer(Module):
             M_k = (Qmin_k + Qmax_k) / 2
             new_Qmin_k = minimum(Qmin_k, M_k)
             new_Qmax_k = maximum(Qmax_k, M_k)
+            if new_Qmin_k != Qmin_k:
+                print("Making an adjustment of Qmin")
+            if new_Qmax_k != Qmax_k:
+                print("Making an adjustment of Qmax")
             processed_output[key] = stack((new_Qmin_k, new_Qmax_k), dim=-1)
         return processed_output
-
 
 class SatisfiaMLP(Module):
     def __init__(self, input_size: int,
@@ -214,6 +222,8 @@ class SatisfiaMLP(Module):
             batch_size = batch_size
         )
 
+        self.min_max_layer = MinMaxLayer()
+
         agent_parameters_size = 2
 
         self.layers_depending_on_agent_parameters = NoisyMLP(
@@ -227,26 +237,24 @@ class SatisfiaMLP(Module):
             batch_size = batch_size
         )
 
-    def forward(self, observations: Tensor, aspirations: Tensor, noisy: bool = False): #HERE!!!
+    def forward(self, observations: Tensor, aspirations: Tensor, noisy: bool = False):
         agent_parameters_emebdding = stack((aspirations.lower, aspirations.upper), -1)
 
         common_hidden = self.common_layers(
             observations,
             noisy=noisy
         )
+        output_not_depending_on_agent_parameters = self.layers_not_depending_on_agent_parameters((common_hidden))
 
-        output_not_depending_on_agent_parameters = self.layers_not_depending_on_agent_parameters(
-            common_hidden,
-            noisy = noisy
-        )
+        #output_not_depending_on_agent_parameters = self.min_max_layer(
+        #    output_not_depending_on_agent_parameters
+        #)
 
         output_depending_on_agent_parameters = self.layers_depending_on_agent_parameters(
             cat((common_hidden, agent_parameters_emebdding), -1),
             noisy = noisy
         )
-        output_not_depending_on_agent_parameters = self.min_max_layer(
-            output_not_depending_on_agent_parameters
-        )
+
         assert set(output_not_depending_on_agent_parameters.keys()) \
                    .isdisjoint(set(output_depending_on_agent_parameters.keys()))
 

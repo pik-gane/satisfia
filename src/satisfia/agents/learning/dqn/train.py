@@ -23,6 +23,7 @@ from tqdm import tqdm
 from typing import Callable, Tuple, List, Dict
 from plotly.colors import DEFAULT_PLOTLY_COLORS
 from plotly.graph_objects import Figure
+from random import random
 import csv
 
 def save_fig_data_to_csv(fig, csv_path):
@@ -86,15 +87,15 @@ def train_dqn( make_env:   Callable[[], Env],
                                                     tensor(next_observations, device=cfg.device) )
 
         exploration_strategy.on_done(tensor(dones), timestep=timestep)
-
         replay_buffer.add( observations      = tensor(observations,        device=cfg.device),
-                           actions           = actions,
-                           deltas            = tensor(deltas,              device=cfg.device),
-                           dones             = tensor(dones | truncations, device=cfg.device),
-                           next_observations = tensor(next_observations,   device=cfg.device),
-                           aspirations       = aspirations,
-                           next_aspirations  = exploration_strategy.aspirations )
-
+                   actions           = actions,
+                   deltas            = tensor(deltas,              device=cfg.device),
+                   dones             = tensor(dones | truncations, device=cfg.device),
+                   next_observations = tensor(next_observations,   device=cfg.device),
+                   aspirations       = aspirations,
+                   next_aspirations  = exploration_strategy.aspirations,
+                   action_probs = exploration_strategy.satisfia_policy_actions(observations))
+        
         observations = next_observations
 
         register_criteria_in_stats = cfg.plotted_criteria is not None \
@@ -105,7 +106,7 @@ def train_dqn( make_env:   Callable[[], Env],
         train = timestep >= cfg.training_starts and timestep % cfg.training_frequency == 0
         if train:
             set_learning_rate( optimizer,
-                               cfg.learning_rate_scheduler(timestep / cfg.total_timesteps) )
+                               cfg.learning_rate_scheduler(timestep / 0.5*cfg.total_timesteps) )
 
             replay_buffer_sample = replay_buffer.sample(cfg.batch_size).to(cfg.device)
 
@@ -120,6 +121,7 @@ def train_dqn( make_env:   Callable[[], Env],
                                          cfg=cfg )
 
             loss = 0
+
             for criterion, coefficient in cfg.criterion_coefficients_for_loss.items():
                 if coefficient == 0:
                     continue
@@ -129,15 +131,18 @@ def train_dqn( make_env:   Callable[[], Env],
                     -1,
                     replay_buffer_sample.actions.unsqueeze(-1)
                 ).squeeze(-1)
+                action_probs= (exploration_strategy.satisfia_policy_actions(observations).probs)[0,actions]
                 loss += coefficient * loss_fn(
                     prediction_for_actions,
-                    td_target[criterion]
+                    td_target[criterion],
+                    action_probs
                 )
 
             optimizer.zero_grad()
+            if random()>0.98:
+                print(criterion, loss)
             loss.backward()
             optimizer.step()
-
         update_target_network = timestep >= cfg.training_starts \
                                     and timestep % cfg.target_network_update_frequency == 0
         if update_target_network:
@@ -226,7 +231,7 @@ class DQNTrainingStatistics:
                         if criterion in ["maxAdmissibleQ", "minAdmissibleQ"]:
                             possible_action = action in self.cfg.planning_agent_for_plotting_ground_truth.possible_actions(state)
                             criterion_value = \
-                                criterion_function(state, action) if possible_action else None
+                                criterion_function(state, action)
                         elif criterion in ["Q"]:
                             agent = AgentMDPDQN( self.cfg.satisfia_agent_params,
                                                  model
@@ -249,10 +254,12 @@ class DQNTrainingStatistics:
         return criteria
 
     def plot_criteria(self, model, env):
+        csv_path = "Outputs.csv"
         ground_truth_criteria = self.ground_truth_criteria(model, env)
 
         fig = Figure()
-        fig.update_layout(title = "Predictde criteria during DQN training.")
+        fig.update_layout(title = "Predicted criteria during DQN training.")
+        #fig.update_layout(yaxis=dict(range=[-10, 10]))
 
         timesteps = sorted(list(set(x[0] for x in self.criterion_history.keys())))
         dropdown_menu_titles = []
@@ -300,5 +307,6 @@ class DQNTrainingStatistics:
                 for i, menu_title in enumerate(dropdown_menu_titles)
             ]
         )])
-
+        if csv_path is not None:
+            save_fig_data_to_csv(fig, csv_path)
         fig.show()

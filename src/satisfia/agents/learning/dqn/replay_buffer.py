@@ -4,6 +4,7 @@ import torch
 from torch import Tensor, empty, arange, no_grad
 import random
 from dataclasses import dataclass
+from torch.distributions import Categorical
 
 @dataclass
 class ReplayBufferSample:
@@ -14,6 +15,7 @@ class ReplayBufferSample:
     next_observations: Tensor
     aspirations: IntervalTensor
     next_aspirations: IntervalTensor
+    action_probs: list 
 
     def to(self, device: str) -> "ReplayBufferSample":
         return ReplayBufferSample( observations      = self.observations     .to(device),
@@ -22,7 +24,9 @@ class ReplayBufferSample:
                                    dones             = self.dones            .to(device),
                                    next_observations = self.next_observations.to(device),
                                    aspirations       = self.aspirations      .to(device),
-                                   next_aspirations  = self.next_aspirations .to(device) )
+                                   next_aspirations  = self.next_aspirations .to(device),
+                                   action_probs      = self.action_probs )
+
 
 class ReplayBuffer:
     def __init__(self, size, device="cpu"):
@@ -39,8 +43,9 @@ class ReplayBuffer:
              dones: Tensor,
              next_observations: Tensor,
              aspirations: IntervalTensor,
-             next_aspirations: IntervalTensor ):
-        
+             next_aspirations: IntervalTensor,
+             action_probs: list):        
+
         if not self.initialized:
             self.observations      = empty(self.size, *observations.shape[1:],      device=self.device)
             self.actions           = empty(self.size, dtype=torch.long,             device=self.device)
@@ -51,6 +56,7 @@ class ReplayBuffer:
                                                      empty(self.size, device=self.device) )
             self.next_aspirations  = IntervalTensor( empty(self.size, device=self.device),
                                                      empty(self.size, device=self.device) )
+            self.action_probs      = [None] * self.size
 
             self.initialized = True
 
@@ -63,7 +69,9 @@ class ReplayBuffer:
         self.dones            [i_write]      = dones
         self.next_observations[i_write, ...] = next_observations.float()
         self.aspirations      [i_write]      = aspirations
-        self.next_aspirations [i_write]      = next_aspirations
+        self.next_aspirations [i_write]      = next_aspirations 
+        for idx, iw in enumerate(i_write):
+            self.action_probs[iw] = action_probs
 
         self.num_written += num_newly_written
 
@@ -76,4 +84,5 @@ class ReplayBuffer:
                                    dones             = self.dones[i],
                                    next_observations = self.next_observations[i, ...],
                                    aspirations       = self.aspirations[i],
-                                   next_aspirations  = self.next_aspirations[i] )
+                                   next_aspirations  = self.next_aspirations[i],
+                                   action_probs      = [self.action_probs[idx] for idx in i]) 

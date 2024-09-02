@@ -135,7 +135,7 @@ def plot_totals_vs_aspiration( agents: Iterable[AspirationAgent] | Dict[str, Asp
                                n_jobs: int = 1,
                                title: str = "Totals for agent(s)",
                                save_to: str | None = None,
-                               csv_path: str | None = None ):
+                               csv_path: str | None = None):
     if not isinstance(agents, Iterable):
         agents = [agents]
     if not isinstance(agents, Dict):
@@ -185,17 +185,17 @@ def plot_totals_vs_aspiration( agents: Iterable[AspirationAgent] | Dict[str, Asp
                                y = [ aspiration if isinstance(aspiration, (float, int)) else aspiration[i_lower_or_upper]
                                      for aspiration in aspirations ],
                                name = "Aspiration Value" if point_aspirations else f"{lower_or_upper} aspiration" ))
-    for is_reference in [False, True]:
-        for i_agent, agent_name in enumerate(reference_agents.keys() if is_reference else agents.keys()):
-            t = reference_totals if is_reference else totals
-            fig.add_trace(scatter_with_y_error_bars( x = aspirations_as_points,
-                                                     y = [t[agent_name, aspiration] for aspiration in aspirations],
-                                                     confidence = error_bar_confidence,
-                                                     line = dict(color = DEFAULT_PLOTLY_COLORS[i_agent], dash = "dash" if is_reference else "solid"),
-                                                     name = ("Aspiration Agent" if is_reference else "Something we don't understand")
-                                                        + (agent_name if not (len(agents) == 1 and agent_name == "agent 0") else "") ))
+    # for is_reference in [False, True]:
+    #     for i_agent, agent_name in enumerate(reference_agents.keys() if is_reference else agents.keys()):
+    #         t = reference_totals if is_reference else totals
+    #         fig.add_trace(scatter_with_y_error_bars( x = aspirations_as_points,
+    #                                                  y = [t[agent_name, aspiration] for aspiration in aspirations],
+    #                                                  confidence = error_bar_confidence,
+    #                                                  line = dict(color = DEFAULT_PLOTLY_COLORS[i_agent], dash = "dash" if is_reference else "solid"),
+    #                                                  name = ("Aspiration Agent" if is_reference else "Something we don't understand")
+    #                                                     + (agent_name if not (len(agents) == 1 and agent_name == "agent 0") else "") ))
 
-    fig.show()
+    # fig.show()
 
     if save_to is not None:
         fig.write_html(save_to)
@@ -221,13 +221,13 @@ cfg = DQNConfig( aspiration_sampler = UniformPointwiseAspirationSampler(-10, 10)
                  async_envs = False, #Keep as false for now, please
                  discount = 0.99,
                  soft_target_network_update_coefficient = 0.999,
-                 learning_rate_scheduler = lambda _: 2e-4,
-                 total_timesteps = 100_000,
+                 learning_rate_scheduler = lambda _: 10,
+                 total_timesteps = 20_000,
                  training_starts = 1_000,
                  batch_size = 64,
                  buffer_size = 64,
                  training_frequency = 1,
-                 target_network_update_frequency = 4,
+                 target_network_update_frequency = 100,
                  satisfia_agent_params = { "lossCoeff4FeasibilityPowers": 0,
                                            "lossCoeff4LRA1": 0,
                                            "lossCoeff4Time1": 0,
@@ -324,17 +324,17 @@ def train_and_plot( env_name: str,
                                sample_size = 500,
                                reference_agents = planning_agent,
                                title = f"totals for agent with no discount and longer training in {env_name}",
-                               csv_path= "plotted_totals_csv.csv")
+                               csv_path= None)
 
-train_and_plot( 'GW5',
-                gridworld = True,
-                min_achievable_total = -5,
-                max_achievable_total = 5 )
+#train_and_plot( 'GW2',
+                # gridworld = True,
+                # min_achievable_total = -5,
+                # max_achievable_total = 5 )
 
 
-#all_gridworlds = [ "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW25", "GW26",
-                  # "GW27", "GW28", "GW29", "GW30", "GW31", "GW32", "AISG2", "test_return",
-                  # "test_box" ]
+all_gridworlds = [ "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW25", "GW26",
+                   "GW27", "GW28", "GW29", "GW30", "GW31", "GW32", "AISG2", "test_return",
+                   "test_box" ]
 
 #just_5 = ["GW5"]
 #gridworlds_without_delta = ["GW23", "GW24"]
@@ -345,5 +345,5 @@ train_and_plot( 'GW5',
 #train_and_plot("text_box")
 
 #Parallel(n_jobs=-1)(delayed(train_and_plot)(gridworld_name) for gridworld_name in gridworld_simple)
-#for gridworld_name in just_5:
-    # train_and_plot(gridworld_name)
+for gridworld_name in ["GW5"]:
+    train_and_plot(gridworld_name)
