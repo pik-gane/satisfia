@@ -173,7 +173,7 @@ class MinMaxLayer(Module):
             M_k = (Qmin_k + Qmax_k) / 2
             new_Qmin_k = minimum(Qmin_k, M_k)
             new_Qmax_k = maximum(Qmax_k, M_k)
-            processed_output[key] = stack((new_Qmin_k, new_Qmax_k), dim=-1)
+            processed_output[key] = stack((new_Qmin_k, new_Qmax_k), dim=1)
         return processed_output
 
 class SatisfiaMLP(Module):
