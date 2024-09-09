@@ -82,15 +82,15 @@ for pd in parameter_data:
 wasserstein_checkbox = sg.Checkbox("wasserstein from initial", default=False, key='wasserstein_checkbox')
 
 
-# Create start button that automatically "reset" when env and agent are None
-start_button = sg.Button("Start", key='start_button')
-
 # Create buttons for starting, pausing, stepping, and continuing the simulation
 reset_env_button = sg.Button("Reset", key='reset_env_button')
 restart_button = sg.Button("Restart", key='restart_button')
 pause_button = sg.Button("Pause", key='pause_button')
 step_button = sg.Button("Step", key='step_button')
 continue_button = sg.Button("Start/Continue", key='continue_button')
+
+# Create start button that automatically "reset" when env and agent are None
+start_button = sg.Button("Start", key='start_button')
 
 autorestart_checkbox = sg.Checkbox("Auto restart", default=True, key='autorestart_checkbox')
 
