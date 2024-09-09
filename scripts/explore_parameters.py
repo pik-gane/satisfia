@@ -252,7 +252,7 @@ while True:
         print("\n\nCONTINUE")
         running = True
     elif event == 'start_button':
-        if env is None or agent is None:
+        if env is None and agent is None:
             print("Environment or agent is None, resetting...")
             reset_env(False)     
         print("\n\nSTART")    
