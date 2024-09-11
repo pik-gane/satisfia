@@ -169,18 +169,11 @@ class MinMaxLayer(Module):
         super().__init__()
     
     def forward(self, output: Dict[str, Tensor]) -> Dict[str, Tensor]:
-        processed_output = {}
-        for key, value in output.items():
-            Qmin_k, Qmax_k = value[:, 0], value[:, 1]
-            M_k = (Qmin_k + Qmax_k) / 2
-            new_Qmin_k = minimum(Qmin_k, M_k)
-            new_Qmax_k = maximum(Qmax_k, M_k)
-            if new_Qmin_k != Qmin_k:
-                print("Making an adjustment of Qmin")
-            if new_Qmax_k != Qmax_k:
-                print("Making an adjustment of Qmax")
-            processed_output[key] = stack((new_Qmin_k, new_Qmax_k), dim=-1)
-        return processed_output
+        mask = output["maxAdmissibleQ"] < output["minAdmissibleQ"]
+        mid_point = (output["maxAdmissibleQ"] + output["minAdmissibleQ"]) / 2
+        output["maxAdmissibleQ"][mask] = mid_point[mask]
+        output["minAdmissibleQ"][mask] = mid_point[mask]
+        return output
 
 class SatisfiaMLP(Module):
     def __init__(self, input_size: int,
