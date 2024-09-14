@@ -2,7 +2,6 @@ from satisfia.agents.makeMDPAgentSatisfia import AgentMDPPlanning
 from satisfia.util.interval_tensor import IntervalTensor
 from torch import Tensor, rand
 from torch.nn import Module, MSELoss
-from torch.nn.modules.loss import WeightedMSELoss
 from dataclasses import dataclass, field
 from more_itertools import pairwise
 from typing import Any, Tuple, List, Dict, Callable
@@ -95,3 +94,4 @@ class DQNConfig:
     actions_for_plotting_criteria: List | None = None
     planning_agent_for_plotting_ground_truth: AgentMDPPlanning | None = None
     temperature: float = 0.5
+    plotting_criteria_append_rate: float = 0.001

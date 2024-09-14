@@ -24,6 +24,7 @@ from typing import Callable, Tuple, List, Dict
 from plotly.colors import DEFAULT_PLOTLY_COLORS
 from plotly.graph_objects import Figure
 from random import random
+import numpy as np
 import csv
 
 def save_fig_data_to_csv(fig, csv_path):
@@ -95,7 +96,20 @@ def train_dqn( make_env:   Callable[[], Env],
                    aspirations       = aspirations,
                    next_aspirations  = exploration_strategy.aspirations,
                    action_probs = exploration_strategy.satisfia_policy_actions(observations))
-        
+                  
+        for observation in observations:
+            obs = observation
+            if torch.rand(1) < cfg.plotting_criteria_append_rate and tuple(observation.tolist()) not in cfg.states_for_plotting_criteria:
+                cfg.states_for_plotting_criteria.append(tuple(observation.tolist()))
+
+        for action in actions:
+            if torch.rand(1) < cfg.plotting_criteria_append_rate and action.item() not in cfg.actions_for_plotting_criteria:
+                cfg.actions_for_plotting_criteria.append(action.item())
+
+        for aspiration in aspirations:
+            if torch.rand(1) < cfg.plotting_criteria_append_rate and aspiration not in cfg.state_aspirations_for_plotting_criteria:
+                cfg.state_aspirations_for_plotting_criteria.append(aspiration)
+
         observations = next_observations
 
         register_criteria_in_stats = cfg.plotted_criteria is not None \
@@ -221,10 +235,13 @@ class DQNTrainingStatistics:
 
         criteria = dict()
 
+
         for state in self.cfg.states_for_plotting_criteria:
             for state_aspiration in self.cfg.state_aspirations_for_plotting_criteria:
                 for criterion in self.cfg.plotted_criteria:
                     for action in self.cfg.actions_for_plotting_criteria:
+
+                        # 
                         criterion_function =\
                             getattr(self.cfg.planning_agent_for_plotting_ground_truth, criterion)
                         
@@ -269,11 +286,16 @@ class DQNTrainingStatistics:
                 for state_aspiration in self.cfg.state_aspirations_for_plotting_criteria:
                     dropdown_menu_titles.append(f"{criterion} in state {state} with state aspiration {state_aspiration}")
                     for action in self.cfg.actions_for_plotting_criteria:
-                        y = [ self.criterion_history[timestep, state, state_aspiration, criterion, action]
-                              for timestep in timesteps ]
+
+                        y = [ [self.criterion_history[timestep, state, state_aspiration, criterion, action], timestep]
+                                for timestep in timesteps
+                                if (timestep, state, state_aspiration, criterion, action) 
+                                in self.criterion_history.keys() ]
+                        y = np.array(y)
+
                         fig.add_scatter(
-                            x = smoothen(timesteps, self.cfg.plot_criteria_smoothness),
-                            y = smoothen(y,         self.cfg.plot_criteria_smoothness),
+                            x = smoothen(y[:,1], self.cfg.plot_criteria_smoothness),
+                            y = smoothen(y[:,0], self.cfg.plot_criteria_smoothness),
                             line = dict(color=DEFAULT_PLOTLY_COLORS[action]),
                             name = f"action {action}",
                             visible = first_iteration

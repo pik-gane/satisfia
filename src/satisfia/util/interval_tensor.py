@@ -59,6 +59,13 @@ class IntervalTensor:
     def __getitem__(self, i) -> "IntervalTensor":
         return IntervalTensor(self.lower[i], self.upper[i])
     
+    def __iter__(self):
+        return iter(zip(self.lower, self.upper))
+    
+    def __len__(self):
+        return len(self.lower)
+
+
     def __setitem__(self, i, x: "IntervalTensor"):
         self.lower[i] = x.lower
         self.upper[i] = x.upper
