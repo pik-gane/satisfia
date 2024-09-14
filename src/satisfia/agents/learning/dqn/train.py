@@ -98,7 +98,6 @@ def train_dqn( make_env:   Callable[[], Env],
                    action_probs = exploration_strategy.satisfia_policy_actions(observations))
                   
         for observation in observations:
-            obs = observation
             if torch.rand(1) < cfg.plotting_criteria_append_rate and tuple(observation.tolist()) not in cfg.states_for_plotting_criteria:
                 cfg.states_for_plotting_criteria.append(tuple(observation.tolist()))
 
@@ -235,13 +234,10 @@ class DQNTrainingStatistics:
 
         criteria = dict()
 
-
         for state in self.cfg.states_for_plotting_criteria:
             for state_aspiration in self.cfg.state_aspirations_for_plotting_criteria:
                 for criterion in self.cfg.plotted_criteria:
                     for action in self.cfg.actions_for_plotting_criteria:
-
-                        # 
                         criterion_function =\
                             getattr(self.cfg.planning_agent_for_plotting_ground_truth, criterion)
                         
@@ -286,16 +282,21 @@ class DQNTrainingStatistics:
                 for state_aspiration in self.cfg.state_aspirations_for_plotting_criteria:
                     dropdown_menu_titles.append(f"{criterion} in state {state} with state aspiration {state_aspiration}")
                     for action in self.cfg.actions_for_plotting_criteria:
+                        
+                        criterion_values = []
+                        for timestep in timesteps:
+                            if (timestep, state, state_aspiration, criterion, action) in self.criterion_history.keys():
+                                criterion_values.append([self.criterion_history[timestep, state, state_aspiration, criterion, action], timestep])
 
-                        y = [ [self.criterion_history[timestep, state, state_aspiration, criterion, action], timestep]
-                                for timestep in timesteps
-                                if (timestep, state, state_aspiration, criterion, action) 
-                                in self.criterion_history.keys() ]
-                        y = np.array(y)
+                        # Sometimes we'll run into a state, timestamp, aspiration combo which the agent never came across
+                        if len(criterion_values) == 0:
+                            continue
+
+                        criterion_values_np = np.array(criterion_values)
 
                         fig.add_scatter(
-                            x = smoothen(y[:,1], self.cfg.plot_criteria_smoothness),
-                            y = smoothen(y[:,0], self.cfg.plot_criteria_smoothness),
+                            x = smoothen(criterion_values_np[:,1], self.cfg.plot_criteria_smoothness),
+                            y = smoothen(criterion_values_np[:,0], self.cfg.plot_criteria_smoothness),
                             line = dict(color=DEFAULT_PLOTLY_COLORS[action]),
                             name = f"action {action}",
                             visible = first_iteration
