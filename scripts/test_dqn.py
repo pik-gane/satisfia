@@ -294,6 +294,7 @@ def train_and_plot( env_name: str,
         max_achievable_total = planning_agent.maxAdmissibleV(first_observation)
     if min_achievable_total is None:
         min_achievable_total = planning_agent.minAdmissibleV(first_observation)
+
     plot_totals_vs_aspiration( agents = learning_agent,
                                env = make_env(),
                                aspirations = np.linspace( min_achievable_total - 1,
@@ -303,7 +304,7 @@ def train_and_plot( env_name: str,
                                # reference_agents = planning_agent,
                                title = f"totals for agent with no discount and longer training in {env_name}" )
 
-train_and_plot( 'GW22',
+train_and_plot( 'GW23',
                 gridworld = True,
                 min_achievable_total = -5,
                 max_achievable_total = 5 )
@@ -321,5 +322,14 @@ gridworlds_requiring_longer_training = [ "GW28", "test_box", "GW29", "GW26", "GW
 # train_and_plot("test_box")
 
 # Parallel(n_jobs=-1)(delayed(train_and_plot)(gridworld_name) for gridworld_name in all_gridworlds)
-# for gridworld_name in all_gridworlds:
-#     train_and_plot(gridworld_name)
+for gridworld_name in all_gridworlds:
+    # NOTE: This resets the plotting criteria for each run. Ideally we don't want to have to reset this.
+    # TODO: Fix this so that it's not a global var
+    cfg.states_for_plotting_criteria = [] # [(1, 3, 0, 1, 0, 2, 0, 5, 0), (6, 3, 0, 1, 0, 2, 0, 5, 0), (3, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 5, 0), (7, 5, 0, 1, 0, 2, 0, 6, 0), (8, 4, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 2, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 6, 0), (9, 5, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 2, 0, 5, 0), (6, 5, 0, 1, 0, 2, 0, 6, 0), (8, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 6, 0), (7, 5, 0, 1, 0, 3, 0, 6, 0), (4, 4, 0, 1, 0, 3, 0, 5, 0), (4, 5, 0, 1, 0, 2, 0, 6, 0), (6, 4, 0, 1, 0, 3, 0, 5, 0), (9, 4, 0, 1, 0, 3, 0, 6, 0), (8, 5, 0, 1, 0, 2, 0, 6, 0), (3, 3, 0, 1, 0, 2, 0, 6, 0), (3, 5, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 3, 0, 6, 0), (2, 4, 0, 1, 0, 3, 0, 6, 0), (6, 4, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 2, 0, 5, 0), (7, 3, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 6, 0), (4, 5, 0, 1, 0, 3, 0, 6, 0), (5, 5, 0, 1, 0, 3, 0, 6, 0), (0, 4, 0, 1, 0, 3, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 5, 0), (8, 4, 0, 1, 0, 3, 0, 5, 0), (2, 3, 0, 1, 0, 2, 0, 5, 0), (9, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 5, 0), (6, 4, 0, 1, 0, 3, 0, 6, 0), (6, 3, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 6, 0), (1, 4, 0, 1, 0, 3, 0, 5, 0), (3, 3, 0, 1, 0, 2, 0, 5, 0), (5, 5, 0, 1, 0, 2, 0, 6, 0), (2, 5, 0, 1, 0, 3, 0, 6, 0), (9, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 5, 0), (3, 4, 0, 1, 0, 3, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 5, 0), (2, 4, 0, 1, 0, 3, 0, 5, 0), (6, 4, 0, 1, 0, 2, 0, 5, 0), (1, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 6, 0), (6, 5, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 3, 0, 6, 0), (7, 3, 0, 1, 0, 2, 0, 6, 0), (2, 4, 0, 1, 0, 2, 0, 5, 0)],
+    cfg.state_aspirations_for_plotting_criteria = [] # [(0, 0)], # [(-5, -5), (-1, -1), (1, 1)],
+    cfg.actions_for_plotting_criteria = []
+    try:
+        train_and_plot(gridworld_name)
+    except Exception as e:
+        print(f"failed to train {gridworld_name}: {e}")
+        continue
