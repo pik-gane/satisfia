@@ -1,4 +1,5 @@
 from satisfia.agents.makeMDPAgentSatisfia import AspirationAgent
+from satisfia.agents.learning.dqn.config import DQN_Config
 import gymnasium as gym
 import torch
 from torch import tensor, Tensor, empty, cat, randn_like, randperm, where, no_grad
@@ -36,40 +37,40 @@ class PiecewiseLinearScheduler:
                 return y1 + (x - x1) / (x2 - x1) * (y2 - y1)
         assert False, "unreachable"
 
-@dataclass
-class DQNConfig:
-    train_minimizer: bool = True
-    train_maximizer: bool = True
-    total_timesteps: int = 500_000
-    lambdas: Dict[str, float] = field(default_factory=lambda: {"max": 1., "min": 0.})
-    lambda_sampler: Callable[[], Callable[[], float]] | None = None
-    aspiration_sampler: Callable[[], Tuple[float, float]] = None
-    discount: float = 0.99
-    exploration_rate_scheduler: Callable[[float], float] = \
-        PiecewiseLinearScheduler([0., 0.5, 1.], [1., 0.05, 0.05])
-    parameter_noise_exploration: bool = False
-    mix_maximizer_and_minimizer_strategies: bool = False
-    learning_rate: float = 2.5e-4
-    batch_size: int = 128
-    train_corresponding_network: bool = False
-    double_q_learning: bool = False
-    fraction_samples_from_opposite_replay_buffer: float = 0
-    true_double_q_learning: bool = False
-    replay_buffer_size: int = 10_000
-    learning_starts: int = 10_000
-    target_network_update_frequency: int = 500
-    train_frequency: int = 10
-    plot: bool = True
-    plot_smoothness: int = 1_000
-    plot_title: str = "Training DQN."
-    plot_q_values: bool = False
-    observations_for_plotting_q_values: List[Any] | None = None
-    actions_for_plotting_q_values: List[int] | None = None
-    lambdas_for_plotting_q_values: List[float] | None = None
-    plot_q_values_frequency: int = 100
+# @dataclass
+# class DQNConfig:
+#     train_minimizer: bool = True
+#     train_maximizer: bool = True
+#     total_timesteps: int = 500_000
+#     lambdas: Dict[str, float] = field(default_factory=lambda: {"max": 1., "min": 0.})
+#     lambda_sampler: Callable[[], Callable[[], float]] | None = None
+#     aspiration_sampler: Callable[[], Tuple[float, float]] = None
+#     discount: float = 0.99
+#     exploration_rate_scheduler: Callable[[float], float] = \
+#         PiecewiseLinearScheduler([0., 0.5, 1.], [1., 0.05, 0.05])
+#     parameter_noise_exploration: bool = False
+#     mix_maximizer_and_minimizer_strategies: bool = False
+#     learning_rate: float = 2.5e-4
+#     batch_size: int = 128
+#     train_corresponding_network: bool = False
+#     double_q_learning: bool = False
+#     fraction_samples_from_opposite_replay_buffer: float = 0
+#     true_double_q_learning: bool = False
+#     replay_buffer_size: int = 10_000
+#     learning_starts: int = 10_000
+#     target_network_update_frequency: int = 500
+#     train_frequency: int = 10
+#     plot: bool = True
+#     plot_smoothness: int = 1_000
+#     plot_title: str = "Training DQN."
+#     plot_q_values: bool = False
+#     observations_for_plotting_q_values: List[Any] | None = None
+#     actions_for_plotting_q_values: List[int] | None = None
+#     lambdas_for_plotting_q_values: List[float] | None = None
+#     plot_q_values_frequency: int = 100
 
-    def __post_init__(self):
-        assert self.train_maximizer or self.train_minimizer
+#     def __post_init__(self):
+#         assert self.train_maximizer or self.train_minimizer
 
 class AgentMDPTabularLearning(AspirationAgent):
     def __init__(self, params: dict, planning_agent: AgentMDPPlanning, maximizer_q_table: Dict[Tuple, List[float]], minimizer_q_table: Dict[Tuple, List[float]]):
@@ -832,9 +833,9 @@ class DQNTrainingStatistics:
     td_losses:       Dict[Tuple[int, str], Dict[int, float]]
     q_values:        Dict[Tuple[int, str] | float, Dict[int, Dict["observation", List[float]]]]
 
-    def __init__(self, cfg: DQNConfig, keys: List[Tuple[int, str]]):
+    def __init__(self, keys: List[Tuple[int, str]]):
         self.keys = keys
-        self.cfg = cfg
+        self.cfg = DQN_Config
         self.episode_lengths = {key: dict() for key in self.keys}
         self.totals          = {key: dict() for key in self.keys}
         self.td_losses       = {key: dict() for key in self.keys}

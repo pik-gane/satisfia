@@ -1,6 +1,10 @@
 import pandas as pd
 
-file_path = '/Users/jamesmaskill/Documents/GitHub/satisfia/Outputs.csv'
+import os
+import sys
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+file_path = os.path.join(current_dir, 'Outputs.csv')
 df = pd.read_csv(file_path, header=None)
 df.columns = ['x', 'y', 'name']
 df['x'] = pd.to_numeric(df['x'], errors='coerce')

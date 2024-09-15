@@ -53,6 +53,7 @@ def train_dqn( make_env:   Callable[[], Env],
     # we set weight decay to zero because we had some mild Q value underestimation problems and were
     # suspecting they were because of the weight decay, but we are not sure at all this is correct
     # and not sure aet all setting weigth decay to zero is helpful
+    print(cfg.learning_rate_scheduler)
     optimizer = AdamW( q_network.parameters(),
                        lr           = cfg.learning_rate_scheduler(0),
                        weight_decay = 0 )
@@ -65,7 +66,7 @@ def train_dqn( make_env:   Callable[[], Env],
         target_network
             if cfg.frozen_model_for_exploration is None
                 else cfg.frozen_model_for_exploration,
-        cfg,
+                cfg,
         num_actions=envs.action_space.nvec[0]
     )
 
@@ -106,7 +107,7 @@ def train_dqn( make_env:   Callable[[], Env],
         train = timestep >= cfg.training_starts and timestep % cfg.training_frequency == 0
         if train:
             set_learning_rate( optimizer,
-                               cfg.learning_rate_scheduler(timestep / 0.5*cfg.total_timesteps) )
+                               (timestep / cfg.total_timesteps))
 
             replay_buffer_sample = replay_buffer.sample(cfg.batch_size).to(cfg.device)
 

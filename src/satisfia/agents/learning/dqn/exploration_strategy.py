@@ -10,18 +10,18 @@ import torch.nn.functional as F
 import random
 
 class ExplorationStrategy:
-    def __init__(self, target_network: Module, cfg: DQNConfig, num_actions):
+    def __init__(self, target_network: Module, cfg: DQNConfig, num_actions: int):
         self.target_network = target_network
         self.cfg = cfg
         self.num_actions = num_actions
 
-        self.aspirations = IntervalTensor( empty(self.cfg.num_envs, device=cfg.device),
-                                           empty(self.cfg.num_envs, device=cfg.device) )
-        self.on_done(dones=ones(self.cfg.num_envs, dtype=bool, device=cfg.device), timestep=0)
+        self.aspirations = IntervalTensor( empty(self.cfg.num_envs, device=self.cfg.device),
+                                           empty(self.cfg.num_envs, device=self.cfg.device) )
+        self.on_done(dones=ones(self.cfg.num_envs, dtype=bool, device=self.cfg.device), timestep=0)
 
     @no_grad()
     def __call__(self, observations: Tensor, timestep: int):
-        actions = self.Boltzmann_periodic_policy_actions(observations, timestep=timestep, period=20).sample()
+        actions = self.Boltzmann_periodic_policy_actions(observations, timestep=timestep).sample()
         #actions = self.satisfia_policy_actions(observations).sample()
         exploration_rate = self.cfg.exploration_rate_scheduler(timestep / self.cfg.total_timesteps)
         explore = bernoulli(full_like(actions, exploration_rate, dtype=float)).bool()
@@ -49,7 +49,8 @@ class ExplorationStrategy:
         return policy_distribution
     
     @no_grad()
-    def Boltzmann_periodic_policy_actions(self, observations, timestep, period=30):
+    def Boltzmann_periodic_policy_actions(self, observations, timestep):
+        period = self.cfg.period
         criteria = self.target_network(observations, self.aspirations)
         complete_criteria(criteria)
         self.criteria = criteria
@@ -66,7 +67,7 @@ class ExplorationStrategy:
         policy_distribution = Categorical(probs=boltzmann_probabilities)
         return policy_distribution
     
-    def action_probabilities(self, observations, timestep):
+    def action_probabilities(self, observations):
         probabilities_dict = {}
         max_q_values = self.target_network(observations, self.aspirations)['maxAdmissibleQ']
         min_q_values = self.target_network(observations, self.aspirations)['minAdmissibleQ']
@@ -128,5 +129,5 @@ class ExplorationStrategy:
 
     @no_grad()
     def new_network_noise(self, timestep: int, which_in_batch: Tensor | None = None):
-        std = self.cfg.noisy_network_exploration_rate_scheduler(timestep / self.cfg.total_timesteps)
+        std = self.cfg.noisy_network_exploration_rate_scheduler(timestep / cfg.total_timesteps)
         self.target_network.new_noise(std, which_in_batch)

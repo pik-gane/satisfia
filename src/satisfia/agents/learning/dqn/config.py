@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from more_itertools import pairwise
 from typing import Any, Tuple, List, Dict, Callable
 from satisfia.agents.learning.dqn.updated_loss import WeightedMSELoss
+from satisfia.agents.learning.dqn.variable_parameters import variable_params
 
 class ConstantScheduler:
     def __init__(self, value: float):
@@ -57,13 +58,9 @@ class UniformPointwiseAspirationSampler:
 
 @dataclass
 class DQNConfig:
-    total_timesteps: int = 500_000
     num_envs: int = 1
     async_envs: bool = True
     buffer_size: int = 10_000
-    learning_rate_scheduler: Callable[[float], float] = \
-        ConstantScheduler(1e-3)
-    batch_size: int = 128
     training_starts: int = 100_000
     training_frequency: int = 10
     target_network_update_frequency: int = 500
@@ -85,7 +82,7 @@ class DQNConfig:
     satisfia_policy: bool = True
     satisfia_agent_params: Dict[str, Any] = \
         field(default_factory=lambda: dict(defaultPolicy=None))
-    aspiration_sampler: Callable[[int], IntervalTensor] = None
+    aspiration_sampler: Callable[[int], IntervalTensor] = None 
     device: str = "cpu"
     plotted_criteria: List[str] | None = None
     plot_criteria_smoothness: int = 1
@@ -94,4 +91,12 @@ class DQNConfig:
     state_aspirations_for_plotting_criteria: List | None = None
     actions_for_plotting_criteria: List | None = None
     planning_agent_for_plotting_ground_truth: AgentMDPPlanning | None = None
-    temperature: float = 0.5
+
+
+    # Hyperparameters
+    temperature: float = variable_params.temperature
+    period: int = variable_params.period
+    batch_size: int = variable_params.batch_size
+    total_timesteps: int = variable_params.total_timesteps
+    learning_rate_scheduler: Callable[[float], float] = ConstantScheduler(1e-3)
+

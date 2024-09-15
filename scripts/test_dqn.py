@@ -212,7 +212,7 @@ cfg = DQNConfig( aspiration_sampler = UniformPointwiseAspirationSampler(-10, 10)
                                            "lossCoeff4Entropy1": 0,
                                            "defaultPolicy": None },
                  device = device,
-                 plotted_criteria = None, #["maxAdmissibleQ", "minAdmissibleQ"],
+                 plotted_criteria = ["maxAdmissibleQ", "minAdmissibleQ"],
                  plot_criteria_frequency = 100,
                  states_for_plotting_criteria = [(1, 3, 0, 1, 0, 2, 0, 5, 0), (6, 3, 0, 1, 0, 2, 0, 5, 0), (3, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 5, 0), (7, 5, 0, 1, 0, 2, 0, 6, 0), (8, 4, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 2, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 6, 0), (9, 5, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 2, 0, 5, 0), (6, 5, 0, 1, 0, 2, 0, 6, 0), (8, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 6, 0), (7, 5, 0, 1, 0, 3, 0, 6, 0), (4, 4, 0, 1, 0, 3, 0, 5, 0), (4, 5, 0, 1, 0, 2, 0, 6, 0), (6, 4, 0, 1, 0, 3, 0, 5, 0), (9, 4, 0, 1, 0, 3, 0, 6, 0), (8, 5, 0, 1, 0, 2, 0, 6, 0), (3, 3, 0, 1, 0, 2, 0, 6, 0), (3, 5, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 3, 0, 6, 0), (2, 4, 0, 1, 0, 3, 0, 6, 0), (6, 4, 0, 1, 0, 2, 0, 6, 0), (3, 4, 0, 1, 0, 2, 0, 5, 0), (7, 3, 0, 1, 0, 2, 0, 5, 0), (5, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 2, 0, 6, 0), (4, 5, 0, 1, 0, 3, 0, 6, 0), (5, 5, 0, 1, 0, 3, 0, 6, 0), (0, 4, 0, 1, 0, 3, 0, 5, 0), (9, 3, 0, 1, 0, 2, 0, 5, 0), (8, 4, 0, 1, 0, 3, 0, 5, 0), (2, 3, 0, 1, 0, 2, 0, 5, 0), (9, 4, 0, 1, 0, 2, 0, 6, 0), (4, 3, 0, 1, 0, 2, 0, 5, 0), (6, 4, 0, 1, 0, 3, 0, 6, 0), (6, 3, 0, 1, 0, 2, 0, 6, 0), (5, 4, 0, 1, 0, 2, 0, 6, 0), (7, 4, 0, 1, 0, 3, 0, 6, 0), (5, 3, 0, 1, 0, 2, 0, 6, 0), (1, 4, 0, 1, 0, 3, 0, 5, 0), (3, 3, 0, 1, 0, 2, 0, 5, 0), (5, 5, 0, 1, 0, 2, 0, 6, 0), (2, 5, 0, 1, 0, 3, 0, 6, 0), (9, 5, 0, 1, 0, 3, 0, 6, 0), (8, 4, 0, 1, 0, 2, 0, 5, 0), (3, 4, 0, 1, 0, 3, 0, 5, 0), (8, 3, 0, 1, 0, 2, 0, 5, 0), (2, 4, 0, 1, 0, 3, 0, 5, 0), (6, 4, 0, 1, 0, 2, 0, 5, 0), (1, 5, 0, 1, 0, 3, 0, 6, 0), (7, 4, 0, 1, 0, 2, 0, 6, 0), (6, 5, 0, 1, 0, 3, 0, 6, 0), (9, 4, 0, 1, 0, 3, 0, 5, 0), (4, 4, 0, 1, 0, 3, 0, 6, 0), (7, 3, 0, 1, 0, 2, 0, 6, 0), (2, 4, 0, 1, 0, 2, 0, 5, 0)],
                  state_aspirations_for_plotting_criteria = [(0, 0)], # [(-5, -5), (-1, -1), (1, 1)],
@@ -254,13 +254,6 @@ def train_and_plot( env_name: str,
         if pretrained is not None:
             model.load_state_dict(pretrained)
         return model
-        # return NoisyMLPReturningDict( [ d_observation + d_aspiration,
-        #                                 64,
-        #                                 64,
-        #                                 { "maxAdmissibleQ": n_actions,
-        #                                   "minAdmissibleQ": n_actions,
-        #                                   "Q": n_actions } ],
-        #                               batch_size=cfg.num_envs ).to(device)
 
     planning_agent = AgentMDPPlanning(cfg.satisfia_agent_params, make_env()) if gridworld else None
 
@@ -278,17 +271,6 @@ def train_and_plot( env_name: str,
                                   model,
                                   num_actions = make_env().action_space.n,
                                   device = device )
-
-    # for state in [(time, 2, 2) for time in range(10)]:
-    #     for action in range(5):
-    #         for state_aspiration in [(0, 0), (1, 1), (2, 2)]:
-    #             action_aspiration = planning_agent.aspiration4action(state, action, state_aspiration)
-    #             print( state,
-    #                    action,
-    #                    action_aspiration,
-    #                      planning_agent.Q(state, action, state_aspiration)
-    #                    - learning_agent.Q(state, action, state_aspiration) )
-
     first_observation, _ = make_env().reset()
     if max_achievable_total is None:
         max_achievable_total = planning_agent.maxAdmissibleV(first_observation)
@@ -309,13 +291,13 @@ train_and_plot( 'GW22',
                 max_achievable_total = 5 )
 
 
-all_gridworlds = [ "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW24", "GW25", "GW26",
-                   "GW27", "GW28", "GW29", "GW30", "GW31", "GW32", "AISG2", "test_return",
-                   "test_box" ]
+# all_gridworlds = [ "GW1", "GW2", "GW3", "GW4", "GW5", "GW6", "GW22", "GW23", "GW24", "GW25", "GW26",
+#                    "GW27", "GW28", "GW29", "GW30", "GW31", "GW32", "AISG2", "test_return",
+#                    "test_box" ]
 
-gridworlds_without_delta = ["GW23", "GW24"]
+# gridworlds_without_delta = ["GW23", "GW24"]
 
-gridworlds_requiring_longer_training = [ "GW28", "test_box", "GW29", "GW26", "GW30", "GW32"]
+# gridworlds_requiring_longer_training = [ "GW28", "test_box", "GW29", "GW26", "GW30", "GW32"]
 # still don't work even after longer training: test_box, GW30, GW28, GW29
 
 # train_and_plot("test_box")

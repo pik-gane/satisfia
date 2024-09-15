@@ -236,7 +236,7 @@ cfg = DQNConfig( aspiration_sampler = UniformPointwiseAspirationSampler(-10, 10)
                  device = device,
                  plotted_criteria = ["maxAdmissibleQ","minAdmissibleQ"],
                  plot_criteria_frequency = 100,
-                 states_for_plotting_criteria = [(time, 2, 2) for time in range(10)],
+                 states_for_plotting_criteria = [1,2,2],
                  state_aspirations_for_plotting_criteria = [(0, 0)],
                  actions_for_plotting_criteria = [0, 1, 2, 3, 4] )
 
