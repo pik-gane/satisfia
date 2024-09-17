@@ -96,3 +96,7 @@ class DQNConfig:
     state_aspirations_for_plotting_criteria: List | None = None
     actions_for_plotting_criteria: List | None = None
     planning_agent_for_plotting_ground_truth: AgentMDPPlanning | None = None
+    action_shape: Tuple[int, ...] = (1,)
+    discrete_actions: bool = True
+    num_buckets: int = 10
+    n_actions: int = 10

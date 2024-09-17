@@ -82,20 +82,57 @@ def action_propensities( params: Dict[str, Any],
 @inference_mode()
 def local_policy( params: Dict[str, Any],
                   criteria: Dict[str, Tensor],
-                  aspirations: IntervalTensor ) -> Categorical:
+                  aspirations: IntervalTensor,
+                  shape: None | torch.Size = (8,10) ) -> Categorical:
+    # If we're just returning a single value then we can just go ahead and run _local_policy
+    if shape is None:
+        return(_local_policy(params, criteria, aspirations))
     
+    # Down here we're reshaping the criteria
+    reshaped_criteria = {}
+    for key, criterion in criteria.items():
+        if criterion.numel() > 1:  # Skip criteria with size 1
+            reshaped_criteria[key] = criterion.reshape(shape)
+        else:
+            reshaped_criteria[key] = criterion
+
+    # Break the reshaped criteria into an array of dictionaries
+    criteria_array = []
+    max_length = max(tensor.size(0) for tensor in reshaped_criteria.values() if tensor.dim() > 0)
+
+    for i in range(max_length):
+        criteria_dict = {}
+        for key, tensor in reshaped_criteria.items():
+            if tensor.dim() > 1 and i < tensor.size(0):
+                criteria_dict[key] = tensor[i]
+            elif tensor.dim() == 1:
+                criteria_dict[key] = tensor
+        criteria_array.append(criteria_dict)
+
+    # Now call _local_policy for each dictionary in the array
+    results = [_local_policy(params, criteria_dict, aspirations) for criteria_dict in criteria_array]
+
+    return results
+
+    
+
+@inference_mode()
+def _local_policy( params: Dict[str, Any],
+                  criteria: Dict[str, Tensor],
+                  aspirations: IntervalTensor ) -> Categorical:
+
     # TensorInterval[batch]
     state_aspirations_   = state_aspirations(criteria, aspirations)
 
     # TensorInterval[batch, action]
     action_aspirations_  = action_aspirations(criteria, state_aspirations_)
-    
+
     # Tensor[batch, action]
     action_propensities_ = action_propensities( params,
                                                 criteria,
                                                 state_aspirations=state_aspirations_,
                                                 action_aspirations=action_aspirations_ )
-    
+
     # TensorInterval[batch, action]
     action_probabilities = action_propensities_ / action_propensities_.sum(-1, keepdim=True)
     
@@ -144,7 +181,7 @@ def local_policy( params: Dict[str, Any],
     action_probabilities = \
           (action_pair_probabilities *      action_candidate_mixture_probabilities ).sum(-1) \
         + (action_pair_probabilities * (1 - action_candidate_mixture_probabilities)).sum(-2)
-    
+
     return Categorical(probs=action_probabilities, validate_args=True)
 
 class AgentMDPDQN(AspirationAgent):

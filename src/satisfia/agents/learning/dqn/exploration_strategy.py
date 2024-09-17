@@ -5,7 +5,7 @@ import satisfia.agents.learning.dqn.agent_mdp_dqn as agent_mpd_dqn
 from satisfia.agents.learning.dqn.criteria import complete_criteria
 from satisfia.util.interval_tensor import IntervalTensor, relative_position, interpolate
 
-from torch import Tensor, empty, ones, full_like, randint, bernoulli, no_grad, allclose
+from torch import Tensor, empty, ones, full_like, randint, bernoulli, no_grad, allclose, rand, randint, where, tensor
 from torch.nn import Module
 from torch.distributions.categorical import Categorical
 
@@ -15,20 +15,42 @@ class ExplorationStrategy:
         self.cfg = cfg
         self.num_actions = num_actions
 
+
         self.aspirations = IntervalTensor( empty(self.cfg.num_envs, device=cfg.device),
                                            empty(self.cfg.num_envs, device=cfg.device) )
         self.on_done(dones=ones(self.cfg.num_envs, dtype=bool, device=cfg.device), timestep=0)
 
     @no_grad()
     def __call__(self, observations: Tensor, timestep: int):
-        actions = self.satisfia_policy_actions(observations).sample()
         
+        # Get policy actions
+        print(f"Type of observations: {type(observations)}")
+        
+        action_logits = self.satisfia_policy_actions(observations)
+        if type(action_logits) == list:
+            actions = Tensor([action_logit.sample() for action_logit in action_logits])
+        else:
+            actions = action_logits.sample()
+
+
+        # Determine actions to make random
         exploration_rate = self.cfg.exploration_rate_scheduler(timestep / self.cfg.total_timesteps)
         explore = bernoulli(full_like(actions, exploration_rate, dtype=float)).bool()
-        actions[explore] = randint( low=0,
-                                    high=self.num_actions,
-                                    size=(explore.int().sum().item(),),
-                                    device=self.cfg.device )
+        
+        # Create an array of random actions
+        if self.cfg.discrete_actions:
+            random_actions = randint(
+                low=0,
+                high=self.num_actions,
+                size=actions.shape,
+                device=self.cfg.device
+            )
+        else:
+            random_actions = rand(actions.shape, device=self.cfg.device)
+            random_actions = random_actions * (self.action_high - self.action_low) + self.action_low
+        
+        # Interleave the random actions and the satisfia policy actions
+        actions = where(explore, random_actions, actions)
 
         return actions
 

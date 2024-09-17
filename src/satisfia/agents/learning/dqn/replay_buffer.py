@@ -25,9 +25,10 @@ class ReplayBufferSample:
                                    next_aspirations  = self.next_aspirations .to(device) )
 
 class ReplayBuffer:
-    def __init__(self, size, device="cpu"):
-        self.size = size
-        self.device = device
+    def __init__(self, cfg):
+        self.size = cfg.buffer_size
+        self.device = cfg.device
+        self.cfg = cfg
         self.num_written = 0
         self.initialized = False
 
@@ -54,11 +55,13 @@ class ReplayBuffer:
 
             self.initialized = True
 
+        self.actions = self.actions if self.cfg.num_buckets is None else self.actions.unsqueeze(1).expand(-1, self.cfg.n_actions)
+
         num_newly_written = observations.size(0)
 
         i_write = arange(self.num_written, self.num_written + num_newly_written) % self.size
         self.observations     [i_write, ...] = observations.float()
-        self.actions          [i_write]      = actions
+        self.actions          [i_write]      = actions.float()
         self.deltas           [i_write]      = deltas.float()
         self.dones            [i_write]      = dones
         self.next_observations[i_write, ...] = next_observations.float()
