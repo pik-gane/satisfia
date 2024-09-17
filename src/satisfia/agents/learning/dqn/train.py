@@ -48,9 +48,10 @@ def train_dqn( make_env:   Callable[[], Env],
     envs = AsyncVectorEnv(make_envs) if cfg.async_envs else SyncVectorEnv(make_envs)
 
     if cfg.env_type == "mujoco":
-        num_actions = envs.action_space.shape[0]
+        num_actions = envs.action_space.shape[-1]
     else:
         num_actions = envs.action_space.nvec[0]
+    cfg.n_actions = num_actions # TODO: Figure out where to set this
     exploration_strategy = ExplorationStrategy(
         target_network
             if cfg.frozen_model_for_exploration is None
@@ -58,7 +59,7 @@ def train_dqn( make_env:   Callable[[], Env],
         cfg,
         num_actions=num_actions
     )
-    replay_buffer = ReplayBuffer(cfg.buffer_size, device=cfg.device)
+    replay_buffer = ReplayBuffer(cfg)
 
     seen_observations = set()
 
@@ -69,12 +70,13 @@ def train_dqn( make_env:   Callable[[], Env],
 
         # NOTE: Want to explore using eplison greedy or other non-model related strategies
         actions = exploration_strategy(tensor(observations, device=cfg.device), timestep=timestep)
-
-        next_observations, deltas, dones, truncations, _ = envs.step(actions.cpu().numpy())
+        step_actions = actions.cpu().numpy() if cfg.num_buckets is None else [actions.cpu().numpy()] # Nesting in tuple for async steps. Otherwise will be treated as regular array
+        next_observations, deltas, dones, truncations, _ = envs.step(step_actions)
 
         aspirations = exploration_strategy.aspirations
-        exploration_strategy.propagate_aspirations( actions, # XXX: Propagate the aspirations
-                                                    tensor(next_observations, device=cfg.device) )
+        # exploration_strategy.propagate_aspirations( actions,
+        #                                             tensor(next_observations, device=cfg.device) )
+
 
         exploration_strategy.on_done(tensor(dones), timestep=timestep)
 

@@ -42,11 +42,26 @@ class RescaleDeltaWrapper(Wrapper):
         return self.env.reset(*args, **kwargs)
     
     def step(self, *args, **kwargs):
+        action = args[0]
+        for count, think in enumerate(args):
+            print(think)
         observation, delta, done, truncated, info = self.env.step(*args, **kwargs)
         from_l, from_h = self.from_interval
         to_l, to_h = self.to_interval
         rescaled_delta = to_l + (to_h - to_l) / (from_h - from_l) * (delta - from_l)
         return observation, rescaled_delta, done, truncated, info
+
+    def process_action(self, action):
+        # Implement any necessary action processing here
+        # For example, ensure it's a numpy array with the right shape
+        if not isinstance(action, np.ndarray):
+            action = np.array(action)
+        if action.shape == ():
+            action = action.reshape(-1)
+        # Ensure the action has the correct shape (8,) for Ant-v4
+        if action.shape != (8,):
+            raise ValueError(f"Action shape mismatch. Expected (8,), got {action.shape}")
+        return action
 
 class ObservationToTupleWrapper(Wrapper):
     def __init__(self, env: Env):

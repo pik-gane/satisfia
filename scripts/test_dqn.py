@@ -237,8 +237,21 @@ def train_and_plot( env_name: str,
 
     def make_model(pretrained=None):
         # to do: compute d_observation properly
-        d_observation = len(make_env().observation_space) if gridworld else 8
-        n_actions = make_env().action_space.n
+        print("Observation Space")
+        print(make_env().observation_space)
+        print("Action Space")
+        neato_space = make_env().action_space
+        print(make_env().action_space)
+        if env_type=='gridworld':
+            d_observation = len(make_env().observation_space) 
+        else:
+            d_observation = make_env().observation_space.shape[0]
+        if env_type=="mujoco": 
+            n_actions = make_env().action_space.shape[0]*cfg.num_buckets # TODO: Rename this
+        else:
+            n_actions = make_env().action_space.n
+        cfg.n_actions = n_actions
+        
         model = SatisfiaMLP(
             input_size = d_observation,
             output_not_depending_on_agent_parameters_sizes = { "maxAdmissibleQ": cfg.num_atoms,
@@ -268,7 +281,13 @@ def train_and_plot( env_name: str,
                              planning_agent_for_plotting_ground_truth=planning_agent
                          ) )
     model = model.to(device)
-
+    # TODO: This is duplicated earlier in the make_model function
+    if env_type=="mujoco": 
+        n_actions = make_env().action_space.shape[0]
+    else:
+        n_actions = make_env().action_space.n
+    cfg.n_actions = n_actions
+    
     learning_agent = AgentMDPDQN( cfg.satisfia_agent_params,
                                   model,
                                   num_actions = make_env().action_space.n,
@@ -312,4 +331,3 @@ small_gridworlds = ['GW1', 'GW2']
 Parallel(n_jobs=-1)(delayed(train_and_plot)(gridworld_name) for gridworld_name in small_gridworlds)
 # for gridworld_name in all_gridworlds:
 #     train_and_plot(gridworld_name)
->>>>>>> Stashed changes
