@@ -77,6 +77,7 @@ def train_dqn( make_env:   Callable[[], Env],
         # exploration_strategy.propagate_aspirations( actions,
         #                                             tensor(next_observations, device=cfg.device) )
 
+
         exploration_strategy.on_done(tensor(dones), timestep=timestep)
 
         replay_buffer.add( observations      = tensor(observations,        device=cfg.device),

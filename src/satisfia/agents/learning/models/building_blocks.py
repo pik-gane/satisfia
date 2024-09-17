@@ -217,7 +217,44 @@ class SatisfiaMLP(Module):
             batch_size = batch_size
         )
 
-    def forward(self, observations: Tensor, aspirations: Tensor, noisy: bool = True):
+        # TODO: These names are sending
+        # TODO: I think we also need common values for 
+        output_not_depending_on_agent_parameters_sizes_action = output_not_depending_on_agent_parameters_sizes
+        for key in output_not_depending_on_agent_parameters_sizes_action:
+            output_not_depending_on_agent_parameters_sizes_action[key] *= self.num_actions
+        layer_sizes_not_depending_on_agent_parameters_action = [last_common_layer_size]\
+                                                        + hidden_layer_not_depending_on_agent_parameters_sizes\
+                                                        + [output_not_depending_on_agent_parameters_sizes]
+        self.layers_not_depending_on_agent_parameters_action = NoisyMLP(
+            layer_sizes = layer_sizes_not_depending_on_agent_parameters_action,
+            activation_function = activation_function,
+            layer_norms = layer_norms,
+            dropout = dropout,
+            same_noise_along_batch = same_noise_along_batch,
+            batch_size = batch_size
+        )
+
+
+
+        agent_parameters_size = 2
+        output_depending_on_agent_parameters_sizes_action = output_depending_on_agent_parameters_sizes
+        for key in output_depending_on_agent_parameters_sizes_action:
+            output_depending_on_agent_parameters_sizes_action[key] *= self.num_actions
+        layer_sizes_depending_on_agent_parameters_action = [last_common_layer_size + agent_parameters_size]\
+                                                    + hidden_layer_depending_on_agent_parameters_sizes\
+                                                    + [output_depending_on_agent_parameters_sizes_action]
+        self.layers_depending_on_agent_parameters_action = NoisyMLP(
+            layer_sizes = layer_sizes_depending_on_agent_parameters_action,
+            activation_function = activation_function,
+            layer_norms = layer_norms,
+            dropout = dropout,
+            same_noise_along_batch = same_noise_along_batch,
+            batch_size = batch_size
+        )
+
+
+
+    def forward(self, observations: Tensor, aspirations: Tensor, noisy: bool = True, distribution: bool = True, log: bool = False):
         agent_parameters_emebdding = stack((aspirations.lower, aspirations.upper), -1)
 
         common_hidden = self.common_layers(
