@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from satisfia.agents.learning.dqn.config import DQNConfig
 import satisfia.agents.learning.dqn.agent_mdp_dqn as agent_mpd_dqn
 from satisfia.agents.learning.dqn.criteria import complete_criteria
@@ -6,8 +8,6 @@ from satisfia.util.interval_tensor import IntervalTensor, relative_position, int
 from torch import Tensor, empty, ones, full_like, randint, bernoulli, no_grad, allclose, rand, randint, where, tensor
 from torch.nn import Module
 from torch.distributions.categorical import Categorical
-
-from __future__ import annotations
 
 class ExplorationStrategy:
     def __init__(self, target_network: Module, cfg: DQNConfig, num_actions: int):
