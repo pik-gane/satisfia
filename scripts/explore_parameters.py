@@ -89,6 +89,9 @@ pause_button = sg.Button("Pause", key='pause_button')
 step_button = sg.Button("Step", key='step_button')
 continue_button = sg.Button("Start/Continue", key='continue_button')
 
+# Create start button that automatically "reset" when env and agent are None
+start_button = sg.Button("Start", key='start_button')
+
 autorestart_checkbox = sg.Checkbox("Auto restart", default=True, key='autorestart_checkbox')
 
 speed_slider = sg.Slider(range=(1, 20), default_value=10, orientation='h', key='speed_slider')
@@ -106,7 +109,7 @@ layout = [
         ], element_justification='r')],
     [wasserstein_checkbox],
     [sg.Text("Simulation:"),
-     reset_env_button, restart_button, pause_button, step_button, continue_button], 
+     start_button, reset_env_button, restart_button, pause_button, step_button, continue_button], 
     [autorestart_checkbox, sg.Text("Speed"), speed_slider]
 ]
 
@@ -248,6 +251,12 @@ while True:
     elif event == 'continue_button':
         print("\n\nCONTINUE")
         running = True
+    elif event == 'start_button':
+        if env is None and agent is None:
+            print("Environment or agent is None, resetting...")
+            reset_env(False)     
+        print("\n\nSTART")    
+        running = True
     elif event == 'override_aleph_checkbox':
         parameter_sliders['aleph0_low'].update(disabled=not values['override_aleph_checkbox'])
         parameter_sliders['aleph0_high'].update(disabled=not values['override_aleph_checkbox'])
@@ -255,6 +264,6 @@ while True:
         step()
         wait = time.monotonic()
     elif event == '__TIMEOUT__':
-        time.sleep(.1)                         
+        time.sleep(.1)     
 
 window.close()
