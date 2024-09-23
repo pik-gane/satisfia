@@ -4,6 +4,8 @@ This is a pruned version of [this list](https://docs.google.com/spreadsheets/d/1
 
 The "Requires Learning" column cointains "Yes" if some kind of gradient descent or genetic optimization is needed and the problem cannot be approached with planning.
 
+(Please also see [the SatisfIA project's kanban board](https://github.com/orgs/pik-gane/projects/2) for cards containing links to further environments such as the MACHIAVELLI or EMPA suites of environments. A big challenge for the testing will be to replace the shipped reward function of an environment by a meaningful set of evaluation metrics in terms of which meaningful aspiration-type goals can be specified. E.g., in the Lunar Lander, one could use four evaluation metrics: be the horizontal and vertical positions and velocities of the lander.)  
+
 | Short Description | Requires Learning | Misalignment Occured In The Wild | Long Description | Algorithm | Required Compute | Reference |
 | ----------------- | ----------------- | -------------------------------- | ---------------- | --------- | ---------------- | --------- |
 | Misgeneralization of correct goals | I think no | No | Agents trained on simple gridwords do not learn the specified goal. | V-MPO | I guess tens of GPU minutes | [ArXiv](https://arxiv.org/abs/2210.01790), sections 3.1 and 3.2 |
