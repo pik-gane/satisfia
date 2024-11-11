@@ -2,6 +2,9 @@ import numpy as np
 from extensive_form_game import PerfectInfoExtensiveFormGame
 
 
+# TODO: add a non-recursive, brute-force whole policy optimization version!
+
+
 class PerfectInfoCorrigibleAgent:
 
     world_model: PerfectInfoExtensiveFormGame = None
@@ -34,30 +37,30 @@ class PerfectInfoCorrigibleAgent:
         powers = {}
         if nd.player == self.agent_player:
             # plan to take the action that maximizes the sum of the principal power evaluations of the corresponding successor node:
-            plans = [ self.plan(successor) for successor in nd.successor ]
+            plans = [ self.plan(successor) for successor in nd.successor_ids ]
             values = [ sum(next_powers.values()) for next_policy, next_powers in plans ]
             i = np.argmax(values) 
             action = nd.actions[i]
             next_policy, next_powers = plans[i]
             policy[node] = action
             policy.update(next_policy)
-            event = nd.event[i]
+            event = nd.events[i]
             powers[event] = 1
         elif nd.player in self.world_model.probabilistic_players:
             for i, action in enumerate(nd.actions):
-                action_probability = nd.probability[i]
-                next_policy, next_powers = self.plan(nd.successor[i])
+                action_probability = nd.probabilities[i]
+                next_policy, next_powers = self.plan(nd.successor_ids[i])
                 policy.update(next_policy)
                 for event, success_probability in next_powers.items():
                     powers[event] = powers.get(event, 0) + action_probability * success_probability
         elif nd.player in self.principal_players:
             for i, action in enumerate(nd.actions):
-                next_policy, next_powers = self.plan(nd.successor[i])
+                next_policy, next_powers = self.plan(nd.successor_ids[i])
                 policy.update(next_policy)
                 for event, success_probability in next_powers.items():
                     powers[event] = max(powers.get(event, 0), success_probability)  # best-case w.r.t. actions of principal players
         elif nd.player is not None:
-            plans = [ self.plan(successor) for successor in nd.successor ]
+            plans = [ self.plan(successor) for successor in nd.successor_ids ]
             # collect all events that might occurr under at least one action:
             events = set()
             for next_policy, next_powers in plans:
@@ -71,6 +74,13 @@ class PerfectInfoCorrigibleAgent:
             pass
         return policy, powers
     
+    def evaluate_policy(self, policy):
+        """return the sum of the principal power evaluations at all principal decision nodes (!) for the given policy"""
+        raise NotImplementedError
+
+    def all_policies(self):
+        """return a generator for all possible agent policies"""
+        raise NotImplementedError   
 
 if __name__ == "__main__":
     from extensive_form_game import SimpleExample
