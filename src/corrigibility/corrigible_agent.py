@@ -1,89 +1,75 @@
 import numpy as np
-from extensive_form_game import PerfectInfoExtensiveFormGame
+from typing import Tuple
+
+from corrigibility.world_model import AttainmentProbabilities, DiscountRate, NodeId, Policy, Powers, WorldModel
 
 
-# TODO: add a non-recursive, brute-force whole policy optimization version!
+class CorrigibleAgent:
 
-
-class PerfectInfoCorrigibleAgent:
-
-    world_model: PerfectInfoExtensiveFormGame = None
+    world_model: WorldModel = None
     """the world model of the agent"""
 
-    agent_player = None
-    """the player in the world model played by the agent"""
+    power_discount_rate: DiscountRate = None
 
-    principal_players = None
-    """a list of the players in the world model acknowledged as the agent's principals"""
+    boltzmann_temperature: float = None
+    """the temperature parameter for the Boltzmann distribution"""
 
-    exponent = None
-    """probability exponent used in power calculations"""
-
-    def __init__(self, world_model=None, agent_player=None, principal_players=None, exponent=2):
-        assert isinstance(world_model, PerfectInfoExtensiveFormGame)
+    def __init__(self, world_model=None, power_discount_rate=0.0, boltzmann_temperature=0.0):
+        assert isinstance(world_model, WorldModel)
         self.world_model = world_model
-        assert all(principal_player in world_model.players for principal_player in principal_players)
-        self.principal_players = principal_players
-        assert agent_player in world_model.players
-        assert agent_player not in principal_players
-        self.agent_player = agent_player
-        assert exponent >= 1
-        self.exponent = exponent
+        assert power_discount_rate >= 0.0
+        self.power_discount_rate = power_discount_rate
+        assert boltzmann_temperature >= 0.0
+        self.boltzmann_temperature = boltzmann_temperature
 
-    def plan(self, node):
-        """return a continuation policy and the principal power evaluations for the given node"""
-        nd = self.world_model.get_node_data(node)
-        policy = {}
-        powers = {}
-        if nd.player == self.agent_player:
-            # plan to take the action that maximizes the sum of the principal power evaluations of the corresponding successor node:
-            plans = [ self.plan(successor) for successor in nd.successor_ids ]
-            values = [ sum(next_powers.values()) for next_policy, next_powers in plans ]
-            i = np.argmax(values) 
-            action = nd.actions[i]
-            next_policy, next_powers = plans[i]
-            policy[node] = action
-            policy.update(next_policy)
-            event = nd.events[i]
-            powers[event] = 1
-        elif nd.player in self.world_model.probabilistic_players:
-            for i, action in enumerate(nd.actions):
-                action_probability = nd.probabilities[i]
-                next_policy, next_powers = self.plan(nd.successor_ids[i])
-                policy.update(next_policy)
-                for event, success_probability in next_powers.items():
-                    powers[event] = powers.get(event, 0) + action_probability * success_probability
-        elif nd.player in self.principal_players:
-            for i, action in enumerate(nd.actions):
-                next_policy, next_powers = self.plan(nd.successor_ids[i])
-                policy.update(next_policy)
-                for event, success_probability in next_powers.items():
-                    powers[event] = max(powers.get(event, 0), success_probability)  # best-case w.r.t. actions of principal players
-        elif nd.player is not None:
-            plans = [ self.plan(successor) for successor in nd.successor_ids ]
-            # collect all events that might occurr under at least one action:
-            events = set()
-            for next_policy, next_powers in plans:
-                events.update(next_powers.keys())
-            # for each event, take the minimum probability across all actions:
-            for next_policy, next_powers in plans:
-                policy.update(next_policy)
-                for event in events:
-                    powers[event] = min(powers.get(event, 1), next_powers.get(event, 0))  # worst-case w.r.t. actions of non-probabilistic other players
-        else: # terminal node
-            pass
-        return policy, powers
-    
-    def evaluate_policy(self, policy):
-        """return the sum of the principal power evaluations at all principal decision nodes (!) for the given policy"""
-        raise NotImplementedError
+    def plan(self, node_id: NodeId, last_principal_node_id: NodeId) -> Tuple[Policy, Powers, AttainmentProbabilities]:
+        """return a continuation policy for the given node, and the actual principal power evaluations and actual goal attainment probabilities resulting from it"""
+        node = self.world_model.node_data(node_id)
+        player = node.player
+        actions = node.actions
 
-    def all_policies(self):
-        """return a generator for all possible agent policies"""
-        raise NotImplementedError   
+        if node.is_terminal:
+            return {}, { node_id: node.actual_power }, {}
+
+        # so this node is not terminal
+        agent_policy = Policy()
+        actual_powers = Powers()
+        attainment_probabilities = AttainmentProbabilities()
+        is_principal = player in self.world_model.principal_players
+        if is_principal:
+            last_principal_node_id = node_id
+
+        # get agent's continuation policy:
+        for action in actions:
+            successor_id = node.consequences[action]
+            later_policy, later_powers, _ = self.plan(successor_id, last_principal_node_id)
+            agent_policy.update(later_policy)
+            actual_powers.update(later_powers)
+
+        if player == self.world_model.agent_player:
+            # calculate and store Boltzmann local policy based on actual powers and durations:
+            action_propensities = { 
+                np.exp(actual_powers[node.consequences[action]] 
+                       * np.exp(-self.power_discount_rate * node.durations[action]) 
+                       / self.boltzmann_temperature)
+                for action in actions }
+            total_propensities = sum(action_propensities[action] for action in actions)
+            node.local_policy = { action: action_propensities[action] / total_propensities 
+                                  for action in actions }
+            self.world_model.update_nodes({ node_id: node })  # store computed policy in the world model
+
+        # get principal's actual power and actual attainment probabilities,
+        # based on actual agent policy rather than principal's beliefs about agent policy
+        # (hence using override_policy_belief=True, which works as the previous line has already stored 
+        # the agent's continuation policy in the world model):
+        _, _, _, powers, attprobs = self.get_assumed_principal_policy_and_more(node_id, last_principal_node_id, override_policy_belief=True)
+        actual_powers.update({ node_id: powers[node_id] })
+        attainment_probabilities.update(attprobs)
+
+        return agent_policy, actual_powers, attainment_probabilities
 
 if __name__ == "__main__":
-    from extensive_form_game import SimpleExample
+    from corrigibility.game import SimpleExample
     game = SimpleExample()
-    agent = PerfectInfoCorrigibleAgent(world_model=game, agent_player="Cora", principal_players=["Prince"])
+    agent = CorrigibleAgent(world_model=game, agent_player="Cora", principal_players=["Prince"])
     print(agent.plan(game.initial_node))
