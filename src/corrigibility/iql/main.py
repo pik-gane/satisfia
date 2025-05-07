@@ -1,6 +1,7 @@
 # Tool code to modify main.py
 import numpy as np
-from minigrid_power_env import PowerGridEnv, ExtendedActions # Import custom environment and actions
+from minigrid_power_env import PowerGridEnv # Import custom environment
+from minigrid.core.actions import Actions as MiniGridActions # Import for action mapping
 from iql_agent import IQLPowerAgent # Import adapted agent
 import matplotlib.pyplot as plt
 import time # Import time for pausing
@@ -9,24 +10,23 @@ def main():
     env_config = {
         "size": 9, # Match env default
         "agent_start_pos": None, # Let env place agent in room
-        # Human start/goal are handled internally by env now
         "max_steps": 150, # Match env default
-        "render_mode": "human" # Use "human" for interactive view
+        "render_mode": "human" # Use "human" for interactive view, or None for faster training
     }
     env = PowerGridEnv(**env_config)
 
-    # Action mapping (Agent action -> Env action)
-    # Agent actions: 0: Up, 1: Down, 2: Left, 3: Right, 4: Toggle, 5: Lock (semantic)
-    # Env actions: Use ExtendedActions enum
+    # Agent's semantic actions:
+    # 0: Turn Left
+    # 1: Turn Right
+    # 2: Move Forward
+    # 3: Toggle Door (uses environment's standard toggle for doors)
     action_map = {
-        0: ExtendedActions.up,    # Agent Up    -> Env Action 3
-        1: ExtendedActions.down,  # Agent Down  -> Env Action 1
-        2: ExtendedActions.left,  # Agent Left  -> Env Action 2
-        3: ExtendedActions.right, # Agent Right -> Env Action 0
-        4: ExtendedActions.toggle,# Agent Toggle-> Env Action 6
-        5: ExtendedActions.lock,  # Agent Lock  -> Env Action 7
+        0: MiniGridActions.left.value,
+        1: MiniGridActions.right.value,
+        2: MiniGridActions.forward.value,
+        3: MiniGridActions.toggle.value, # Uses MiniGrid's toggle (value 5)
     }
-    agent_action_space_size = len(action_map) # Agent uses 6 actions now
+    agent_action_space_size = len(action_map) # Agent uses 4 semantic actions
 
     # --- Agent Setup ---
     # Get the goal set the environment uses
@@ -40,7 +40,7 @@ def main():
     f_func = lambda z: 2.0 - 2.0 / (z + 1e-6) # Recommended in paper
 
     agent = IQLPowerAgent(
-        action_space_size=agent_action_space_size, # Agent uses 6 actions
+        action_space_size=agent_action_space_size, # Agent uses 4 actions
         goal_set=goal_set, # Use the actual goals from the env
         goal_prior=goal_prior,
         gamma_h=0.95,
@@ -68,7 +68,8 @@ def main():
     print(f"Environment: Custom PowerGridEnv with Door")
     print(f"Grid Size: {env.width}x{env.height}")
     print(f"Agent considers Goal Set G: {agent.goal_set}")
-    print(f"Agent Action Space Size: {agent_action_space_size}")
+    print(f"Agent Action Space Size (semantic): {agent_action_space_size}")
+    print(f"Action map (Agent Semantic -> Env Value): {action_map}")
 
     for episode in range(num_episodes):
         obs, info = env.reset()
@@ -96,14 +97,14 @@ def main():
 
         while not terminated and not truncated:
             step_count += 1
-            # 1. Robot chooses action (semantic: 0-Up..5-Lock)
+            # 1. Robot chooses action (semantic: 0-TurnLeft, 1-TurnRight, 2-MoveForward, 3-Toggle)
             robot_agent_action = agent.choose_robot_action(agent_pos, human_pos)
 
-            # Map agent action to environment action
+            # Map agent's semantic action to environment action value
             robot_env_action = action_map.get(robot_agent_action)
             if robot_env_action is None:
-                 print(f"Warning: Invalid agent action {robot_agent_action}, defaulting to env action 0 (right).")
-                 robot_env_action = ExtendedActions.right # Default to right move
+                 print(f"Warning: Invalid agent semantic action {robot_agent_action}, defaulting to env action forward.")
+                 robot_env_action = MiniGridActions.forward.value # Default to forward
 
             # 2. Simulate environment step
             # Env returns: obs_dict, robot_reward, reward_h_obs, terminated, truncated, info_dict
@@ -117,11 +118,11 @@ def main():
 
             # 4. Agent Update
             # Simulate human action based on agent's internal model for Q_h update
-            # NOTE: Human simulation uses the *agent's* action space size (0-5)
+            # Human is assumed to choose from the same semantic action space (0-3)
             simulated_human_action = agent.get_human_action_for_simulation(agent_pos, human_pos, human_current_goal_idx)
 
             agent.update(agent_pos, human_pos,
-                         robot_agent_action, simulated_human_action, # Use agent's semantic action indices (0-5)
+                         robot_agent_action, simulated_human_action, # Use agent's semantic action indices (0-3)
                          reward_h_obs, # Use the base human reward from env
                          next_agent_pos, next_human_pos,
                          human_current_goal_idx,

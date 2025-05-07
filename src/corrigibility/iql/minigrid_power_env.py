@@ -10,6 +10,7 @@ from minigrid.core.world_object import Goal, Wall, WorldObj, Ball, Door # Using 
 from minigrid.minigrid_env import MiniGridEnv
 from minigrid.utils.rendering import fill_coords, point_in_rect # Ensure rendering utils are imported
 from minigrid.core.constants import COLORS # Ensure COLORS are imported
+from minigrid.core.actions import Actions as MiniGridActions # Import the base Actions enum
 
 # Define a new object type for the human NPC
 # Find the next available index
@@ -28,15 +29,10 @@ class HumanNPC(WorldObj):
         # Render as a blue ball
         fill_coords(img, point_in_rect(0.25, 0.75, 0.25, 0.75), COLORS[self.color])
 
-# Add new actions for toggle and lock
-class ExtendedActions(MiniGridEnv.Actions):
-    toggle = 6 # Use next available index after standard actions
-    lock = 7   # Use next available index
-
 class PowerGridEnv(MiniGridEnv):
     """
     MiniGrid environment with a Robot (agent) and a Human (NPC).
-    Includes a room with a door that can be toggled or locked by the agent.
+    Includes a room with a door that can be toggled by the agent.
     Uses Dict observation space: {agent_pos, human_pos, goal_pos}.
     The agent's goal is implicitly to help the human reach its goal.
     """
@@ -79,8 +75,8 @@ class PowerGridEnv(MiniGridEnv):
             "goal_pos": spaces.Box(0, size - 1, shape=(2,), dtype=int)
         })
 
-        # Action enumeration includes new actions
-        self.actions = ExtendedActions
+        # Action enumeration now uses standard MiniGrid actions
+        self.actions = MiniGridActions # Use standard MiniGrid actions
 
         super().__init__(
             mission_space=mission_space,
@@ -106,6 +102,7 @@ class PowerGridEnv(MiniGridEnv):
         # Place the door in the middle of the right wall of the room
         self._door_pos = (room_w - 1, room_h // 2)
         # Door starts closed and unlocked (default color is yellow)
+        # The is_locked=False is important as agent cannot unlock.
         self.put_obj(Door(color="yellow", is_open=False, is_locked=False), self._door_pos[0], self._door_pos[1])
 
         # --- Placement Order: Goal -> Human -> Agent ---
@@ -130,7 +127,6 @@ class PowerGridEnv(MiniGridEnv):
         human_placement_kwargs = {
             'top': (2, 2),
             'size': (room_w - 3, room_h - 3),
-            'reject_pos': [self._door_pos, self._human_goal_pos], # Avoid door and goal
             'max_tries': 100
         }
         if self.human_start_pos_initial is not None:
@@ -156,7 +152,6 @@ class PowerGridEnv(MiniGridEnv):
         agent_placement_kwargs = {
             'top': (2, 2),
             'size': (room_w - 3, room_h - 3),
-            'reject_pos': [self._door_pos, self._human_goal_pos, self._human_pos], # Avoid door, goal, human
             'max_tries': 100
         }
         if self.agent_start_pos_initial is not None:
@@ -277,24 +272,19 @@ class PowerGridEnv(MiniGridEnv):
         truncated = False
 
         # --- 1. Agent Action ---
-        # Store previous agent pos/dir
         prev_agent_pos = self.agent_pos
         prev_agent_dir = self.agent_dir
 
         # Update agent state based on action
-        # Rotate left/right
-        if action == self.actions.left or action == self.actions.right:
-            if action == self.actions.left:
-                self.agent_dir -= 1
-                if self.agent_dir < 0:
-                    self.agent_dir += 4
-            elif action == self.actions.right:
-                self.agent_dir = (self.agent_dir + 1) % 4
-        # Move forward
+        if action == self.actions.left:
+            self.agent_dir -= 1
+            if self.agent_dir < 0:
+                self.agent_dir += 4
+        elif action == self.actions.right:
+            self.agent_dir = (self.agent_dir + 1) % 4
         elif action == self.actions.forward:
             fwd_pos = self.front_pos
             fwd_cell = self.grid.get(*fwd_pos)
-            # Allow moving into empty, goal, human, or OPEN doors
             can_move = False
             if fwd_cell is None or fwd_cell.can_overlap() or fwd_cell.type == 'goal':
                 can_move = True
@@ -303,28 +293,22 @@ class PowerGridEnv(MiniGridEnv):
 
             if can_move:
                 self.agent_pos = tuple(fwd_pos)
-        # Toggle action
-        elif action == self.actions.toggle:
+        elif action == self.actions.toggle: # Standard toggle action
             fwd_pos = self.front_pos
             fwd_cell = self.grid.get(*fwd_pos)
-            if fwd_cell is not None and isinstance(fwd_cell, Door):
-                # Can only toggle unlocked doors
-                if not fwd_cell.is_locked:
-                    fwd_cell.toggle(self, fwd_pos)
-        # Lock action
-        elif action == self.actions.lock:
-            fwd_pos = self.front_pos
-            fwd_cell = self.grid.get(*fwd_pos)
-            if fwd_cell is not None and isinstance(fwd_cell, Door):
-                # Can only lock closed doors
-                if not fwd_cell.is_open:
-                    fwd_cell.is_locked = True
-                    fwd_cell.color = "red" # Change color to indicate locked
-        elif action == self.actions.done: # 'done' action exists but not used here
-            pass
+            # Only attempt to toggle if the object is a Door
+            if isinstance(fwd_cell, Door):
+                # Standard Door.toggle() handles is_open state if not locked.
+                # Our doors start unlocked, and agent cannot lock them.
+                fwd_cell.toggle(self, fwd_pos)
+            # If fwd_cell is not a Door, this action effectively does nothing for non-door objects
+            # unless the base MiniGridEnv handles other toggleable types, which we are not using here.
+        elif action == self.actions.done:
+            pass # Agent signals task completion
+        elif action == self.actions.pickup or action == self.actions.drop:
+            pass # These actions are available but not used by our agent's policy
         else:
-            # This case should ideally be prevented by the action mapping in main.py
-            print(f"Warning: Unknown action {action} received in env.step. Agent stays.")
+            print(f"Warning: Unknown or unhandled action {action} received in env.step. Agent stays.")
 
         # --- 2. Human NPC Movement ---
         # Clear human's old position on grid *before* moving
@@ -383,22 +367,27 @@ if __name__ == "__main__":
     obs, info = env.reset()
 
     for i in range(150): # Max 150 steps example
-        # Sample a valid environment action (0-7 now)
-        # For testing, let's sample agent actions 0-5 and map them
-        # Agent actions: 0:Up, 1:Down, 2:Left, 3:Right, 4:Toggle, 5:Lock
-        # Env actions:   3:Up, 1:Down, 2:Left, 0:Right, 6:Toggle, 7:Lock
-        agent_action = random.choice([0, 1, 2, 3, 4, 5]) # Sample semantic agent action
+        # Agent's semantic actions: 0:TurnLeft, 1:TurnRight, 2:MoveForward, 3:ToggleDoor
+        # These map to environment actions via action_map_test
+        agent_semantic_action = random.choice([0, 1, 2, 3])
 
-        action_map_test = { 0: 3, 1: 1, 2: 2, 3: 0, 4: 6, 5: 7 }
-        env_action = action_map_test.get(agent_action, 0) # Default to right if map fails
+        action_map_test = { # Maps semantic agent action to MiniGridActions value
+            0: MiniGridActions.left.value,
+            1: MiniGridActions.right.value,
+            2: MiniGridActions.forward.value,
+            3: MiniGridActions.toggle.value,
+        }
+        # Default to forward if action not in map (should not happen with current choices)
+        env_action = action_map_test.get(agent_semantic_action, MiniGridActions.forward.value)
 
-        print(f"Step {i+1}, Agent Action: {agent_action}, Env Action: {env_action}")
+        print(f"Step {i+1}, Agent Semantic Action: {agent_semantic_action}, Env Action Value: {env_action}")
         obs, reward, r_h_obs, terminated, truncated, info = env.step(env_action)
         print(f"Agent Reward: {reward:.2f}, Human Base Reward: {r_h_obs}, Term: {terminated}, Trunc: {truncated}")
         print(f"Agent Pos: {obs['agent_pos']}, Human Pos: {info['human_pos']}, Goal Pos: {info['goal_pos']}")
         # Check door state (optional, requires accessing grid)
         door_cell = env.grid.get(*env._door_pos)
-        if door_cell: print(f"Door State: Open={door_cell.is_open}, Locked={door_cell.is_locked}")
+        if door_cell and isinstance(door_cell, Door): # Ensure it's a door
+            print(f"Door State: Open={door_cell.is_open}, Locked={door_cell.is_locked}")
 
 
         if terminated or truncated:
