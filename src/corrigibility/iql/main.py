@@ -1,165 +1,75 @@
 # Tool code to modify main.py
+from env import LockingDoorEnvironment
+from iql_algorithm import run_iql_algorithm
+from deterministic_algorithm import DeterministicAlgorithm
 import numpy as np
-from minigrid_power_env import PowerGridEnv # Import custom environment
-from minigrid.core.actions import Actions as MiniGridActions # Import for action mapping
-from iql_agent import IQLPowerAgent # Import adapted agent
 import matplotlib.pyplot as plt
-import time # Import time for pausing
+import pygame
 
 def main():
-    env_config = {
-        "size": 9, # Match env default
-        "agent_start_pos": None, # Let env place agent in room
-        "max_steps": 150, # Match env default
-        "render_mode": "human" # Use "human" for interactive view, or None for faster training
-    }
-    env = PowerGridEnv(**env_config)
+    deterministic = True
+    env = LockingDoorEnvironment()
+    
+    if deterministic:
+        algo = DeterministicAlgorithm()
+        env.reset() # Reset to get initial state for the first agent
+        
+        # episode_steps = 0 # Optional: limit steps per episode
 
-    # Agent's semantic actions:
-    # 0: Turn Left
-    # 1: Turn Right
-    # 2: Move Forward
-    # 3: Toggle Door (uses environment's standard toggle for doors)
-    action_map = {
-        0: MiniGridActions.left.value,
-        1: MiniGridActions.right.value,
-        2: MiniGridActions.forward.value,
-        3: MiniGridActions.toggle.value, # Uses MiniGrid's toggle (value 5)
-    }
-    agent_action_space_size = len(action_map) # Agent uses 4 semantic actions
+        # The env.agent_iter() loop will run as long as there are active agents
+        # and the environment has not ended the episode.
+        for agent_id in env.agent_iter(): # Corrected: use env.agent_iter()
+            # Get the observation, reward, termination, truncation, and info for the current agent
+            observation, reward, terminated, truncated, info = env.last()
 
-    # --- Agent Setup ---
-    # Get the goal set the environment uses
-    goal_set = env.possible_goal_positions # Use the goals defined in the env
-    num_goals = len(goal_set)
-    if num_goals == 0:
-        raise ValueError("Environment's possible_goal_positions is empty!")
-    goal_prior = {i: 1.0/num_goals for i in range(num_goals)} # Uniform prior
+            action_to_take = None
+            if terminated or truncated:
+                # If the agent is terminated or truncated, pass None action.
+                # env.step(None) is the standard way to handle this for a done agent.
+                action_to_take = None
+                # print(f"Main: Agent {agent_id} is done. Action: None.")
+            else:
+                # Agent needs to act
+                if agent_id == "robot":
+                    # Construct state tuple for the deterministic algorithm
+                    # This state should reflect the current environment state for the robot's decision
+                    state_tuple_for_algo = (
+                        env.agent_pos, 
+                        env.human_pos, 
+                        env.door_pos, 
+                        env.goal_pos,
+                        env.robot_has_key, 
+                        env.door_is_open,
+                        env.door_is_key_locked,
+                        env.door_is_permanently_locked
+                    )
+                    action_to_take = algo.choose_action(state_tuple_for_algo)
+                    print(f"Main: Robot's turn ({agent_id}). Chosen action: {action_to_take}")
+                elif agent_id == "human":
+                    # Human action is determined internally by env._get_human_action()
+                    # when env.step() is called for the human agent with action=None.
+                    action_to_take = None 
+                    print(f"Main: Human's turn ({agent_id}). Action: None (determined in env.step).")
+            
+            env.step(action_to_take) # Step the environment with the action for agent_id
+                                     # env.step() will process the action and advance to the next agent internally.
+            env.render()
+            pygame.time.delay(300) # Slow down for visualization
 
-    # Power function f(z)
-    f_func = lambda z: 2.0 - 2.0 / (z + 1e-6) # Recommended in paper
+            # episode_steps +=1 # Optional step counting
+            # if episode_steps > 300: # Example of external max step limit
+            #     print("Max episode steps reached by external counter.")
+            #     # To end the episode here, you would typically need to set all agents' 
+            #     # termination/truncation flags in the environment and then break,
+            #     # or rely on the environment's own max step handling.
+            #     break 
 
-    agent = IQLPowerAgent(
-        action_space_size=agent_action_space_size, # Agent uses 4 actions
-        goal_set=goal_set, # Use the actual goals from the env
-        goal_prior=goal_prior,
-        gamma_h=0.95,
-        gamma_r=0.99,
-        alpha_h=0.1,
-        alpha_r=0.05,
-        beta_h=2.0,
-        epsilon_r=1.0,
-        epsilon_r_decay=0.9995,
-        epsilon_r_min=0.05,
-        f_func=f_func,
-        eta=0.0 # Start with eta=0 (expected value)
-    )
-
-    # --- Training Loop ---
-    num_episodes = 30000 # Might need more episodes for complex behavior
-    print_every = 1000
-    render_every = 500 # Render less frequently during longer training
-    render_pause = 0.05 # Pause duration in seconds when rendering
-
-    total_rewards_log = []
-    human_success_log = []
-
-    print(f"Starting training for {num_episodes} episodes...")
-    print(f"Environment: Custom PowerGridEnv with Door")
-    print(f"Grid Size: {env.width}x{env.height}")
-    print(f"Agent considers Goal Set G: {agent.goal_set}")
-    print(f"Agent Action Space Size (semantic): {agent_action_space_size}")
-    print(f"Action map (Agent Semantic -> Env Value): {action_map}")
-
-    for episode in range(num_episodes):
-        obs, info = env.reset()
-
-        # Extract state components from the dictionary observation
-        agent_pos = obs['agent_pos']
-        human_pos = obs['human_pos']
-        actual_human_goal_pos = info['goal_pos'] # Goal pos comes from info
-
-        # Find the index of the actual goal within the agent's known goal set
-        try:
-            human_current_goal_idx = agent.goal_indices[actual_human_goal_pos]
-        except KeyError:
-            # This should NOT happen now if agent uses env.possible_goal_positions
-            print(f"FATAL ERROR: Actual goal {actual_human_goal_pos} not in agent's goal set {agent.goal_set}. Check env/agent goal consistency.")
-            # Fallback or raise error? Let's raise for debugging.
-            raise ValueError(f"Actual goal {actual_human_goal_pos} not in agent's goal set {agent.goal_set}")
-            # human_current_goal_idx = 0 # Fallback
-
-        terminated = False
-        truncated = False
-        episode_reward = 0
-        human_succeeded_in_episode = False
-        step_count = 0 # Track steps within episode if needed
-
-        while not terminated and not truncated:
-            step_count += 1
-            # 1. Robot chooses action (semantic: 0-TurnLeft, 1-TurnRight, 2-MoveForward, 3-Toggle)
-            robot_agent_action = agent.choose_robot_action(agent_pos, human_pos)
-
-            # Map agent's semantic action to environment action value
-            robot_env_action = action_map.get(robot_agent_action)
-            if robot_env_action is None:
-                 print(f"Warning: Invalid agent semantic action {robot_agent_action}, defaulting to env action forward.")
-                 robot_env_action = MiniGridActions.forward.value # Default to forward
-
-            # 2. Simulate environment step
-            # Env returns: obs_dict, robot_reward, reward_h_obs, terminated, truncated, info_dict
-            next_obs, robot_reward, reward_h_obs, terminated, truncated, info = env.step(robot_env_action)
-
-            # 3. Extract next state info from the NEW observation dictionary
-            next_agent_pos = next_obs['agent_pos']
-            next_human_pos = next_obs['human_pos']
-            # Goal position doesn't change within an episode
-            # next_goal_pos = next_obs['goal_pos'] # or info['goal_pos']
-
-            # 4. Agent Update
-            # Simulate human action based on agent's internal model for Q_h update
-            # Human is assumed to choose from the same semantic action space (0-3)
-            simulated_human_action = agent.get_human_action_for_simulation(agent_pos, human_pos, human_current_goal_idx)
-
-            agent.update(agent_pos, human_pos,
-                         robot_agent_action, simulated_human_action, # Use agent's semantic action indices (0-3)
-                         reward_h_obs, # Use the base human reward from env
-                         next_agent_pos, next_human_pos,
-                         human_current_goal_idx,
-                         terminated or truncated) # Done flag
-
-            # 5. Prepare for next step
-            agent_pos = next_agent_pos
-            human_pos = next_human_pos
-            episode_reward += robot_reward
-            if reward_h_obs > 0: # If human reached goal this step (r_h_obs == 1.0)
-                 human_succeeded_in_episode = True
-
-            # Optional Rendering
-            if render_every > 0 and episode % render_every == 0 and episode > 0:
-                 # env.render() # Called within env.step if mode is human
-                 time.sleep(render_pause) # Add a pause to see the frame
-
-
-        total_rewards_log.append(episode_reward)
-        human_success_log.append(1 if human_succeeded_in_episode else 0)
-
-        # Print progress
-        if (episode + 1) % print_every == 0:
-            avg_reward = np.mean(total_rewards_log[-print_every:])
-            success_rate = np.mean(human_success_log[-print_every:]) * 100
-            print(f"Episode: {episode + 1}/{num_episodes} | Avg Reward (last {print_every}): {avg_reward:.3f} | Success Rate: {success_rate:.1f}% | Epsilon_r: {agent.epsilon_r:.3f}")
-
-    print("Training finished.")
-    env.close()
-
-    # --- Optional: Plotting ---
-    # (Plotting code remains the same)
-    plt.figure(figsize=(12, 5))
-    # ... (rest of plotting code) ...
-    plt.tight_layout()
-    plt.show()
-
+        print("Episode finished.")
+        env.close()
+        # pygame.quit() # Pygame is quit within env.close() if screen was initialized
+    else:
+        # run_iql_algorithm() # This would need similar PettingZoo integration
+        print("IQL algorithm execution would start here (not implemented for this loop structure yet).")
 
 if __name__ == "__main__":
     main()
