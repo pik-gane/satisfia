@@ -17,7 +17,7 @@ COLORS = {
     "orange": np.array([255, 165, 0]) # For Lava
 }
 
-TILE_PIXELS = 32 # Default tile size, can be adjusted
+TILE_PIXELS = 48 # Default tile size, increased from 32 (or previous value)
 
 class WorldObj:
     """
@@ -115,11 +115,10 @@ class Wall(WorldObj):
 
 
 class Door(WorldObj):
-    def __init__(self, color: str = "brown", is_open: bool = False, is_locked: bool = False, is_permanently_locked: bool = False):
+    def __init__(self, color: str = "brown", is_open: bool = False, is_locked: bool = False):
         super().__init__("door", color)
         self.is_open = is_open
         self.is_locked = is_locked
-        self.is_permanently_locked = is_permanently_locked
 
     def can_overlap(self):
         return self.is_open
@@ -141,30 +140,55 @@ class Door(WorldObj):
         return True
 
     def render(self, img):
-        # Determine color based on state
-        if self.is_permanently_locked:
-            color = COLORS['red']  # Red for permanently locked
-        elif not self.is_locked: # Equivalent to is_open
-            color = COLORS['green'] # Green for open
-        else: # Closed/normally locked but not permanently
-            color = COLORS['yellow'] # Yellow for normally locked/closed
+        door_tile_color = self.color # Default to brown (closed, not locked by key)
+        draw_handle = False
+        is_transparent_middle = False # For open door
 
-        fill_coords(img, point_in_rect(0.0, 1.0, 0.0, 1.0), color) # Fill entire tile
+        if self.is_open:
+            # Door is open (and by implication, unlocked)
+            # Render as mostly transparent with a frame
+            door_tile_color = COLORS['grey'] * 0.3 # Very light grey, almost transparent
+            is_transparent_middle = True
+            # Draw a thin frame to indicate the door's presence
+            fill_coords(img, point_in_rect(0, 1, 0, 0.1), self.color)  # Top frame
+            fill_coords(img, point_in_rect(0, 1, 0.9, 1), self.color)  # Bottom frame
+            fill_coords(img, point_in_rect(0, 0.1, 0.1, 0.9), self.color)  # Left frame
+            fill_coords(img, point_in_rect(0.9, 1, 0.1, 0.9), self.color)
 
-        # Draw door frame
-        fill_coords(img, point_in_rect(0, 0.12, 0, 1), COLORS['black']) # Left frame
-        fill_coords(img, point_in_rect(0.88, 1, 0, 1), COLORS['black']) # Right frame
-        fill_coords(img, point_in_rect(0, 1, 0, 0.12), COLORS['black']) # Top frame
-        fill_coords(img, point_in_rect(0, 1, 0.88, 1), COLORS['black']) # Bottom frame
+        elif self.is_locked:
+            # Door is closed and key-locked
+            door_tile_color = COLORS['yellow'] # Closed and key-locked
+            # Draw a keyhole symbol
+            fill_coords(img, point_in_rect(0.0, 1.0, 0.0, 1.0), door_tile_color) # Fill entire tile yellow
+            keyhole_center_x, keyhole_center_y = 0.5, 0.45
+            keyhole_radius = 0.1
+            fill_coords(img, point_in_circle(keyhole_center_x, keyhole_center_y, keyhole_radius), COLORS['black'])
+            fill_coords(img, point_in_rect(keyhole_center_x - 0.05, keyhole_center_x + 0.05, keyhole_center_y, keyhole_center_y + 0.25), COLORS['black'])
+        else:
+            # Door is closed but not key-locked (e.g., brown)
+            # Standard closed door appearance
+            fill_coords(img, point_in_rect(0.0, 1.0, 0.0, 1.0), self.color) # Fill entire tile with base color
+            draw_handle = True # Draw handle for closed, unlocked door
 
-        # Draw doorknob or handle based on open/locked state if not permalocked
-        if not self.is_permanently_locked:
-            if not self.is_locked: # Open
-                # Handle for open door
-                fill_coords(img, point_in_rect(0.75, 0.85, 0.45, 0.55), COLORS['grey'])
-            else: # Closed/locked
-                # Knob for closed/locked door
-                fill_coords(img, point_in_circle(0.78, 0.5, 0.1), COLORS['grey'])
+        if not is_transparent_middle and not self.is_locked: # Avoid drawing over keyhole or open door center
+             fill_coords(img, point_in_rect(0.0, 1.0, 0.0, 1.0), door_tile_color)
+
+        if draw_handle: # Draw handle if applicable (closed & unlocked, or originally intended for open)
+            # Simple rectangular handle
+            handle_x_start, handle_y_start = 0.75, 0.45
+            handle_width, handle_height = 0.1, 0.15
+            fill_coords(img, point_in_rect(
+                handle_x_start, handle_x_start + handle_width, 
+                handle_y_start, handle_y_start + handle_height
+            ), COLORS['black'])
+
+        # Draw door frame (always present, but might be overdrawn by fill_coords if not open)
+        # For open door, this was handled already. For closed doors, this adds a border.
+        if not self.is_open:
+            fill_coords(img, point_in_rect(0, 1, 0, 0.05), COLORS['black'])  # Top border
+            fill_coords(img, point_in_rect(0, 1, 0.95, 1), COLORS['black']) # Bottom border
+            fill_coords(img, point_in_rect(0, 0.05, 0.05, 0.95), COLORS['black']) # Left border
+            fill_coords(img, point_in_rect(0.95, 1, 0.05, 0.95), COLORS['black'])# Right border
 
 
 class Key(WorldObj):

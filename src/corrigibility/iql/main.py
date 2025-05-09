@@ -1,75 +1,111 @@
 # Tool code to modify main.py
-from env import LockingDoorEnvironment
-from iql_algorithm import run_iql_algorithm
+from env import LockingDoorEnvironment, Actions # MODIFIED: Import Actions
+from iql_algorithm import TwoTimescaleIQL
 from deterministic_algorithm import DeterministicAlgorithm
-import numpy as np
+import numpy as np # ADDED: Import numpy
 import matplotlib.pyplot as plt
 import pygame
 
 def main():
-    deterministic = True
+    deterministic = False # MODIFIED: Set to True for testing deterministic path
+    # MODIFIED: Instantiate the AECEnv-based LockingDoorEnvironment
     env = LockingDoorEnvironment()
+    # env.render_mode = "human" # MODIFIED: Set render_mode conditionally
     
     if deterministic:
+        env.render_mode = "human" # Enable rendering for deterministic visualization
         algo = DeterministicAlgorithm()
-        env.reset() # Reset to get initial state for the first agent
-        
-        # episode_steps = 0 # Optional: limit steps per episode
+        # MODIFIED: Standard AECEnv reset and agent iteration
+        env.reset() 
+        # print(f"Initial agent: {env.agent_selection}")
 
-        # The env.agent_iter() loop will run as long as there are active agents
-        # and the environment has not ended the episode.
-        for agent_id in env.agent_iter(): # Corrected: use env.agent_iter()
-            # Get the observation, reward, termination, truncation, and info for the current agent
+        for agent_id in env.agent_iter():
             observation, reward, terminated, truncated, info = env.last()
 
             action_to_take = None
             if terminated or truncated:
-                # If the agent is terminated or truncated, pass None action.
-                # env.step(None) is the standard way to handle this for a done agent.
-                action_to_take = None
-                # print(f"Main: Agent {agent_id} is done. Action: None.")
+                # If agent is done, PettingZoo expects a None action or it will be handled by env.step
+                action_to_take = None # Or Actions.no_op if your env requires a valid action index
+                # print(f"Main (Deterministic): Agent {agent_id} is done. Action: {action_to_take}")
             else:
-                # Agent needs to act
-                if agent_id == "robot":
-                    # Construct state tuple for the deterministic algorithm
-                    # This state should reflect the current environment state for the robot's decision
-                    state_tuple_for_algo = (
-                        env.agent_pos, 
-                        env.human_pos, 
-                        env.door_pos, 
-                        env.goal_pos,
-                        env.robot_has_key, 
-                        env.door_is_open,
-                        env.door_is_key_locked,
-                        env.door_is_permanently_locked
-                    )
-                    action_to_take = algo.choose_action(state_tuple_for_algo)
-                    print(f"Main: Robot's turn ({agent_id}). Chosen action: {action_to_take}")
-                elif agent_id == "human":
-                    # Human action is determined internally by env._get_human_action()
-                    # when env.step() is called for the human agent with action=None.
-                    action_to_take = None 
-                    print(f"Main: Human's turn ({agent_id}). Action: None (determined in env.step).")
+                # Agent needs to act. Observation is already available from env.last()
+                action_to_take = algo.choose_action(observation, agent_id) 
+                # print(f"Main (Deterministic): Agent {agent_id}'s turn. Chosen action by algo: {action_to_take}")
             
-            env.step(action_to_take) # Step the environment with the action for agent_id
-                                     # env.step() will process the action and advance to the next agent internally.
-            env.render()
-            pygame.time.delay(300) # Slow down for visualization
+            env.step(action_to_take)
+            # env.render() # Render is called within env.step() if render_mode is human
+            
+            # print(f"Main (Deterministic): Agent {agent_id} took action. Next agent: {env.agent_selection}")
+            # print(f"Robot@: {env.agent_pos}, Human@: {env.human_pos}, R_rew: {env.rewards.get(env.robot_id_str,0)}, H_rew: {env.rewards.get(env.human_id_str,0)}")
+            # print(f"Terminations: {env.terminations}, Truncations: {env.truncations}")
 
-            # episode_steps +=1 # Optional step counting
-            # if episode_steps > 300: # Example of external max step limit
-            #     print("Max episode steps reached by external counter.")
-            #     # To end the episode here, you would typically need to set all agents' 
-            #     # termination/truncation flags in the environment and then break,
-            #     # or rely on the environment's own max step handling.
-            #     break 
-
-        print("Episode finished.")
+            # Check if all agents are done to break the loop (optional, agent_iter handles this)
+            # if not env.agents: # env.agents becomes empty when all are terminated/truncated
+            #     print("Main (Deterministic): All agents are done. Ending episode.")
+            #     break
+            pygame.time.delay(100) # Slow down for visualization
+        
+        print("Deterministic run finished.")
         env.close()
-        # pygame.quit() # Pygame is quit within env.close() if screen was initialized
     else:
-        # run_iql_algorithm() # This would need similar PettingZoo integration
-        print("IQL algorithm execution would start here (not implemented for this loop structure yet).")
+        # Setup and run the TwoTimescaleIQL algorithm with the AECEnv environment
+        print("Setting up IQL algorithm...")
+        env.render_mode = None # MODIFIED: Disable rendering for IQL training for speed
+        env.reset() # ADDED: Call reset() before accessing env.goal_pos for IQL setup
+
+        # Agent IDs for IQL (consistent with env.possible_agents)
+        robot_id_iql = env.robot_id_str # e.g., "robot_0"
+        human_id_iql = env.human_id_str # e.g., "human_0"
+
+        alpha_h = 0.1
+        alpha_r = 0.01
+        gamma_h = 0.99
+        gamma_r = 0.99
+        beta_h = 5.0
+        epsilon_r = 1.0
+        
+        # Goals: G should be a list of goals. Using env.goal_pos as the single goal.
+        # env.goal_pos is a tuple (x,y), which is hashable and suitable for Q_h keys.
+        if not hasattr(env, 'goal_pos'):
+            print("Error: Environment instance does not have 'goal_pos' attribute.")
+            return
+        G = [env.goal_pos] 
+        mu_g = np.array([1.0]) # Prior probability for the single goal
+
+        p_g = 0.01 # Probability of goal change per step
+        E = 1000
+
+        # Action spaces from the AECEnv for the specific agent IDs
+        robot_action_space = list(range(env.action_space(robot_id_iql).n))
+        human_action_space = list(range(env.action_space(human_id_iql).n))
+        action_space_dict = {
+            robot_id_iql: robot_action_space,
+            human_id_iql: human_action_space
+        }
+
+        iql_agent = TwoTimescaleIQL(
+            alpha_h=alpha_h,
+            alpha_r=alpha_r,
+            gamma_h=gamma_h,
+            gamma_r=gamma_r,
+            beta_h=beta_h,
+            epsilon_r=epsilon_r,
+            G=G,
+            mu_g=mu_g,
+            p_g=p_g,
+            E=E,
+            action_space_dict=action_space_dict,
+            robot_agent_id = robot_id_iql, # ADDED: Pass agent IDs to IQL
+            human_agent_id = human_id_iql,  # ADDED: Pass agent IDs to IQL
+            debug=True
+        )
+
+        print(f"Starting IQL training for {E} episodes...")
+        # Pass the AECEnv environment directly
+        iql_agent.train(environment=env, num_episodes=E) # MODIFIED: Pass num_episodes
+        print("IQL training finished.")
+        
+        env.close()
 
 if __name__ == "__main__":
     main()
