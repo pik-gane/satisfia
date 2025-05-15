@@ -2,6 +2,7 @@ from env import LockingDoorEnvironment, Actions
 from iql_algorithm import TwoTimescaleIQL
 from deterministic_algorithm import DeterministicAlgorithm
 from trained_agent import TrainedAgent
+from envs.map_loader import list_available_maps, DEFAULT_MAP
 import numpy as np
 import matplotlib.pyplot as plt
 import pygame
@@ -22,14 +23,18 @@ def main():
                         help='Number of episodes for training (default: 1000)')
     parser.add_argument('--delay', type=int, default=100,
                         help='Delay in milliseconds between steps during visualization (default: 100)')
+    parser.add_argument('--map', type=str, default=DEFAULT_MAP,
+                        help=f'Map to use (default: {DEFAULT_MAP}). Available maps: {", ".join(list_available_maps())}')
+    parser.add_argument('--grid-size', type=int, default=None,
+                        help='Grid size for the environment (default: derived from map)')
     args = parser.parse_args()
 
-    # Create environment
-    env = LockingDoorEnvironment()
+    # Create environment with specified map
+    env = LockingDoorEnvironment(map_name=args.map, grid_size=args.grid_size)
 
     if args.mode == 'test':
         # Run deterministic algorithm for testing
-        print("Running deterministic test...")
+        print(f"Running deterministic test on map: {args.map}")
         env.render_mode = "human"  # Enable rendering for visualization
         algo = DeterministicAlgorithm()
         
@@ -58,7 +63,7 @@ def main():
             print(f"Please train a model first using: python {sys.argv[0]} --mode train --save {args.load}")
             return
 
-        print(f"Visualizing trained agent using Q-values from {args.load}")
+        print(f"Visualizing trained agent using Q-values from {args.load} on map: {args.map}")
         env.render_mode = "human"  # Enable rendering for visualization
         
         try:
@@ -89,7 +94,7 @@ def main():
     
     else:  # args.mode == 'train'
         # Training mode
-        print(f"Training IQL for {args.episodes} episodes...")
+        print(f"Training IQL for {args.episodes} episodes on map: {args.map}")
         env.render_mode = None  # Disable rendering for training speed
         env.reset()
 
@@ -152,7 +157,7 @@ def main():
         
         # Optionally visualize the trained agent right after training
         print("Training complete. To visualize the trained agent, run:")
-        print(f"python {sys.argv[0]} --mode visualize --load {args.save}")
+        print(f"python {sys.argv[0]} --mode visualize --load {args.save} --map {args.map}")
         
         env.close()
 

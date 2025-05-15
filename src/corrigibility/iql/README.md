@@ -156,6 +156,65 @@ This section details the specific application of the IQL algorithm within the cu
 - **`iql_algorithm.py`**: Implements the Two-Timescale Goal-Based IQL algorithm.
 - **`main.py`**: Runs the training loop and renders the environment.
 - **`trained_agent.py`**: Implements an agent that uses saved Q-values for deterministic visualization.
+- **`envs/`**: Contains map definitions for different grid layouts:
+  - **`map_loader.py`**: Utility functions for loading map layouts.
+  - **`simple_map.py`**: A simple map with a door separating the robot from the goal.
+  - **`complex_map.py`**: A more complex map with multiple rooms and hazards.
+
+## Maps and Environment Layout
+
+The environment supports customizable maps that define the layout of walls, doors, keys, goals, and agent starting positions. Maps are defined in individual Python files in the `envs/` directory.
+
+### Map Format
+
+Maps are defined as a list of strings, where each character represents a specific element in the grid:
+
+- **`#`**: Wall
+- **` `** (space): Empty space
+- **`R`**: Robot starting position
+- **`H`**: Human starting position
+- **`D`**: Door
+- **`K`**: Key
+- **`G`**: Goal
+- **`L`**: Lava (hazardous tile)
+
+### Available Maps
+
+- **`simple_map`**: A small, simple layout with a door separating the robot and human from the goal.
+- **`complex_map`**: A larger, more complex layout with multiple rooms and hazards.
+
+### Creating Your Own Maps
+
+You can create your own map by adding a new Python file in the `envs/` directory. The file should define:
+
+1. A list of strings representing the grid layout
+2. Metadata including name, description, size, and maximum steps
+3. A `get_map()` function that returns the layout and metadata
+
+Example:
+
+```python
+# Define the map layout
+MY_MAP = [
+    "#########",
+    "#R      #",
+    "#   D   #",
+    "#       #",
+    "#K     G#",
+    "#########"
+]
+
+# Define metadata
+MAP_METADATA = {
+    "name": "My Custom Map",
+    "description": "A simple custom map",
+    "size": (5, 9),
+    "max_steps": 100,
+}
+
+def get_map():
+    return MY_MAP, MAP_METADATA
+```
 
 ## Running the Code
 
@@ -169,18 +228,18 @@ This section details the specific application of the IQL algorithm within the cu
 2. Train the IQL algorithm:
 
    ```bash
-   python main.py --mode train --episodes 10000 --save saved/q_values_simple.pkl
+   python main.py --mode train --episodes 1000 --save saved/q_values.pkl --map simple_map
    ```
 
 3. Visualize the trained agent:
 
    ```bash
-   python main.py --mode visualize --load saved/q_values_simple.pkl --delay 50
+   python main.py --mode visualize --load saved/q_values.pkl --delay 100 --map simple_map
    ```
 
 4. Run the baseline deterministic test:
    ```bash
-   python main.py --mode test --delay 100
+   python main.py --mode test --delay 100 --map complex_map
    ```
 
 ### Command-line Arguments
@@ -188,10 +247,12 @@ This section details the specific application of the IQL algorithm within the cu
 The following command-line arguments are available:
 
 - `--mode`: Choose between `train` (train the model), `visualize` (run trained model), or `test` (run deterministic test). Default: `train`.
-- `--save`: Path to save trained Q-values. Default: `q_values.pkl`.
-- `--load`: Path to load trained Q-values for visualization. Default: `q_values.pkl`.
+- `--save`: Path to save trained Q-values. Default: `saved/q_values.pkl`.
+- `--load`: Path to load trained Q-values for visualization. Default: `saved/q_values.pkl`.
 - `--episodes`: Number of episodes for training. Default: `1000`.
 - `--delay`: Delay in milliseconds between steps during visualization. Default: `100`.
+- `--map`: The map to use (e.g., `simple_map`, `complex_map`). Default: `simple_map`.
+- `--grid-size`: The size of the grid (optional, default is derived from map).
 
 ### Training and Visualization Flow
 
@@ -205,3 +266,4 @@ The following command-line arguments are available:
 - Introduce additional grid elements and interactions.
 - Experiment with different reward functions and learning rates.
 - Implement convergence metrics to automatically determine when training should stop.
+- Create more diverse map layouts for different training scenarios.

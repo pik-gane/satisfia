@@ -3,7 +3,7 @@ from __future__ import annotations
 import functools
 import random
 from copy import copy
-from typing import Tuple
+from typing import Tuple, List, Dict, Any, Optional
 
 import numpy as np
 import pygame
@@ -15,6 +15,7 @@ from pettingzoo.utils import agent_selector
 
 from objects import WorldObj, Goal, Key, Wall, Door, Lava, Floor, CHAR_TO_OBJ_CLASS, COLORS, TILE_PIXELS
 from rendering_utils import fill_coords, point_in_circle
+from envs.map_loader import load_map, DEFAULT_MAP
 
 # Define Actions enum
 class Actions(IntEnum):
@@ -53,21 +54,34 @@ class CustomEnvironment(AECEnv): # MODIFIED: Inherit from AECEnv
     ACTION_TOGGLE = Actions.toggle
     ACTION_NO_OP = Actions.no_op
 
-    def __init__(self, grid_size=30):
+    def __init__(self, map_name=DEFAULT_MAP, grid_size=None):
         super().__init__() # ADDED: Call to AECEnv superclass
-        self.grid_size = grid_size
+        
+        # Load map layout and metadata
+        self.map_layout, self.map_metadata = load_map(map_name)
+        
+        # Use grid size from map metadata if not explicitly provided
+        if grid_size is None and "size" in self.map_metadata:
+            rows, cols = self.map_metadata["size"]
+            self.grid_size = max(rows, cols)  # Use the larger dimension for square grid
+        else:
+            self.grid_size = grid_size or 30  # Default grid size
+        
+        # Override max_steps from map metadata if provided
+        if "max_steps" in self.map_metadata:
+            self.max_steps = self.map_metadata["max_steps"]
+        else:
+            self.max_steps = 200  # Default max steps
+        
         self.cell_size = TILE_PIXELS
         self.grid_viz_size = self.grid_size * self.cell_size
         self.text_panel_height = 120
         self.window_height = self.grid_viz_size + self.text_panel_height
         self.window_width = self.grid_viz_size
-
         self.screen = None
         self.clock = None
-
         self.timestep = 0
-        self.max_steps = 200 # Max steps per episode
-
+        
         # MODIFIED: Agent IDs and management for AECEnv
         self.robot_id_str = "robot_0" # Using PettingZoo typical naming
         self.human_id_str = "human_0"
@@ -77,12 +91,18 @@ class CustomEnvironment(AECEnv): # MODIFIED: Inherit from AECEnv
         )
         self._agent_selector = agent_selector.agent_selector(self.possible_agents) # MODIFIED: Call class within module
         self.agent_selection = None # Will be set in reset
-
+        
+        # Initialize environment state variables
         self.door_is_open = False
         self.door_is_key_locked = True
         self.key_pos = None
+        self.door_pos = None
+        self.goal_pos = None
+        self.agent_pos = None  # Robot position
+        self.human_pos = None
         self.robot_has_key = False # Specific to robot agent
-
+        self.lava_positions = []
+        
         obs_shape_array = np.array(
             [self.grid_size, self.grid_size] * 5 +
             [2] * 3 
@@ -103,15 +123,9 @@ class CustomEnvironment(AECEnv): # MODIFIED: Inherit from AECEnv
         self.terminations = {agent: False for agent in self.possible_agents}
         self.truncations = {agent: False for agent in self.possible_agents}
         self.infos = {agent: {} for agent in self.possible_agents}
-
-        self.grid = np.full((self.grid_size, self.grid_size), " ", dtype='U1')
         
-        # Note: AECEnv typically calls reset() externally after __init__.
-        # However, to ensure internal state like grid is ready for first render or obs,
-        # we can call parts of reset logic or a full reset here.
-        # For now, we'll let the first external reset() call fully initialize.
-        # self.reset() # If called here, ensure it doesn't conflict with external calls.
-
+        # Initialize grid
+        self.grid = np.full((self.grid_size, self.grid_size), " ", dtype='U1')
 
     def _is_cardinally_adjacent(self, pos1: tuple[int, int], pos2: tuple[int, int]) -> bool:
         """Check if pos1 is cardinally adjacent to pos2."""
@@ -119,65 +133,119 @@ class CustomEnvironment(AECEnv): # MODIFIED: Inherit from AECEnv
         r2, c2 = pos2
         return (abs(r1 - r2) == 1 and c1 == c2) or (abs(c1 - c2) == 1 and r1 == r2)
 
+    def _parse_map_layout(self):
+        """Parse the map layout to set up the environment."""
+        self.grid = np.full((self.grid_size, self.grid_size), " ", dtype='U1')
+        self.lava_positions = []
+        
+        # Get dimensions of the map
+        map_height = len(self.map_layout)
+        map_width = max(len(row) for row in self.map_layout)
+        
+        # Calculate offsets to center the map in the grid
+        row_offset = (self.grid_size - map_height) // 2
+        col_offset = (self.grid_size - map_width) // 2
+        
+        # Parse the map layout
+        for r, row in enumerate(self.map_layout):
+            for c, cell in enumerate(row):
+                grid_r = r + row_offset
+                grid_c = c + col_offset
+                
+                if grid_r < 0 or grid_r >= self.grid_size or grid_c < 0 or grid_c >= self.grid_size:
+                    continue  # Skip if out of bounds
+                
+                # Set grid cell based on map character
+                if cell == '#':
+                    # Wall
+                    self.grid[grid_r, grid_c] = '#'
+                elif cell == 'D':
+                    # Door
+                    self.door_pos = (grid_r, grid_c)
+                    self.grid[grid_r, grid_c] = 'D'
+                elif cell == 'K':
+                    # Key
+                    self.key_pos = (grid_r, grid_c)
+                    self.grid[grid_r, grid_c] = 'K'
+                elif cell == 'G':
+                    # Goal
+                    self.goal_pos = (grid_r, grid_c)
+                    self.grid[grid_r, grid_c] = 'G'
+                elif cell == 'L':
+                    # Lava
+                    lava_pos = (grid_r, grid_c)
+                    self.lava_positions.append(lava_pos)
+                    self.grid[grid_r, grid_c] = 'L'
+                elif cell == 'R':
+                    # Robot starting position
+                    self.agent_pos = (grid_r, grid_c)
+                    self.grid[grid_r, grid_c] = 'R'
+                elif cell == 'H':
+                    # Human starting position
+                    self.human_pos = (grid_r, grid_c)
+                    self.grid[grid_r, grid_c] = 'H'
+        
+        # If robot and human start at the same position, adjust the grid character
+        if self.human_pos == self.agent_pos:
+            self.grid[self.human_pos] = 'R'  # Both agents at same spot, show robot for now
+        
+        # Ensure essential elements are defined
+        if self.agent_pos is None:
+            self.agent_pos = (1, 1)  # Default robot position
+            self.grid[self.agent_pos] = 'R'
+            
+        if self.human_pos is None:
+            self.human_pos = self.agent_pos  # Default to same as robot
+            
+        if self.door_pos is None:
+            # Try to find a suitable position for door if not defined in map
+            center_row = self.grid_size // 2
+            for c in range(1, self.grid_size - 1):
+                if self.grid[center_row, c] == ' ':
+                    self.door_pos = (center_row, c)
+                    self.grid[self.door_pos] = 'D'
+                    break
+        
+        if self.goal_pos is None:
+            # Try to find a suitable position for goal
+            for r in range(self.grid_size - 2, 0, -1):
+                if self.grid[r, self.grid_size // 2] == ' ':
+                    self.goal_pos = (r, self.grid_size // 2)
+                    self.grid[self.goal_pos] = 'G'
+                    break
+        
+        if self.key_pos is None:
+            # Try to find a suitable position for key
+            for r in range(1, self.grid_size - 1):
+                for c in range(1, self.grid_size - 1):
+                    if self.grid[r, c] == ' ':
+                        self.key_pos = (r, c)
+                        self.grid[self.key_pos] = 'K'
+                        return
+    
     def reset(self, seed=None, options=None): # MODIFIED: AECEnv reset signature
         if seed is not None:
             np.random.seed(seed)
             random.seed(seed)
-
+            
         # MODIFIED: AECEnv agent and state reset
         self.agents = self.possible_agents[:] # Active agents
         self._agent_selector.reinit(self.agents)
         self.agent_selection = self._agent_selector.next() # Set current agent
-
         self.timestep = 0
         self.robot_has_key = False
         self.door_is_open = False
         self.door_is_key_locked = True
-
+        
         # Reset rewards, terminations, etc.
         self.rewards = {agent: 0 for agent in self.agents}
         self._cumulative_rewards = {agent: 0 for agent in self.agents}
         self.terminations = {agent: False for agent in self.agents}
         self.truncations = {agent: False for agent in self.agents}
         self.infos = {agent: {} for agent in self.agents}
-
-        self.grid = np.full((self.grid_size, self.grid_size), " ", dtype='U1')
         
-        self.grid[0, :] = "#"
-        self.grid[-1, :] = "#"
-        self.grid[:, 0] = "#"
-        self.grid[:, -1] = "#"
-
-        # Adjust room, door, key, goal, agent, human positions for larger grid
-        room_wall_row = self.grid_size // 2 
-        for c in range(1, self.grid_size - 1):
-            self.grid[room_wall_row, c] = "#"
-
-        self.door_pos = (room_wall_row, self.grid_size // 2)
-        self.grid[self.door_pos] = "D"
-
-        # Key position: top middle tile
-        self.key_pos = (1, self.grid_size // 2)
-        self.grid[self.key_pos] = "K"
-
-        # Goal position: should be it bottom center tile
-        self.goal_pos = (self.grid_size - 2, self.grid_size // 2)
-        
-        self.grid[self.goal_pos] = "G"
-        
-        self.lava_positions = [] # No lava for this scenario
-
-        # Agent and Human start at top-left (e.g., (1,1) inside border walls)
-        self.agent_pos = (1, 1)
-        self.grid[self.agent_pos] = "R" 
-
-        self.human_pos = (1, 1) # Human also starts at (1,1)
-        # If human and robot start at the same spot, rendering will show one on top.
-        # The logic in _handle_movement and rendering should correctly show them if they move apart.
-        # Ensure the grid character for human is placed if they are not at the same spot as robot initially,
-        # or rely on rendering to draw both if at same spot.
-        if self.human_pos != self.agent_pos: # This condition will be false if they start at same spot
-            self.grid[self.human_pos] = "H"
+        # Parse map layout to set up environment
+        self._parse_map_layout()
         
         # AECEnv reset doesn't return observations directly.
         # Observations are fetched via observe() or last().
@@ -188,7 +256,6 @@ class CustomEnvironment(AECEnv): # MODIFIED: Inherit from AECEnv
         obs_agent_pos = self.agent_pos if self.agent_pos is not None else (-1,-1) # This is robot's pos
         obs_human_pos = self.human_pos if self.human_pos is not None else (-1,-1)
         obs_key_pos = self.key_pos if self.key_pos is not None else (-1,-1)
-
         return np.array([
             obs_agent_pos[0], obs_agent_pos[1],
             obs_human_pos[0], obs_human_pos[1],
@@ -208,7 +275,6 @@ class CustomEnvironment(AECEnv): # MODIFIED: Inherit from AECEnv
         obs_agent_pos = self.agent_pos if self.agent_pos is not None else (-1,-1) # This is robot's pos
         obs_human_pos = self.human_pos if self.human_pos is not None else (-1,-1)
         obs_key_pos = self.key_pos if self.key_pos is not None else (-1,-1)
-
         return np.array([
             obs_agent_pos[0], obs_agent_pos[1],
             obs_human_pos[0], obs_human_pos[1],
@@ -239,14 +305,12 @@ class CustomEnvironment(AECEnv): # MODIFIED: Inherit from AECEnv
         old_char_on_grid = " " 
         current_agent_char = "R" if agent_to_move_id == self.robot_id_str else "H"
         current_pos = self.agent_pos if agent_to_move_id == self.robot_id_str else self.human_pos
-
         if self.grid[current_pos] != current_agent_char: 
             old_char_on_grid = self.grid[current_pos]
         elif current_pos == self.key_pos and not (agent_to_move_id == self.robot_id_str and self.robot_has_key):
             old_char_on_grid = "K"
         elif current_pos == self.door_pos: old_char_on_grid = "D"
         elif current_pos == self.goal_pos: old_char_on_grid = "G"
-
         self.grid[current_pos] = old_char_on_grid
         
         if agent_to_move_id == self.robot_id_str:
@@ -257,36 +321,8 @@ class CustomEnvironment(AECEnv): # MODIFIED: Inherit from AECEnv
         if self.grid[new_pos] == " ":
             self.grid[new_pos] = current_agent_char
 
-    # REMOVED: Parallel step(self, action_robot, action_human)
-    # def step(self, action_robot: int, action_human: int): ...
-
-    # ADDED: AECEnv step(self, action)
     def step(self, action: int):
         if self.terminations[self.agent_selection] or self.truncations[self.agent_selection]:
-            # Handle dead agent: select next agent and return
-            # PettingZoo AECEnv typically expects step(None) for dead agents,
-            # but IQL might not call it this way. If it does, this handles it.
-            # If IQL skips stepping dead agents, this won't be an issue.
-            self._was_dead_step = True # Internal flag if needed
-            # No reward update for dead agent on this step
-            # self.rewards[self.agent_selection] = 0 # Already done or not applicable
-            if self._agent_selector.is_last():
-                # If it was the last agent in the cycle, and it's dead,
-                # this might indicate a need to check global done conditions.
-                # However, individual done flags are primary.
-                pass
-            else:
-                # Select next agent if current one is done
-                # This logic might be complex if all agents become done simultaneously.
-                # The IQL loop will likely manage its own agent cycling.
-                pass # Agent selector will be advanced by IQL or main loop
-            # For AECEnv, after a dead agent's "turn", we still need to select the next agent.
-            # However, the IQL will manage its own calls.
-            # The key is that self.rewards, self.terminations, etc. for agent_selection are set.
-            # The IQL will need to fetch these after its conceptual joint step.
-            # This step() is for a single agent.
-            # If IQL calls step for a done agent, we just ensure its state is consistent.
-            # The agent_selector is advanced *after* this block.
             self.agent_selection = self._agent_selector.next()
             return
 
@@ -339,12 +375,8 @@ class CustomEnvironment(AECEnv): # MODIFIED: Inherit from AECEnv
         current_agent_is_robot = (current_agent_id == self.robot_id_str)
 
         if human_reached_goal:
-            # Both agents get reward if human reaches goal, but only set for current agent if it's their turn
-            # The IQL will need to sum rewards or assign appropriately.
-            # For AECEnv, reward is for the current agent.
             if current_agent_is_human: self.rewards[current_agent_id] += 1
             if current_agent_is_robot: self.rewards[current_agent_id] += 1 # Robot also gets reward
-            # print(f"Human reached goal at: {self.human_pos}") # ADDED: Print statement
             self.terminations = {agent: True for agent in self.agents} # Episode ends for all
 
         if robot_in_lava:
@@ -358,56 +390,39 @@ class CustomEnvironment(AECEnv): # MODIFIED: Inherit from AECEnv
         # Update cumulative rewards
         self._cumulative_rewards[current_agent_id] += self.rewards[current_agent_id]
 
-        # Advance timestep only if it's the last agent in a "round"
-        # Or, more simply for IQL, IQL can manage its own step counting for episodes.
-        # For AECEnv, timestep usually means full cycles.
         if self._agent_selector.is_last():
             self.timestep += 1 # One full round of agent steps
 
-        # Check for truncation (max_steps)
         if self.timestep >= self.max_steps:
             self.truncations = {agent: True for agent in self.agents}
-            # No specific reward for truncation itself unless designed.
 
-        # If any agent is terminated or truncated, they should be removed from self.agents
-        # This is standard AECEnv practice.
-        # However, IQL might want to see the "done" state before removal.
-        # For now, let's assume IQL checks terminations/truncations from the dicts.
-        # If an agent is done, it should not act again.
-        
-        # Select next agent
         self.agent_selection = self._agent_selector.next()
 
-        # Render if in human mode (AECEnv standard practice)
         if self.render_mode == "human":
             self.render()
 
-
-    # REMOVED: is_terminal(self, s_dict=None) - AECEnv uses terminations/truncations dicts
-
-    def render(self): # Render method remains largely the same, uses self.agent_pos, self.human_pos etc.
-        if self.render_mode is None: # From AECEnv, allow render_mode to be None
-            # gymnasium.logger.warn("You are calling render method without specifying any render mode.")
+    def render(self): 
+        if self.render_mode is None: 
             return
 
-        if self.screen is None and self.render_mode == "human": # Check render_mode
+        if self.screen is None and self.render_mode == "human": 
             pygame.init()
             pygame.font.init() 
             pygame.display.set_caption("Locking Door Environment")
             self.screen = pygame.display.set_mode((self.window_width, self.window_height))
             self.clock = pygame.time.Clock()
             self.agent_char_font = pygame.font.SysFont("Arial", int(self.cell_size * 0.75)) 
-            self.info_font = pygame.font.SysFont("Arial", 20) # Smaller font for more text
+            self.info_font = pygame.font.SysFont("Arial", 20) 
 
         pygame.event.pump()
-        self.screen.fill(COLORS["grey"] * 0.8) # Background for text panel area
+        self.screen.fill(COLORS["grey"] * 0.8) 
 
         grid_surface = pygame.Surface((self.grid_viz_size, self.grid_viz_size))
         grid_surface.fill(COLORS["grey"] * 0.5)
 
         for r in range(self.grid_size):
             for c in range(self.grid_size):
-                char_on_grid = self.grid[r, c] # Keep for static elements if needed
+                char_on_grid = self.grid[r, c] 
                 tile_rect = pygame.Rect(c * self.cell_size, r * self.cell_size, self.cell_size, self.cell_size)
                 
                 tile_img_np = np.zeros((self.cell_size, self.cell_size, 3), dtype=np.uint8)
@@ -423,21 +438,20 @@ class CustomEnvironment(AECEnv): # MODIFIED: Inherit from AECEnv
                         is_locked=self.door_is_key_locked,
                         is_open=self.door_is_open
                     )
-                elif current_tile_coords == self.key_pos: # Render key only if its at its position (key_pos is None if held)
+                elif current_tile_coords == self.key_pos: 
                     obj_to_render = Key()
                 elif current_tile_coords == self.goal_pos:
                     obj_to_render = Goal()
-                elif char_on_grid == '#': # Wall character from grid
+                elif char_on_grid == '#': 
                     obj_to_render = Wall()
-                elif char_on_grid == 'L': # Lava character from grid (assuming 'L' is used for Lava)
+                elif char_on_grid == 'L': 
                     obj_to_render = Lava()
-                # Add other static objects based on char_on_grid if necessary
                 
                 if obj_to_render:
                     obj_to_render.render(tile_img_np)
 
                 agent_char_to_render = None
-                char_color = COLORS["black"] # Default character color
+                char_color = COLORS["black"] 
 
                 current_tile_tuple = (r,c)
                 if current_tile_tuple == self.agent_pos:
@@ -448,33 +462,32 @@ class CustomEnvironment(AECEnv): # MODIFIED: Inherit from AECEnv
                     char_color = COLORS["purple"]
 
                 if agent_char_to_render:
-                    # Create a Pygame Surface from the current tile_img_np to draw text on it
                     temp_tile_surface = pygame.surfarray.make_surface(np.transpose(tile_img_np, (1, 0, 2)))
                     
                     text_surface = self.agent_char_font.render(agent_char_to_render, True, char_color)
                     text_rect = text_surface.get_rect(center=(self.cell_size // 2, self.cell_size // 2))
                     temp_tile_surface.blit(text_surface, text_rect)
                     
-                    # Convert back to numpy array for the main rendering path
-                    tile_img_np = pygame.surfarray.array3d(temp_tile_surface) # Removed 'out' argument
-                    tile_img_np = np.transpose(tile_img_np, (1,0,2)) # Transpose back because make_surface did
+                    tile_img_np = pygame.surfarray.array3d(temp_tile_surface) 
+                    tile_img_np = np.transpose(tile_img_np, (1,0,2)) 
 
                 tile_surface = pygame.surfarray.make_surface(np.transpose(tile_img_np, (1,0,2)))
                 grid_surface.blit(tile_surface, tile_rect.topleft)
                 
                 pygame.draw.rect(grid_surface, COLORS["black"], tile_rect, 1)
 
-
         self.screen.blit(grid_surface, (0,0))
         
-        text_y_start = self.grid_viz_size + 5 # Start text panel just below grid
-        line_height = 22 # Adjusted line height for smaller font
+        text_y_start = self.grid_viz_size + 5 
+        line_height = 22 
 
         text_panel_rect = pygame.Rect(0, self.grid_viz_size, self.window_width, self.text_panel_height)
         self.screen.fill(COLORS["grey"] * 0.8, text_panel_rect) 
 
+        map_name = self.map_metadata.get("name", "Unknown Map")
+        
         texts_to_render = [
-            f"Step: {self.timestep}/{self.max_steps}", # MODIFIED: Show max_steps
+            f"Map: {map_name} | Step: {self.timestep}/{self.max_steps}", 
             f"Robot@: {self.agent_pos} | Human@: {self.human_pos}",
             f"Key@: {self.key_pos if self.key_pos else 'Picked Up'} | Robot Has Key: {self.robot_has_key}",
             f"Door@: {self.door_pos} | Open: {self.door_is_open} | KeyLock: {self.door_is_key_locked}",
@@ -488,24 +501,22 @@ class CustomEnvironment(AECEnv): # MODIFIED: Inherit from AECEnv
         pygame.display.flip()
         self.clock.tick(self.metadata["render_fps"])
 
-    def close(self): # Standard AECEnv close
+    def close(self): 
         if self.screen is not None:
             pygame.quit()
             self.screen = None
             self.clock = None
 
     @functools.lru_cache(maxsize=None)
-    def observation_space(self, agent_id): # MODIFIED: agent_id is "robot_0" or "human_0"
+    def observation_space(self, agent_id): 
         return self._observation_spaces[agent_id]
 
     @functools.lru_cache(maxsize=None)
-    def action_space(self, agent_id): # MODIFIED: agent_id is "robot_0" or "human_0"
+    def action_space(self, agent_id): 
         return self._action_spaces[agent_id]
 
 class LockingDoorEnvironment(CustomEnvironment):
     """Environment with a locking door. Inherits AECEnv behavior from CustomEnvironment."""
-    def __init__(self, grid_size=5): 
-        super().__init__(grid_size=grid_size)
-        # Specifics for LockingDoorEnvironment if any, e.g., different max_steps
-        # self.max_steps = 150 
-        pass
+    def __init__(self, map_name=DEFAULT_MAP, grid_size=None):
+        super().__init__(map_name=map_name, grid_size=grid_size)
+        # Any LockingDoorEnvironment specific configuration can be done here
