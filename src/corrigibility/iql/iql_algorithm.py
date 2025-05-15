@@ -1,6 +1,8 @@
 import numpy as np
 from collections import defaultdict
 import random
+import pickle
+import os
 
 class TwoTimescaleIQL:
     def __init__(self, alpha_h, alpha_r, gamma_h, gamma_r, beta_h, epsilon_r,
@@ -58,6 +60,130 @@ class TwoTimescaleIQL:
         except AttributeError: # Not a numpy array
             return tuple(state_obs)
 
+    def save_q_values(self, filepath="q_values.pkl"):
+        """
+        Save the trained Q-values to a file.
+        
+        Args:
+            filepath: Path to save the Q-values
+        """
+        # Convert defaultdict to regular dict before saving
+        q_values = {
+            "Q_r": dict(self.Q_r),
+            "Q_h": dict(self.Q_h),
+            "params": {
+                "alpha_h": self.alpha_h,
+                "alpha_r": self.alpha_r,
+                "gamma_h": self.gamma_h,
+                "gamma_r": self.gamma_r,
+                "beta_h": self.beta_h,
+                "G": [tuple(g) for g in self.G],
+                "mu_g": self.mu_g.tolist() if isinstance(self.mu_g, np.ndarray) else self.mu_g,
+                "action_space_robot": self.action_space_robot,
+                "action_space_human": self.action_space_human,
+                "robot_agent_id": self.robot_agent_id,
+                "human_agent_id": self.human_agent_id
+            }
+        }
+        
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else '.', exist_ok=True)
+        
+        print(f"Saving Q-values to {filepath}")
+        try:
+            with open(filepath, 'wb') as f:
+                pickle.dump(q_values, f)
+            print(f"Successfully saved Q-values with {len(q_values['Q_r'])} robot states and {len(q_values['Q_h'])} human state-goal pairs")
+        except Exception as e:
+            print(f"Error saving Q-values: {e}")
+            
+    @classmethod
+    def load_q_values(cls, filepath="q_values.pkl"):
+        """
+        Load Q-values from a file and create a new TwoTimescaleIQL instance.
+        
+        Args:
+            filepath: Path to the saved Q-values
+            
+        Returns:
+            A new TwoTimescaleIQL instance with loaded Q-values
+        """
+        print(f"Loading Q-values from {filepath}")
+        try:
+            with open(filepath, 'rb') as f:
+                q_values = pickle.load(f)
+                
+            params = q_values["params"]
+            
+            # Convert back to numpy array if needed
+            mu_g = np.array(params["mu_g"]) if params.get("mu_g") else np.array([1.0])
+            G = params.get("G", [(0, 0)])  # Default goal if not found
+            
+            # Create action_space_dict from saved params
+            action_space_dict = {
+                params.get("robot_agent_id", "robot_0"): params.get("action_space_robot", [0, 1, 2, 3]),
+                params.get("human_agent_id", "human_0"): params.get("action_space_human", [0, 1, 2, 3])
+            }
+            
+            # Create a new instance with saved parameters
+            instance = cls(
+                alpha_h=params.get("alpha_h", 0.1),
+                alpha_r=params.get("alpha_r", 0.01),
+                gamma_h=params.get("gamma_h", 0.99),
+                gamma_r=params.get("gamma_r", 0.99),
+                beta_h=params.get("beta_h", 5.0),
+                epsilon_r=0.0,  # Set to 0 for deterministic behavior
+                G=G,
+                mu_g=mu_g,
+                p_g=0.0,  # Set to 0 to prevent goal changes
+                E=1,  # Not needed for inference
+                action_space_dict=action_space_dict,
+                robot_agent_id=params.get("robot_agent_id", "robot_0"),
+                human_agent_id=params.get("human_agent_id", "human_0"),
+                debug=False
+            )
+            
+            # Replace defaultdict with loaded Q-values
+            # Convert the dictionaries back to defaultdicts with numpy arrays
+            Q_r_dict = q_values["Q_r"]
+            Q_h_dict = q_values["Q_h"]
+            
+            # Convert string keys back to tuples - with safer handling
+            robot_default_q = np.zeros(len(instance.action_space_robot))
+            q_r = defaultdict(lambda: np.copy(robot_default_q))
+            for state_str, values in Q_r_dict.items():
+                # Handle different key formats safely
+                try:
+                    if isinstance(state_str, str):
+                        state = eval(state_str)  # Try to convert string representation to tuple
+                    else:
+                        state = state_str  # Use as-is if not a string (might be a tuple already)
+                    q_r[state] = np.array(values)
+                except Exception as e:
+                    print(f"Warning: Could not convert robot state key {state_str}: {e}")
+            
+            human_default_q = np.zeros(len(instance.action_space_human))
+            q_h = defaultdict(lambda: np.copy(human_default_q))
+            for state_goal_str, values in Q_h_dict.items():
+                # Handle different key formats safely
+                try:
+                    if isinstance(state_goal_str, str):
+                        state_goal = eval(state_goal_str)  # Try to convert string representation
+                    else:
+                        state_goal = state_goal_str  # Use as-is if not a string
+                    q_h[state_goal] = np.array(values)
+                except Exception as e:
+                    print(f"Warning: Could not convert human state-goal key {state_goal_str}: {e}")
+            
+            instance.Q_r = q_r
+            instance.Q_h = q_h
+            
+            print(f"Successfully loaded Q-values with {len(q_r)} robot states and {len(q_h)} human state-goal pairs")
+            return instance
+            
+        except Exception as e:
+            print(f"Error loading Q-values: {e}")
+            return None
 
     def train(self, environment, num_episodes):
         max_steps_per_episode = getattr(environment, 'max_steps', 200)

@@ -1,62 +1,103 @@
-# Tool code to modify main.py
-from env import LockingDoorEnvironment, Actions # MODIFIED: Import Actions
+from env import LockingDoorEnvironment, Actions
 from iql_algorithm import TwoTimescaleIQL
 from deterministic_algorithm import DeterministicAlgorithm
-import numpy as np # ADDED: Import numpy
+from trained_agent import TrainedAgent
+import numpy as np
 import matplotlib.pyplot as plt
 import pygame
+import argparse
+import os
+import sys
 
 def main():
-    deterministic = False # MODIFIED: Set to True for testing deterministic path
-    # MODIFIED: Instantiate the AECEnv-based LockingDoorEnvironment
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='IQL in custom gridworld environment')
+    parser.add_argument('--mode', type=str, choices=['train', 'visualize', 'test'], default='train',
+                        help='Mode: train (train the model), visualize (run trained model), test (run deterministic test)')
+    parser.add_argument('--save', type=str, default='q_values.pkl',
+                        help='Path to save trained Q-values (default: q_values.pkl)')
+    parser.add_argument('--load', type=str, default='q_values.pkl',
+                        help='Path to load trained Q-values (default: q_values.pkl)')
+    parser.add_argument('--episodes', type=int, default=1000,
+                        help='Number of episodes for training (default: 1000)')
+    parser.add_argument('--delay', type=int, default=100,
+                        help='Delay in milliseconds between steps during visualization (default: 100)')
+    args = parser.parse_args()
+
+    # Create environment
     env = LockingDoorEnvironment()
-    # env.render_mode = "human" # MODIFIED: Set render_mode conditionally
-    
-    if deterministic:
-        env.render_mode = "human" # Enable rendering for deterministic visualization
+
+    if args.mode == 'test':
+        # Run deterministic algorithm for testing
+        print("Running deterministic test...")
+        env.render_mode = "human"  # Enable rendering for visualization
         algo = DeterministicAlgorithm()
-        # MODIFIED: Standard AECEnv reset and agent iteration
-        env.reset() 
-        # print(f"Initial agent: {env.agent_selection}")
+        
+        # Standard AECEnv reset and agent iteration
+        env.reset()
 
         for agent_id in env.agent_iter():
             observation, reward, terminated, truncated, info = env.last()
 
             action_to_take = None
             if terminated or truncated:
-                # If agent is done, PettingZoo expects a None action or it will be handled by env.step
-                action_to_take = None # Or Actions.no_op if your env requires a valid action index
-                # print(f"Main (Deterministic): Agent {agent_id} is done. Action: {action_to_take}")
+                action_to_take = None
             else:
-                # Agent needs to act. Observation is already available from env.last()
-                action_to_take = algo.choose_action(observation, agent_id) 
-                # print(f"Main (Deterministic): Agent {agent_id}'s turn. Chosen action by algo: {action_to_take}")
+                action_to_take = algo.choose_action(observation, agent_id)
             
             env.step(action_to_take)
-            # env.render() # Render is called within env.step() if render_mode is human
-            
-            # print(f"Main (Deterministic): Agent {agent_id} took action. Next agent: {env.agent_selection}")
-            # print(f"Robot@: {env.agent_pos}, Human@: {env.human_pos}, R_rew: {env.rewards.get(env.robot_id_str,0)}, H_rew: {env.rewards.get(env.human_id_str,0)}")
-            # print(f"Terminations: {env.terminations}, Truncations: {env.truncations}")
-
-            # Check if all agents are done to break the loop (optional, agent_iter handles this)
-            # if not env.agents: # env.agents becomes empty when all are terminated/truncated
-            #     print("Main (Deterministic): All agents are done. Ending episode.")
-            #     break
-            pygame.time.delay(100) # Slow down for visualization
+            pygame.time.delay(args.delay)  # Slow down for visualization
         
-        print("Deterministic run finished.")
+        print("Deterministic test finished.")
         env.close()
-    else:
-        # Setup and run the TwoTimescaleIQL algorithm with the AECEnv environment
-        print("Setting up IQL algorithm...")
-        env.render_mode = None # MODIFIED: Disable rendering for IQL training for speed
-        env.reset() # ADDED: Call reset() before accessing env.goal_pos for IQL setup
+    
+    elif args.mode == 'visualize':
+        # Visualize trained model
+        if not os.path.exists(args.load):
+            print(f"Error: Q-values file not found at {args.load}")
+            print(f"Please train a model first using: python {sys.argv[0]} --mode train --save {args.load}")
+            return
+
+        print(f"Visualizing trained agent using Q-values from {args.load}")
+        env.render_mode = "human"  # Enable rendering for visualization
+        
+        try:
+            # Load the trained agent
+            trained_agent = TrainedAgent(q_values_path=args.load)
+            
+            # Run the environment with the trained agent
+            env.reset()
+
+            for agent_id in env.agent_iter():
+                observation, reward, terminated, truncated, info = env.last()
+
+                action_to_take = None
+                if terminated or truncated:
+                    action_to_take = None
+                else:
+                    action_to_take = trained_agent.choose_action(observation, agent_id)
+                
+                env.step(action_to_take)
+                pygame.time.delay(args.delay)  # Slow down for visualization
+            
+            print("Visualization finished.")
+            
+        except Exception as e:
+            print(f"Error during visualization: {e}")
+        
+        env.close()
+    
+    else:  # args.mode == 'train'
+        # Training mode
+        print(f"Training IQL for {args.episodes} episodes...")
+        env.render_mode = None  # Disable rendering for training speed
+        env.reset()
 
         # Agent IDs for IQL (consistent with env.possible_agents)
-        robot_id_iql = env.robot_id_str # e.g., "robot_0"
-        human_id_iql = env.human_id_str # e.g., "human_0"
+        robot_id_iql = env.robot_id_str
+        human_id_iql = env.human_id_str
 
+        # IQL hyperparameters
         alpha_h = 0.1
         alpha_r = 0.01
         gamma_h = 0.99
@@ -65,15 +106,14 @@ def main():
         epsilon_r = 1.0
         
         # Goals: G should be a list of goals. Using env.goal_pos as the single goal.
-        # env.goal_pos is a tuple (x,y), which is hashable and suitable for Q_h keys.
         if not hasattr(env, 'goal_pos'):
             print("Error: Environment instance does not have 'goal_pos' attribute.")
             return
         G = [env.goal_pos] 
-        mu_g = np.array([1.0]) # Prior probability for the single goal
+        mu_g = np.array([1.0])  # Prior probability for the single goal
 
-        p_g = 0.01 # Probability of goal change per step
-        E = 1000
+        p_g = 0.01  # Probability of goal change per step
+        E = args.episodes
 
         # Action spaces from the AECEnv for the specific agent IDs
         robot_action_space = list(range(env.action_space(robot_id_iql).n))
@@ -83,6 +123,7 @@ def main():
             human_id_iql: human_action_space
         }
 
+        # Initialize IQL agent
         iql_agent = TwoTimescaleIQL(
             alpha_h=alpha_h,
             alpha_r=alpha_r,
@@ -95,15 +136,23 @@ def main():
             p_g=p_g,
             E=E,
             action_space_dict=action_space_dict,
-            robot_agent_id = robot_id_iql, # ADDED: Pass agent IDs to IQL
-            human_agent_id = human_id_iql,  # ADDED: Pass agent IDs to IQL
+            robot_agent_id=robot_id_iql,
+            human_agent_id=human_id_iql,
             debug=True
         )
 
+        # Train the agent
         print(f"Starting IQL training for {E} episodes...")
-        # Pass the AECEnv environment directly
-        iql_agent.train(environment=env, num_episodes=E) # MODIFIED: Pass num_episodes
+        iql_agent.train(environment=env, num_episodes=E)
         print("IQL training finished.")
+        
+        # Save the trained Q-values
+        print(f"Saving trained Q-values to {args.save}")
+        iql_agent.save_q_values(filepath=args.save)
+        
+        # Optionally visualize the trained agent right after training
+        print("Training complete. To visualize the trained agent, run:")
+        print(f"python {sys.argv[0]} --mode visualize --load {args.save}")
         
         env.close()
 
