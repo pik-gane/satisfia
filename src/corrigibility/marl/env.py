@@ -204,31 +204,21 @@ class CustomEnvironment(ParallelEnv):
                 elif cell == 'L':  # lava
                     self.lava_positions.append((grid_r, grid_c))
                     self.grid[grid_r, grid_c] = 'L'
-                elif cell == 'R':  # robot
-                    self.agent_pos = (grid_r, grid_c)
-                    self.agent_positions[self.robot_agent_ids[0]] = (grid_r, grid_c)
+                elif cell == 'R':  # robot with ID
+                    # entity_id holds the robot suffix
+                    rid = entity_id or self.robot_agent_ids[0].split('_')[1]
+                    agent_str = f"robot_{rid}"
+                    self.agent_positions[agent_str] = (grid_r, grid_c)
+                    # clear grid cell for agent overlay
                     self.grid[grid_r, grid_c] = ' '
-                    # orientation from color_code
-                    self.agent_dirs[self.robot_agent_ids[0]] = DIR_CODE_MAP.get(color_code, 2)
-                elif cell == 'H':  # human
-                    self.human_pos = (grid_r, grid_c)
-                    self.agent_positions[self.human_agent_ids[0]] = (grid_r, grid_c)
+                    # set orientation
+                    self.agent_dirs[agent_str] = DIR_CODE_MAP.get(color_code, 2)
+                elif cell == 'H':  # human with ID
+                    hid = entity_id or self.human_agent_ids[0].split('_')[1]
+                    agent_str = f"human_{hid}"
+                    self.agent_positions[agent_str] = (grid_r, grid_c)
                     self.grid[grid_r, grid_c] = ' '
-                    self.agent_dirs[self.human_agent_ids[0]] = DIR_CODE_MAP.get(color_code, 2)
-
-        # If robot and human start at the same position, adjust the grid character
-        if self.human_pos == self.agent_pos:
-            self.grid[self.human_pos] = 'R'  # Both agents at same spot, show robot for now
-        
-        # Ensure essential elements are defined
-        if self.agent_pos is None:
-            self.agent_pos = (1, 1)  # Default robot position
-            self.grid[self.agent_pos] = 'R'
-            
-        if self.human_pos is None:
-            self.human_pos = self.agent_pos  # Default to same as robot
-            
-        # ensure at least one goal tile exists; if not, fallback to center
+                    self.agent_dirs[agent_str] = DIR_CODE_MAP.get(color_code, 2)
 
     def reset(self, seed=None, options=None):
         if seed is not None:
@@ -236,10 +226,11 @@ class CustomEnvironment(ParallelEnv):
             random.seed(seed)
         # reset active agents
         self.agents = self.possible_agents[:]
-        # clear items so _parse_map_layout can reinitialize
+        # clear items and agent positions so _parse_map_layout can reinitialize
         self.keys = []
         self.doors = []
         self.boxes = []
+        self.agent_positions = {}
         self.timestep = 0
         # Reset orientations to default down
         self.agent_dirs = {agent: 2 for agent in self.agents}
@@ -266,6 +257,15 @@ class CustomEnvironment(ParallelEnv):
                 grid_c = raw_c + self.col_offset
                 self.human_goals[agent_id] = (grid_r, grid_c)
         
+        # update single-agent positions for backwards compatibility
+        # robot position
+        rid = self.robot_agent_ids[0]
+        if rid in self.agent_positions:
+            self.agent_pos = self.agent_positions[rid]
+        # human_0 position
+        hid0 = self.human_agent_ids[0]
+        if hid0 in self.agent_positions:
+            self.human_pos = self.agent_positions[hid0]
         # return initial observations for all agents
         return {agent: self.observe(agent) for agent in self.agents}
 

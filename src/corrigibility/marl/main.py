@@ -104,10 +104,10 @@ def main():
         beta_h = 5.0
         epsilon_r = 1.0
         
-        # Goals: G should be a list of goals. Using env.human_goals mapping to get goal positions.
-        human_goal = env.human_goals.get(env.human_id_str)
+        # Goals: G should be a list of goals. Retrieve the human goal using the selected human ID.
+        human_goal = env.human_goals.get(human_id_iql)
         if human_goal is None:
-            print("Error: No goal mapped for human agent in environment.")
+            print(f"Error: No goal mapped for human agent '{human_id_iql}' in environment.")
             return
         G = [human_goal]
         mu_g = np.array([1.0])  # Prior probability for the single goal
