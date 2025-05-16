@@ -22,6 +22,8 @@ class TrainedAgent:
             
         self.G = self.iql.G  # List of goals from the loaded model
         self.goal_idx = 0  # Default to first goal
+        # support multiple humans
+        self.human_agent_ids = getattr(self.iql, 'human_agent_ids', [])
         
     def choose_action(self, observation, agent_id):
         """
@@ -38,29 +40,36 @@ class TrainedAgent:
         
         if agent_id == self.iql.robot_agent_id:
             # For the robot, choose the action with highest Q-value
-            q_values = self.iql.Q_r[state_tuple]
+            # Q_r is now a dict per robot ID
+            q_table = self.iql.Q_r.get(agent_id)
+            if q_table is None:
+                raise KeyError(f"No Q-table found for robot '{agent_id}'")
+            # defaultdict returns default random array for unseen states
+            q_values = q_table[state_tuple]
             return int(np.argmax(q_values))
         
-        elif agent_id == self.iql.human_agent_id:
+        elif agent_id in self.human_agent_ids:
             # For the human, sample from the policy distribution
             # Use the current goal for the human (could be modified to choose most likely goal)
             current_goal = self.G[self.goal_idx]
             goal_tuple = self.iql.state_to_tuple(current_goal)
             
-            # Get probability distribution over actions
-            q_values = self.iql.Q_h[(state_tuple, goal_tuple)]
+            # select Q_h table for this agent
+            qtable = self.iql.Q_h[agent_id]
+            q_values = qtable[(state_tuple, goal_tuple)]
             exp_q = np.exp(self.iql.beta_h * q_values)
             sum_exp = np.sum(exp_q)
             
             if sum_exp == 0 or np.isnan(sum_exp) or np.isinf(sum_exp):
                 # Fallback to uniform distribution
-                probs = np.ones(len(self.iql.action_space_human)) / len(self.iql.action_space_human)
+                space = self.iql.action_space_humans.get(agent_id, [])
+                probs = np.ones(len(space)) / len(space) if space else []
             else:
                 probs = exp_q / sum_exp
             
             # For visualization, we can either sample from the distribution or take the most likely action
-            # return np.random.choice(self.iql.action_space_human, p=probs)  # Sampling approach
-            return int(np.argmax(probs))  # Most likely action approach
+            # deterministic choice
+            return int(np.argmax(probs))
         
         else:
             # Unknown agent

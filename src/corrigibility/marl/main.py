@@ -1,4 +1,4 @@
-from env import LockingDoorEnvironment, Actions
+from env import GridEnvironment, Actions
 from iql_algorithm import TwoTimescaleIQL
 from deterministic_algorithm import DeterministicAlgorithm
 from trained_agent import TrainedAgent
@@ -27,30 +27,28 @@ def main():
                         help=f'Map to use (default: {DEFAULT_MAP}). Available maps: {", ".join(list_available_maps())}')
     parser.add_argument('--grid-size', type=int, default=None,
                         help='Grid size for the environment (default: derived from map)')
+    parser.add_argument('--render', action='store_true',
+                        help='Render environment during training')
     args = parser.parse_args()
 
     # Create environment with specified map
-    env = LockingDoorEnvironment(map_name=args.map, grid_size=args.grid_size)
+    env = GridEnvironment(map_name=args.map, grid_size=args.grid_size)
 
     if args.mode == 'test':
         # Run deterministic algorithm for testing
         print(f"Running deterministic test on map: {args.map}")
         env.render_mode = "human"  # Enable rendering for visualization
-        algo = DeterministicAlgorithm()
-        
-        # Standard AECEnv reset and agent iteration
-        env.reset()
-
-        for agent_id in env.agent_iter():
-            observation, reward, terminated, truncated, info = env.last()
-
-            action_to_take = None
-            if terminated or truncated:
-                action_to_take = None
-            else:
-                action_to_take = algo.choose_action(observation, agent_id)
-            
-            env.step(action_to_take)
+        algo = DeterministicAlgorithm(map_name=args.map)
+        obs = env.reset()
+        env.render()
+        done = False
+        while not done:
+            actions = {}
+            for agent_id, agent_obs in obs.items():
+                actions[agent_id] = algo.choose_action(agent_obs, agent_id)
+            obs, rewards, terminations, truncations, infos = env.step(actions)
+            env.render()
+            done = any(terminations.values()) or any(truncations.values())
             pygame.time.delay(args.delay)  # Slow down for visualization
         
         print("Deterministic test finished.")
@@ -66,41 +64,37 @@ def main():
         print(f"Visualizing trained agent using Q-values from {args.load} on map: {args.map}")
         env.render_mode = "human"  # Enable rendering for visualization
         
-        try:
-            # Load the trained agent
-            trained_agent = TrainedAgent(q_values_path=args.load)
-            
-            # Run the environment with the trained agent
-            env.reset()
-
-            for agent_id in env.agent_iter():
-                observation, reward, terminated, truncated, info = env.last()
-
-                action_to_take = None
-                if terminated or truncated:
-                    action_to_take = None
-                else:
-                    action_to_take = trained_agent.choose_action(observation, agent_id)
-                
-                env.step(action_to_take)
-                pygame.time.delay(args.delay)  # Slow down for visualization
-            
-            print("Visualization finished.")
-            
-        except Exception as e:
-            print(f"Error during visualization: {e}")
+        trained_agent = TrainedAgent(q_values_path=args.load)
+        obs = env.reset()
+        env.render()
+        done = False
+        while not done:
+            actions = {}
+            for agent_id, agent_obs in obs.items():
+                actions[agent_id] = trained_agent.choose_action(agent_obs, agent_id)
+            obs, rewards, terminations, truncations, infos = env.step(actions)
+            env.render()
+            done = any(terminations.values()) or any(truncations.values())
+            pygame.time.delay(args.delay)  # Slow down for visualization
         
+        print("Visualization finished.")
         env.close()
     
     else:  # args.mode == 'train'
         # Training mode
         print(f"Training IQL for {args.episodes} episodes on map: {args.map}")
-        env.render_mode = None  # Disable rendering for training speed
+        if args.render:
+            env.render_mode = "human"
+            env.reset()
+            env.render()
+        else:
+            env.render_mode = None  # Disable rendering for training speed
         env.reset()
 
         # Agent IDs for IQL (consistent with env.possible_agents)
-        robot_id_iql = env.robot_id_str
-        human_id_iql = env.human_id_str
+        # Use first robot and human IDs from environment lists
+        robot_id_iql = env.robot_agent_ids[0]
+        human_id_iql = env.human_agent_ids[0]
 
         # IQL hyperparameters
         alpha_h = 0.1
@@ -110,19 +104,20 @@ def main():
         beta_h = 5.0
         epsilon_r = 1.0
         
-        # Goals: G should be a list of goals. Using env.goal_pos as the single goal.
-        if not hasattr(env, 'goal_pos'):
-            print("Error: Environment instance does not have 'goal_pos' attribute.")
+        # Goals: G should be a list of goals. Using env.human_goals mapping to get goal positions.
+        human_goal = env.human_goals.get(env.human_id_str)
+        if human_goal is None:
+            print("Error: No goal mapped for human agent in environment.")
             return
-        G = [env.goal_pos] 
+        G = [human_goal]
         mu_g = np.array([1.0])  # Prior probability for the single goal
 
         p_g = 0.01  # Probability of goal change per step
         E = args.episodes
 
-        # Action spaces from the AECEnv for the specific agent IDs
-        robot_action_space = list(range(env.action_space(robot_id_iql).n))
-        human_action_space = list(range(env.action_space(human_id_iql).n))
+        # Hard-coded action spaces: robot has actions 0-6, human has actions 0,1,2,6
+        robot_action_space = [0, 1, 2, 3, 4, 5, 6]
+        human_action_space = [0, 1, 2, 6]
         action_space_dict = {
             robot_id_iql: robot_action_space,
             human_id_iql: human_action_space
@@ -142,13 +137,13 @@ def main():
             E=E,
             action_space_dict=action_space_dict,
             robot_agent_id=robot_id_iql,
-            human_agent_id=human_id_iql,
-            debug=True
+            human_agent_ids=[human_id_iql],
+            debug=False
         )
 
         # Train the agent
-        print(f"Starting IQL training for {E} episodes...")
-        iql_agent.train(environment=env, num_episodes=E)
+        print(f"Starting IQL training for {E} episodes...{' with rendering' if args.render else ''}")
+        iql_agent.train(environment=env, num_episodes=E, render=args.render, render_delay=args.delay)
         print("IQL training finished.")
         
         # Save the trained Q-values

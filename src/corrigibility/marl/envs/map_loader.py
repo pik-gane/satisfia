@@ -34,8 +34,7 @@ def load_map(map_name=DEFAULT_MAP):
     """
     try:
         # Import the map module dynamically
-        map_module = importlib.import_module(f"..envs.{map_name}", package="corrigibility.iql")
-        
+        map_module = importlib.import_module(f".{map_name}", package="envs")
         # Call get_map() function to retrieve map data
         return map_module.get_map()
     except (ImportError, AttributeError) as e:

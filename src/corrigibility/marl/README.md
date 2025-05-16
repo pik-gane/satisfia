@@ -228,7 +228,11 @@ def get_map():
 2. Train the IQL algorithm:
 
    ```bash
-   python main.py --mode train --episodes 1000 --save saved/q_values.pkl --map simple_map
+   python main.py --mode train --episodes 100 --save saved/q_values.pkl --map simple_map
+   ```
+
+   ```bash
+   python main.py --mode train --episodes 100 --save saved/q_values.pkl --map collaborator_map --render
    ```
 
 3. Visualize the trained agent:
@@ -239,7 +243,7 @@ def get_map():
 
 4. Run the baseline deterministic test:
    ```bash
-   python main.py --mode test --delay 100 --map complex_map
+   python main.py --mode test --delay 100 --map simple_map
    ```
 
 ### Command-line Arguments
