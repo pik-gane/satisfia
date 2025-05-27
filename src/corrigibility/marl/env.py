@@ -58,8 +58,10 @@ class CustomEnvironment(ParallelEnv):
     ACTION_TOGGLE = Actions.toggle
     ACTION_NO_OP = Actions.done
 
-    def __init__(self, map_name=DEFAULT_MAP, grid_size=None):
+    def __init__(self, map_name=DEFAULT_MAP, grid_size=None, debug_mode=False, debug_level='standard'): # Added debug_level
         super().__init__()
+        self.debug_mode = debug_mode # Store debug_mode
+        self.debug_level = debug_level # Store debug_level
         # Load map layout and metadata
         self.map_layout, self.map_metadata = load_map(map_name)
         
@@ -125,10 +127,13 @@ class CustomEnvironment(ParallelEnv):
         # lava positions
         self.lava_positions = []
         
-        obs_shape_array = np.array(
-            [self.grid_size, self.grid_size] * 5 +
-            [2] * 3 
-        )
+        # Reduced observation space: robot_pos(2) + human_pos(2) + robot_dir(1) + human_dir(1)
+        obs_shape_array = np.array([
+            self.grid_size, self.grid_size,  # robot position
+            self.grid_size, self.grid_size,  # human position  
+            4,  # robot direction (0-3)
+            4   # human direction (0-3)
+        ])
         # MODIFIED: Observation and Action spaces as per ParallelEnv requirements
         self._observation_spaces = {
             agent: MultiDiscrete(obs_shape_array)
@@ -270,39 +275,33 @@ class CustomEnvironment(ParallelEnv):
         return {agent: self.observe(agent) for agent in self.agents}
 
     def _get_obs(self, agent_id): # agent_id is for context, obs is global
-        obs_door_pos = self.doors[0]['pos'] if self.doors else (-1,-1)
-        obs_goal_pos = self.human_goals.get(agent_id, (-1,-1))
-        obs_agent_pos = self.agent_pos if self.agent_pos is not None else (-1,-1) # This is robot's pos
-        obs_human_pos = self.human_pos if self.human_pos is not None else (-1,-1)
-        obs_key_pos = self.keys[0]['pos'] if self.keys else (-1,-1)
+        # Reduced state space: only agent positions and directions
+        obs_agent_pos = self.agent_pos if self.agent_pos is not None else (-1,-1) # Robot position
+        obs_human_pos = self.human_pos if self.human_pos is not None else (-1,-1) # Human position
+        obs_agent_dir = self.agent_dirs.get(self.robot_agent_ids[0], 0) # Robot direction
+        obs_human_dir = self.agent_dirs.get(self.human_agent_ids[0], 0) # Human direction
+        
         return np.array([
             obs_agent_pos[0], obs_agent_pos[1],
             obs_human_pos[0], obs_human_pos[1],
-            obs_door_pos[0], obs_door_pos[1],
-            obs_goal_pos[0], obs_goal_pos[1],
-            obs_key_pos[0], obs_key_pos[1],
-            int(bool(self.robot_has_keys)), # Robot-specific part of state
-            int(any(door['is_open'] for door in self.doors)),
-            int(any(door['is_locked'] for door in self.doors))
+            obs_agent_dir,
+            obs_human_dir
         ])
 
     def observe(self, agent_id): # MODIFIED: Standard ParallelEnv observe method
         # Note: agent_id here is one of self.possible_agents (e.g., "robot_0")
         # The observation is global but returned for the specified agent.
-        obs_door_pos = self.doors[0]['pos'] if self.doors else (-1,-1)
-        obs_goal_pos = self.human_goals.get(agent_id, (-1,-1))
+        # Reduced state space: only agent positions and directions
         obs_agent_pos = self.agent_pos if self.agent_pos is not None else (-1,-1) # This is robot's pos
         obs_human_pos = self.human_pos if self.human_pos is not None else (-1,-1)
-        obs_key_pos = self.keys[0]['pos'] if self.keys else (-1,-1)
+        obs_agent_dir = self.agent_dirs.get(self.robot_agent_ids[0], 0) # Robot direction
+        obs_human_dir = self.agent_dirs.get(self.human_agent_ids[0], 0) # Human direction
+        
         return np.array([
             obs_agent_pos[0], obs_agent_pos[1],
             obs_human_pos[0], obs_human_pos[1],
-            obs_door_pos[0], obs_door_pos[1],
-            obs_goal_pos[0], obs_goal_pos[1],
-            obs_key_pos[0], obs_key_pos[1],
-            int(bool(self.robot_has_keys)), # Robot-specific part of state
-            int(any(door['is_open'] for door in self.doors)),
-            int(any(door['is_locked'] for door in self.doors))
+            obs_agent_dir,
+            obs_human_dir
         ])
 
     def _move_agent_vanilla(self, current_pos, action):
@@ -329,56 +328,82 @@ class CustomEnvironment(ParallelEnv):
             if box['pos'] == pos: return False
         return True
 
-    def _handle_movement(self, agent_to_move_id, new_pos): # agent_to_move_id is "robot_0" or "human_0"
-        old_char_on_grid = " " 
-        current_agent_char = "R" if agent_to_move_id == self.robot_agent_ids[0] else "H"
-        current_pos = self.agent_pos if agent_to_move_id == self.robot_agent_ids[0] else self.human_pos
-        if self.grid[current_pos] != current_agent_char: 
-            old_char_on_grid = self.grid[current_pos]
-        elif any(current_pos == key['pos'] for key in self.keys):
-            old_char_on_grid = "K"
-        elif any(current_pos == door['pos'] for door in self.doors):
-            old_char_on_grid = "D"
-        elif current_pos == self.human_goals.get(agent_to_move_id): old_char_on_grid = "G"
+    def _handle_movement(self, agent_to_move_id, new_pos):
+        # agent_to_move_id is the specific agent moving e.g. "robot_0", "human_0"
+        
+        # Get the character that represents this agent on the grid (simplified)
+        agent_char_on_grid = "R" if agent_to_move_id.startswith("robot") else "H"
+
+        current_pos = self.agent_positions[agent_to_move_id] # Use the definitive position
+
+        # Logic to determine what character to leave behind on the grid
+        # This should ideally revert to the static map feature at current_pos
+        old_char_on_grid = " " # Default to empty space
+        
+        # A simple way: if current_pos is a goal tile for any human, leave 'G'
+        is_goal_tile = any(current_pos == goal_pos for goal_pos in self.human_goals.values())
+        if is_goal_tile:
+            old_char_on_grid = "G"
+        # More complex logic could check for keys, doors etc., if agents can temporarily occupy them
+        # and the grid needs to reflect the object, not the agent.
+        # For now, if it's not a goal, it becomes floor.
+        
         self.grid[current_pos] = old_char_on_grid
         
-        if agent_to_move_id == self.robot_agent_ids[0]:
-            self.agent_pos = new_pos
-            self.agent_positions[self.robot_agent_ids[0]] = new_pos
-        elif agent_to_move_id == self.human_agent_ids[0]:
-            self.human_pos = new_pos
-            self.agent_positions[self.human_agent_ids[0]] = new_pos
+        # Update the agent's position in the primary tracking dictionary
+        self.agent_positions[agent_to_move_id] = new_pos
         
+        # Update legacy single-agent trackers if the moving agent matches
+        if agent_to_move_id in self.robot_agent_ids and agent_to_move_id == self.robot_agent_ids[0]:
+            self.agent_pos = new_pos
+        if agent_to_move_id in self.human_agent_ids and agent_to_move_id == self.human_agent_ids[0]:
+            self.human_pos = new_pos
+        
+        # Mark the agent's new position on the grid if it's currently empty floor
+        # This prevents overwriting 'G' or other important static items agents might move onto.
         if self.grid[new_pos] == " ":
-            self.grid[new_pos] = current_agent_char
+            self.grid[new_pos] = agent_char_on_grid
 
     def step(self, actions: dict[str,int]):
         """
         actions: dict mapping agent_id to action enum/int
         Returns: obs, rewards, terminations, truncations, infos
         """
-        # reset per-step rewards
+        # Store previous potentials for human agents for reward shaping
+        prev_potentials_h = {
+            hid: self.potential(hid) for hid in self.human_agent_ids
+        }
+
+        # reset per-step rewards 
+        # Robot reward is 0 from env; IQL calculates its actual learning reward.
+        # Human reward will be overwritten by shaping.
         self.rewards = {agent: 0 for agent in self.agents}
+        
         # apply actions in random order
         order = self.agents[:]
         random.shuffle(order)
         # mapping from orientation idx to movement delta
         deltas = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)}
-        for agent in order:
+        for agent in order: # 'agent' is the agent_id string e.g. "robot_0", "human_0"
             act = actions.get(agent, self.ACTION_NO_OP)
             action_enum = Actions(act)
-            # Enforce human action limitations: only turn_left, turn_right, forward, done
-            if agent == self.human_agent_ids[0]:
-                allowed = {Actions.turn_left, Actions.turn_right, Actions.forward, Actions.done}
-                if action_enum not in allowed:
+
+            # Enforce human action limitations (example for human_agent_ids[0])
+            # This should be generalized if multiple humans have different action sets
+            if agent in self.human_agent_ids: # Simplified: all humans have same restriction
+                allowed_human_actions = {Actions.turn_left, Actions.turn_right, Actions.forward, Actions.done}
+                if action_enum not in allowed_human_actions:
                     action_enum = Actions.done
-            # common current and front positions
-            current_pos = self.agent_pos if agent == self.robot_agent_ids[0] else self.human_pos
+            
+            current_pos = self.agent_positions[agent] # CORRECTED: Use agent_positions for current agent
             dir_idx = self.agent_dirs[agent]
             dx, dy = deltas[dir_idx]
             front_pos = (current_pos[0] + dx, current_pos[1] + dy)
-            # other agent position for collision check
-            other_pos = self.human_pos if agent == self.robot_agent_ids[0] else self.agent_pos
+            
+            # Determine other primary agent's position for collision (simplistic for 2 agents)
+            # This needs a more general way to check collisions with ALL other agents
+            other_agent_positions = [pos for aid, pos in self.agent_positions.items() if aid != agent]
+
             # Turn actions update orientation
             if action_enum == Actions.turn_left:
                 self.agent_dirs[agent] = (dir_idx - 1) % 4
@@ -386,46 +411,125 @@ class CustomEnvironment(ParallelEnv):
                 self.agent_dirs[agent] = (dir_idx + 1) % 4
             # Forward moves the agent in its facing direction if valid
             elif action_enum == Actions.forward:
+                collision_with_other_agent = any(front_pos == other_pos for other_pos in other_agent_positions)
                 if (
                     self._is_valid_pos(front_pos)
-                    and front_pos != other_pos
+                    and not collision_with_other_agent
                 ):
-                    self._handle_movement(agent, front_pos)
-            # Pickup key at tile in front for robot
-            elif action_enum == Actions.pickup and agent == self.robot_agent_ids[0]:
-                for key in list(self.keys):
-                    if key['pos'] == front_pos:
-                        self.robot_has_keys.add(key['color'])
-                        self.keys.remove(key)
-                        self.grid[front_pos] = ' '
-                        break
-            # Toggle/open door at tile in front for robot
-            elif action_enum == Actions.toggle and agent == self.robot_agent_ids[0]:
-                for door in self.doors:
-                    if door['pos'] == front_pos and door['is_locked'] and door['color'] in self.robot_has_keys:
-                        door['is_locked'] = False
-                        door['is_open'] = True
-                        self.grid[front_pos] = ' '
-                        break
-            # Drop a key at tile in front for robot
-            elif action_enum == Actions.drop and agent == self.robot_agent_ids[0] and self.robot_has_keys:
-                # Only drop on empty floor (no agents, no objects)
-                occupied = {tuple(d['pos']) for d in self.doors} | {tuple(k['pos']) for k in self.keys} | {self.agent_pos, self.human_pos}
-                if (0 <= front_pos[0] < self.grid_size and 0 <= front_pos[1] < self.grid_size
-                    and self.grid[front_pos] == ' '
-                    and front_pos not in occupied):
-                    color = self.robot_has_keys.pop()
-                    self.keys.append({'pos': front_pos, 'color': color})
+                    self._handle_movement(agent, front_pos) # Pass the specific agent_id
 
-        # Termination when human reaches goal
-        if self.human_pos == self.human_goals.get(self.human_agent_ids[0]):
-            # end episode for both agents
-            for a in self.agents:
-                self.terminations[a] = True
+            # Robot-specific actions
+            if agent.startswith("robot"): # Check if the acting agent is a robot
+                if action_enum == Actions.pickup:
+                    for key in list(self.keys):
+                        if key['pos'] == front_pos:
+                            self.robot_has_keys.add(key['color']) # Assuming one robot's inventory for now
+                            self.keys.remove(key)
+                            self.grid[front_pos] = ' '
+                            break
+                elif action_enum == Actions.toggle:
+                    for door in self.doors:
+                        if door['pos'] == front_pos and door['is_locked'] and door['color'] in self.robot_has_keys:
+                            door['is_locked'] = False
+                            door['is_open'] = True
+                            self.grid[front_pos] = ' ' # Door becomes passable, visually handled by Door object state
+                            break
+                elif action_enum == Actions.drop and self.robot_has_keys:
+                    occupied_by_objects_or_agents = {tuple(d['pos']) for d in self.doors} | \
+                                                    {tuple(k['pos']) for k in self.keys} | \
+                                                    set(self.agent_positions.values())
+                    if (0 <= front_pos[0] < self.grid_size and 0 <= front_pos[1] < self.grid_size
+                        and self.grid[front_pos] == ' ' # Can only drop on empty floor
+                        and front_pos not in occupied_by_objects_or_agents): # Check against all entities
+                        color = self.robot_has_keys.pop()
+                        self.keys.append({'pos': front_pos, 'color': color})
+                        self.grid[front_pos] = 'K' # Mark key on grid
+
+
+        # Calculate shaped rewards for human agents based on potential change
+        for hid in self.human_agent_ids:
+            current_potential_h = self.potential(hid)
+            prev_potential = prev_potentials_h.get(hid, current_potential_h) # Default to current if no prev (e.g. first step)
+            # Standard PBRS: P(s') - P(s)
+            # R_env is 0 for non-terminal steps for human.
+            shaped_reward = current_potential_h - prev_potential
+            self.rewards[hid] = shaped_reward
+            
+            # Debug shaped reward calculation only for verbose level
+            if self.debug_mode and self.debug_level == 'verbose' and abs(shaped_reward) > 0.01:
+                print(f"🔄 SHAPED REWARD: Human {hid} got {shaped_reward:.3f} (potential: {prev_potential:.2f} → {current_potential_h:.2f})")
+
+        # Terminate and add large bonus reward if any human that reaches its goal
+        for hid in self.human_agent_ids:
+            if self.agent_positions.get(hid) == self.human_goals.get(hid):
+                # add final reward for reaching goal (on top of any shaped reward for that step)
+                self.rewards[hid] += 500 
+                # end episode for all agents
+                for a in self.agents:
+                    self.terminations[a] = True
+                # Always print goal achievement regardless of debug level
+                if self.debug_mode or hasattr(self, '_minimal_debug_enabled'):
+                    episode_info = f" (Episode {self._current_episode})" if hasattr(self, '_current_episode') and self._current_episode is not None else ""
+                    print(f"🎯 GOAL REACHED: Human {hid} reached goal {self.human_goals.get(hid)} at step {self.timestep}{episode_info}")
+                break
+        
+        self.timestep += 1 # Increment timestep
+        # Check for truncation based on max_steps
+        if self.timestep >= self.max_steps:
+            for agent_id in self.agents:
+                self.truncations[agent_id] = True
+            if self.debug_mode: # Conditional debug print
+                print(f"DEBUG: Max steps {self.max_steps} reached. Truncating.") # DEBUG
+
+        # Store debug info but don't print yet - will be printed after robot reward update
+        self._debug_info_for_delayed_print = {
+            'prev_potentials_h': prev_potentials_h,
+            'timestep': self.timestep
+        }
+
         # update global terminal/truncation if needed (as before)
         # return parallel outputs
         obs = {agent: self.observe(agent) for agent in self.possible_agents}
         return obs, self.rewards, self.terminations, self.truncations, self.infos
+
+    def set_minimal_debug(self, enabled: bool):
+        """Enable minimal debug mode for goal achievement notifications."""
+        self._minimal_debug_enabled = enabled
+
+    def set_current_episode(self, episode_num: int):
+        """Set the current episode number for debug output."""
+        self._current_episode = episode_num
+
+    def print_debug_info(self):
+        """Print debug information after robot reward has been updated."""
+        if not self.debug_mode or not hasattr(self, '_debug_info_for_delayed_print'):
+            return
+            
+        debug_info = self._debug_info_for_delayed_print
+        prev_potentials_h = debug_info['prev_potentials_h']
+        timestep = debug_info['timestep']
+        
+        print(f"\n--- Step {timestep} ---")
+        for agent_id in self.possible_agents:
+            pos = self.agent_positions.get(agent_id, "N/A")
+            reward = self.rewards.get(agent_id, 0)
+            termination = self.terminations.get(agent_id, False)
+            truncation = self.truncations.get(agent_id, False)
+            print(f"DEBUG: Agent {agent_id} | Pos: {pos} | Reward: {reward:.2f} | Term: {termination} | Trunc: {truncation}") # Formatted reward
+            if agent_id.startswith("human"):
+                goal = self.human_goals.get(agent_id, "N/A")
+                
+                # Enhanced logging for PrevPotential
+                prev_potential_val_for_log = prev_potentials_h.get(agent_id) # Try direct get first
+                if prev_potential_val_for_log is not None and isinstance(prev_potential_val_for_log, (float, int)):
+                    prev_potential_str = f"{float(prev_potential_val_for_log):.2f}"
+                elif agent_id not in prev_potentials_h:
+                    prev_potential_str = f"N/A (Key '{agent_id}' not in prev_potentials_h. Keys: {list(prev_potentials_h.keys())})"
+                else: # Key exists but value is problematic
+                    prev_potential_str = f"N/A (Value for '{agent_id}' is {prev_potential_val_for_log}, type: {type(prev_potential_val_for_log)})"
+                    
+                current_potential_val_for_log = self.potential(agent_id) 
+                print(f"DEBUG: Human {agent_id} | Goal: {goal} | PrevPotential: {prev_potential_str} | CurrPotential: {current_potential_val_for_log:.2f}")
 
     def render(self):
         if self.render_mode is None: 
@@ -549,6 +653,11 @@ class CustomEnvironment(ParallelEnv):
             self.screen = None
             self.clock = None
 
+    def update_robot_reward_for_logging(self, robot_agent_id: str, internal_reward: float):
+        """Update the robot's reward in self.rewards for logging purposes."""
+        if robot_agent_id in self.rewards:
+            self.rewards[robot_agent_id] = internal_reward
+
     def potential(self, human_id: str) -> float:
         """
         Compute shaping potential: negative Manhattan distance for specified human to its goal.
@@ -569,8 +678,8 @@ class CustomEnvironment(ParallelEnv):
 
 class GridEnvironment(CustomEnvironment):
     """Environment with a locking door."""
-    def __init__(self, map_name=DEFAULT_MAP, grid_size=None):
-        super().__init__(map_name=map_name, grid_size=grid_size)
+    def __init__(self, map_name=DEFAULT_MAP, grid_size=None, debug_mode=False, debug_level='standard'): # Added debug_level
+        super().__init__(map_name=map_name, grid_size=grid_size, debug_mode=debug_mode, debug_level=debug_level) # Pass debug_level
         # any specifics
 
 # Generic alias

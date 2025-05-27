@@ -58,7 +58,7 @@ class TwoTimescaleIQL:
         self.Q_h = {hid: defaultdict(lambda: np.random.uniform(-0.1,0.1,size=action_dim))
                     for hid in self.human_agent_ids}
 
-        self.debug = debug
+        self.debug = bool(debug)
         # Count-based exploration counters for robot and humans
         self.N_r = defaultdict(int)  # counts for robot state-action pairs
         self.N_h = {hid: defaultdict(int) for hid in self.human_agent_ids}
@@ -245,17 +245,25 @@ class TwoTimescaleIQL:
         print(f"IQL Training Started: {num_episodes} episodes, max_steps/ep={max_steps_per_episode}")
         if self.debug:
             if not all(rid in environment.possible_agents for rid in self.robot_agent_ids) or not all(hid in environment.possible_agents for hid in self.human_agent_ids):
-                print(f"ERROR IQL: One of robot_ids '{self.robot_agent_ids}' or human_ids '{self.human_agent_ids}' not in env.possible_agents {environment.possible_agents}")
+                print(f"ERROR IQL: Agent IDs mismatch with environment possible_agents")
                 return
 
         start_time = time.time()
+
+        # add accumulators for overall stats
+        human_reward_total = 0.0
+        ai_reward_total = 0.0
+
         for e in range(num_episodes):
             # Episode start
             ep_start = time.time()
             # per-episode counters
             pickup_success = 0
             toggle_success = 0
-            shaped_reward_sum = 0.0
+            # episode-level sums
+            episode_human_sum = 0.0
+            episode_ai_sum = 0.0
+
             if (e) % log_interval == 0:
                 print(f"Starting Episode {e+1}/{num_episodes}")
 
@@ -294,7 +302,7 @@ class TwoTimescaleIQL:
                 # --- Execute actions in parallel ---
                 actions = {rid: a_r[rid] for rid in self.robot_agent_ids}
                 actions.update(a_h)
-                # one parallel step call
+                # one parallel step
                 obs_dict, reward_dict, term_dict, trunc_dict, info_dict = environment.step(actions)
                 # render during training if requested
                 if render:
@@ -302,6 +310,8 @@ class TwoTimescaleIQL:
                     pygame.time.delay(render_delay)
                 # collect human observed rewards
                 r_h_obs_env = {hid: reward_dict.get(hid, 0) for hid in self.human_agent_ids}
+                # accumulate human rewards
+                episode_human_sum += sum(r_h_obs_env.values())
 
                 # Next state observations
                 s_r_prime_tuple = {rid: self.state_to_tuple(obs_dict[rid]) for rid in self.robot_agent_ids}
@@ -329,7 +339,9 @@ class TwoTimescaleIQL:
                     self.update_human_q(prev_s_h_tuples[hid], current_human_goals[hid], a_h[hid], r_h_shaped, s_h_prime_tuples[hid], episode_done_iql, self.debug)
                 # --- Robot Q-Updates per robot ---
                 for rid in self.robot_agent_ids:
-                    base_rr = self.calculate_robot_internal_reward(s_r_prime_tuple[rid], episode_done_iql, self.debug)
+                    base_rr = self.calculate_robot_internal_reward(s_r_prime_tuple[rid], episode_done_iql)
+                    # accumulate AI internal rewards
+                    episode_ai_sum += base_rr
                     self.update_robot_q(rid, prev_s_r_tuple[rid], a_r[rid], base_rr, s_r_prime_tuple[rid], episode_done_iql, self.debug)
                 # Store transition in PER buffer
                 for rid in self.robot_agent_ids:
@@ -376,18 +388,24 @@ class TwoTimescaleIQL:
                         self.Q_r[rid][s_i][a_i] += self.alpha_r * weights[j] * td
                         self.priorities[idx] = abs(td) + 1e-6
 
-            # Episode end: logging
-            ep_time = time.time() - ep_start
-            if (e+1) % log_interval == 0 or (e+1) == num_episodes:
-                print(f"Episode {e+1}/{num_episodes} finished in {ep_time:.2f}s; pickups={pickup_success}, toggles={toggle_success}, shaped_reward={shaped_reward_sum:.2f}")
+            # compute per-episode averages
+            avg_human = episode_human_sum / (step_num+1) if step_num>=0 else 0.0
+            avg_ai    = episode_ai_sum    / (step_num+1) if step_num>=0 else 0.0
+
+            # debug output: per-episode human and AI average rewards
+            if self.debug:
+                print(f"[DEBUG] Episode {e+1}/{num_episodes}: human={avg_human:.2f}, ai={avg_ai:.2f}")
+
             # Decay epsilon_r per episode
             self.epsilon_r = max(min_epsilon_r, self.epsilon_r - epsilon_decay_rate)
-            # Episode completion log
-            if (e+1) % log_interval == 0 or (e+1) == num_episodes:
+            # optional timing log at intervals
+            if not self.debug and ((e+1) % log_interval == 0 or (e+1) == num_episodes):
                 elapsed = time.time() - start_time
                 avg_time = elapsed / (e+1)
                 print(f"Completed {e+1}/{num_episodes} episodes in {elapsed:.2f}s (avg {avg_time:.2f}s/ep)")
 
+        # after all episodes, print overall averages
+        print(f"Training complete: avg human reward/episode={human_reward_total/num_episodes:.2f}, avg AI reward/episode={ai_reward_total/num_episodes:.2f}")
         print("IQL Training Finished.")
 
     def select_robot_action(self, robot_id, s_r_tuple):
@@ -456,12 +474,12 @@ class TwoTimescaleIQL:
             exp_q_next = np.exp(self.beta_h * q_values_next_state_goal)
             sum_exp_q_next = np.sum(exp_q_next)
             if sum_exp_q_next == 0 or np.isinf(sum_exp_q_next) or np.isnan(sum_exp_q_next):
-                 if self.debug and random.random() < 0.01: print(f"    WARN: Softmax issue in V_h calc for s_h'={s_h_prime_tuple}, goal={goal_tuple}. Q_h'={q_values_next_state_goal}. V_h set to 0.")
+                 if self.debug == "verbose" and random.random() < 0.01: print(f"    WARN: Softmax issue in V_h calc for s_h'={s_h_prime_tuple}, goal={goal_tuple}. Q_h'={q_values_next_state_goal}. V_h set to 0.")
                  v_h_s_prime_g = 0
             else:
                 probs_next = exp_q_next / sum_exp_q_next
                 if np.isnan(probs_next).any():
-                    if self.debug and random.random() < 0.01: print(f"    WARN: NaN probs in V_h calc for s_h'={s_h_prime_tuple}, goal={goal_tuple}. Q_h'={q_values_next_state_goal}. V_h set to 0.")
+                    if self.debug == "verbose" and random.random() < 0.01: print(f"    WARN: NaN probs in V_h calc for s_h'={s_h_prime_tuple}, goal={goal_tuple}. Q_h'={q_values_next_state_goal}. V_h set to 0.")
                     v_h_s_prime_g = 0
                 else:
                     v_h_s_prime_g = np.sum(probs_next * q_values_next_state_goal)
@@ -469,11 +487,11 @@ class TwoTimescaleIQL:
         q_target = r_h_obs + self.gamma_h * v_h_s_prime_g
         self.Q_h[self.human_agent_ids[0]][q_key][a_h] += self.alpha_h * (q_target - q_current_val)
 
-        if do_debug_episode and random.random() < self.debug_q_update_sample_rate:
+        if self.debug == "verbose" and random.random() < self.debug_q_update_sample_rate:
              print(f"    Human Q_h update: s_h={s_h_tuple}, g={goal_tuple}, a_h={a_h}, r_h={r_h_obs:.2f}, s_h'={s_h_prime_tuple}, done={done}")
              print(f"      Q_h_curr={q_current_val:.3f}, V_h(s',g)={v_h_s_prime_g:.3f}, Q_h_target={q_target:.3f}, New_Q_h={self.Q_h[self.human_agent_ids[0]][q_key][a_h]:.3f}")
 
-    def calculate_robot_internal_reward(self, s_prime_tuple, done, do_debug_episode):
+    def calculate_robot_internal_reward(self, s_prime_tuple, done):
         """
         Compute robot internal reward by aggregating over multiple humans.
         """
@@ -508,6 +526,99 @@ class TwoTimescaleIQL:
         q_target = r_r_calc + self.gamma_r * max_q_next
         self.Q_r[robot_id][s_r_tuple][a_r] += self.alpha_r * (q_target - q_current_val)
 
-        if do_debug_episode and random.random() < self.debug_q_update_sample_rate:
+        if self.debug == "verbose" and random.random() < self.debug_q_update_sample_rate:
              print(f"    Robot Q_r update: robot_id={robot_id}, s_r={s_r_tuple}, a_r={a_r}, r_r_calc={r_r_calc:.3f}, s_r'={s_r_prime_tuple}, done={done}")
              print(f"      Q_r_curr={q_current_val:.3f}, max_Q_r(s',a')={max_q_next:.3f}, Q_r_target={q_target:.3f}, New_Q_r={self.Q_r[robot_id][s_r_tuple][a_r]:.3f}")
+
+    def update_q_values(self, obs_dict, actions_dict, rewards_dict, next_obs_dict, terminations_dict, truncations_dict):
+        """
+        Update Q-values for both human and robot agents based on the step transition.
+        Returns the robot's calculated internal reward for logging purposes.
+        """
+        # Convert observations to tuples for Q-table indexing
+        s_h_tuple = self.state_to_tuple(obs_dict[self.human_agent_ids[0]])
+        s_r_tuple = self.state_to_tuple(obs_dict[self.robot_agent_id])
+        s_h_prime_tuple = self.state_to_tuple(next_obs_dict[self.human_agent_ids[0]])
+        s_r_prime_tuple = self.state_to_tuple(next_obs_dict[self.robot_agent_id])
+        
+        # Get actions
+        action_h = actions_dict[self.human_agent_ids[0]]
+        action_r = actions_dict[self.robot_agent_id]
+        
+        # Convert robot action to index in action space
+        try:
+            action_r_idx = self.action_space_robot[self.robot_agent_id].index(action_r)
+        except ValueError:
+            if self.debug:
+                print(f"Warning: Robot action {action_r} not in action space {self.action_space_robot[self.robot_agent_id]}, using 0")
+            action_r_idx = 0
+        
+        # Determine if episode is done
+        is_terminal_next_state = (terminations_dict.get(self.human_agent_ids[0], False) or 
+                                terminations_dict.get(self.robot_agent_id, False) or
+                                truncations_dict.get(self.human_agent_ids[0], False) or
+                                truncations_dict.get(self.robot_agent_id, False))
+        
+        # Get human reward from environment
+        r_h_obs = rewards_dict.get(self.human_agent_ids[0], 0)
+        
+        # --- Human Q-Update using first goal (simplified for now) ---
+        if len(self.G) > 0:
+            current_goal = self.state_to_tuple(self.G[0])  # Use first goal for now
+            q_key = (s_h_tuple, current_goal)
+            
+            # Calculate V_h(s', g) for human value function
+            v_h_s_prime_g = 0
+            if not is_terminal_next_state:
+                q_values_next = self.Q_h[self.human_agent_ids[0]][(s_h_prime_tuple, current_goal)]
+                exp_q_next = np.exp(self.beta_h * q_values_next)
+                sum_exp_q_next = np.sum(exp_q_next)
+                if sum_exp_q_next > 0 and np.isfinite(sum_exp_q_next):
+                    probs_next = exp_q_next / sum_exp_q_next
+                    v_h_s_prime_g = np.sum(probs_next * q_values_next)
+            
+            # Update human Q-value
+            q_current_h = self.Q_h[self.human_agent_ids[0]][q_key][action_h]
+            q_target_h = r_h_obs + self.gamma_h * v_h_s_prime_g
+            self.Q_h[self.human_agent_ids[0]][q_key][action_h] += self.alpha_h * (q_target_h - q_current_h)
+        
+        # --- Calculate Robot's Internal Reward ---
+        r_r_calc = self.calculate_robot_internal_reward(s_r_prime_tuple, is_terminal_next_state)
+        
+        # --- Robot Q-Update ---
+        q_current_r = self.Q_r[self.robot_agent_id][s_r_tuple][action_r_idx]
+        
+        max_q_r_prime = 0
+        if not is_terminal_next_state:
+            max_q_r_prime = np.max(self.Q_r[self.robot_agent_id][s_r_prime_tuple])
+        
+        q_target_r = r_r_calc + self.gamma_r * max_q_r_prime
+        self.Q_r[self.robot_agent_id][s_r_tuple][action_r_idx] += self.alpha_r * (q_target_r - q_current_r)
+        
+        if self.debug:
+            print(f"IQL_DEBUG: Robot Q-Update for (s_r={s_r_tuple}, a_r={action_r} (idx {action_r_idx})):")
+            print(f"  Old Q_r value: {q_current_r:.4f}")
+            print(f"  Robot reward: {r_r_calc:.4f}")
+            print(f"  Q_r target: {q_target_r:.4f}")
+            print(f"  New Q_r value: {self.Q_r[self.robot_agent_id][s_r_tuple][action_r_idx]:.4f}")
+        
+        return r_r_calc
+
+    def choose_actions_for_training(self, obs_dict):
+        """
+        Choose actions for all agents during training.
+        """
+        actions = {}
+        
+        # Robot actions
+        for rid in self.robot_agent_ids:
+            s_r_tuple = self.state_to_tuple(obs_dict[rid])
+            actions[rid] = self.select_robot_action(rid, s_r_tuple)
+        
+        # Human actions (using first goal for simplicity)
+        for hid in self.human_agent_ids:
+            s_h_tuple = self.state_to_tuple(obs_dict[hid])
+            current_goal = self.state_to_tuple(self.G[0]) if self.G else (0, 0)
+            actions[hid] = self.select_human_action(s_h_tuple, current_goal)
+        
+        return actions
