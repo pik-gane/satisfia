@@ -156,10 +156,11 @@ class Door(WorldObj):
             fill_coords(img, point_in_rect(0.9, 1, 0.1, 0.9), self.color)
 
         elif self.is_locked:
-            # Door is closed and key-locked
-            door_tile_color = COLORS['yellow'] # Closed and key-locked
+            # Door is closed and key-locked, use its own color
+            door_tile_color = self.color  # Use Door.color (may be blue)
+            # Fill the tile with door color
+            fill_coords(img, point_in_rect(0.0, 1.0, 0.0, 1.0), door_tile_color)
             # Draw a keyhole symbol
-            fill_coords(img, point_in_rect(0.0, 1.0, 0.0, 1.0), door_tile_color) # Fill entire tile yellow
             keyhole_center_x, keyhole_center_y = 0.5, 0.45
             keyhole_radius = 0.1
             fill_coords(img, point_in_circle(keyhole_center_x, keyhole_center_y, keyhole_radius), COLORS['black'])
