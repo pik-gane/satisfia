@@ -10,6 +10,216 @@ import argparse
 import os
 import sys
 
+def visualize_q_values_as_map(trained_agent, env, map_name):
+    """Print a text-based visualization of the learned Q-values and policies."""
+    print(f"\n{'='*80}")
+    print(f"Q-VALUE MAP VISUALIZATION FOR: {map_name}")
+    print(f"{'='*80}")
+    
+    # Get the map layout for reference
+    from envs.map_loader import load_map
+    try:
+        map_layout, map_metadata = load_map(map_name)
+        print(f"Map: {map_metadata.get('name', map_name)}")
+        print(f"Description: {map_metadata.get('description', 'No description')}")
+    except:
+        map_layout = None
+        print(f"Could not load map layout for {map_name}")
+    
+    print(f"\nAlgorithm Parameters:")
+    iql = trained_agent.iql
+    if hasattr(iql, 'beta_r_0'):
+        print(f"  Final β_r: {iql.beta_r_0} (robot rationality)")
+    if hasattr(iql, 'epsilon_h_0'):
+        print(f"  Final ε_h: {iql.epsilon_h_0} (human exploration)")
+    print(f"  Goals: {iql.G}")
+    print(f"  Goal weights: {iql.mu_g}")
+    
+    # Get environment dimensions
+    env.reset()
+    
+    # Action names for readable output
+    action_names = ['LEFT', 'RIGHT', 'UP', 'DOWN', 'PICK', 'DROP', 'TOGGLE', 'NOOP']
+    direction_symbols = ['←', '→', '↑', '↓', 'P', 'D', 'T', '○']
+    
+    print(f"\n🤖 ROBOT POLICY VISUALIZATION:")
+    print("Shows the robot's preferred action at each position")
+    print("Symbols: ← → ↑ ↓ = movement, P=pickup, D=drop, T=toggle, ○=noop, ?=unknown")
+    
+    # Analyze robot Q-values
+    robot_id = iql.robot_agent_ids[0]
+    robot_q_table = iql.Q_r_dict[robot_id]
+    
+    # Find all unique positions that have been visited
+    robot_positions = set()
+    for state_tuple in robot_q_table.keys():
+        # Assuming state tuple format includes robot position
+        if len(state_tuple) >= 2:
+            robot_positions.add((state_tuple[0], state_tuple[1]))
+    
+    if robot_positions:
+        min_x = min(pos[0] for pos in robot_positions)
+        max_x = max(pos[0] for pos in robot_positions)
+        min_y = min(pos[1] for pos in robot_positions)
+        max_y = max(pos[1] for pos in robot_positions)
+        
+        print(f"\nRobot visited positions: {len(robot_positions)}")
+        print(f"Grid bounds: x=[{min_x},{max_x}], y=[{min_y},{max_y}]")
+        
+        # Create robot policy map
+        print(f"\nRobot Policy Map:")
+        print("   ", end="")
+        for x in range(min_x, max_x + 1):
+            print(f"{x:2}", end=" ")
+        print()
+        
+        for y in range(min_y, max_y + 1):
+            print(f"{y:2} ", end="")
+            for x in range(min_x, max_x + 1):
+                if (x, y) in robot_positions:
+                    # Find best action for this position
+                    best_action = None
+                    best_value = float('-inf')
+                    
+                    # Look for states that match this position
+                    for state_tuple, q_values in robot_q_table.items():
+                        if len(state_tuple) >= 2 and state_tuple[0] == x and state_tuple[1] == y:
+                            action_idx = np.argmax(q_values)
+                            value = q_values[action_idx]
+                            if value > best_value:
+                                best_value = value
+                                best_action = action_idx
+                    
+                    if best_action is not None and best_action < len(direction_symbols):
+                        print(f" {direction_symbols[best_action]}", end=" ")
+                    else:
+                        print(" ?", end=" ")
+                else:
+                    print(" .", end=" ")
+            print()
+    
+    print(f"\n👤 HUMAN POLICY VISUALIZATION:")
+    print("Shows the human's preferred action at each position for their goal")
+    
+    # Analyze human Q-values
+    human_id = iql.human_agent_ids[0]
+    human_q_table = iql.Q_h_dict[human_id]
+    
+    # Get the goal the human is trying to reach
+    goal = iql.G[0] if iql.G else None
+    if goal:
+        goal_tuple = iql.state_to_tuple(goal)
+        print(f"Goal: {goal} -> {goal_tuple}")
+        
+        # Find all positions for this goal
+        human_positions = set()
+        for state_goal_tuple in human_q_table.keys():
+            if len(state_goal_tuple) == 2:  # (state_tuple, goal_tuple)
+                state_tuple, goal_part = state_goal_tuple
+                if goal_part == goal_tuple and len(state_tuple) >= 2:
+                    human_positions.add((state_tuple[0], state_tuple[1]))
+        
+        if human_positions:
+            min_x = min(pos[0] for pos in human_positions)
+            max_x = max(pos[0] for pos in human_positions)
+            min_y = min(pos[1] for pos in human_positions)
+            max_y = max(pos[1] for pos in human_positions)
+            
+            print(f"Human visited positions: {len(human_positions)}")
+            print(f"Grid bounds: x=[{min_x},{max_x}], y=[{min_y},{max_y}]")
+            
+            # Create human policy map
+            print(f"\nHuman Policy Map (for goal {goal}):")
+            print("   ", end="")
+            for x in range(min_x, max_x + 1):
+                print(f"{x:2}", end=" ")
+            print()
+            
+            for y in range(min_y, max_y + 1):
+                print(f"{y:2} ", end="")
+                for x in range(min_x, max_x + 1):
+                    if (x, y) in human_positions:
+                        # Find best action for this position toward the goal
+                        best_action = None
+                        best_value = float('-inf')
+                        
+                        for state_goal_tuple, q_values in human_q_table.items():
+                            if len(state_goal_tuple) == 2:
+                                state_tuple, goal_part = state_goal_tuple
+                                if (goal_part == goal_tuple and 
+                                    len(state_tuple) >= 2 and 
+                                    state_tuple[0] == x and state_tuple[1] == y):
+                                    
+                                    # Get allowed actions for human
+                                    allowed_actions = iql.action_space_dict.get(human_id, list(range(len(q_values))))
+                                    action_values = [q_values[a] for a in allowed_actions]
+                                    if action_values:
+                                        best_action_idx = np.argmax(action_values)
+                                        best_action = allowed_actions[best_action_idx]
+                                        best_value = action_values[best_action_idx]
+                                        break
+                        
+                        if best_action is not None and best_action < len(direction_symbols):
+                            print(f" {direction_symbols[best_action]}", end=" ")
+                        else:
+                            print(" ?", end=" ")
+                    else:
+                        print(" .", end=" ")
+                print()
+    
+    # Show Q-value statistics
+    print(f"\n📊 Q-VALUE STATISTICS:")
+    
+    # Robot Q-value stats
+    robot_q_values = []
+    for q_values in robot_q_table.values():
+        robot_q_values.extend(q_values)
+    
+    if robot_q_values:
+        print(f"Robot Q-values:")
+        print(f"  Range: [{np.min(robot_q_values):.3f}, {np.max(robot_q_values):.3f}]")
+        print(f"  Mean: {np.mean(robot_q_values):.3f}")
+        print(f"  Std: {np.std(robot_q_values):.3f}")
+        print(f"  States learned: {len(robot_q_table)}")
+    
+    # Human Q-value stats
+    human_q_values = []
+    for q_values in human_q_table.values():
+        human_q_values.extend(q_values)
+    
+    if human_q_values:
+        print(f"Human Q-values:")
+        print(f"  Range: [{np.min(human_q_values):.3f}, {np.max(human_q_values):.3f}]")
+        print(f"  Mean: {np.mean(human_q_values):.3f}")
+        print(f"  Std: {np.std(human_q_values):.3f}")
+        print(f"  State-goal pairs learned: {len(human_q_table)}")
+    
+    # Show some example Q-values
+    print(f"\n🔍 SAMPLE Q-VALUES:")
+    
+    # Show a few robot Q-values
+    print("Robot Q-values (first 5 states):")
+    for i, (state, q_vals) in enumerate(list(robot_q_table.items())[:5]):
+        action_q_pairs = [(action_names[j] if j < len(action_names) else f"A{j}", q_vals[j]) 
+                         for j in range(len(q_vals))]
+        best_action_idx = np.argmax(q_vals)
+        print(f"  State {state}: Best={action_names[best_action_idx] if best_action_idx < len(action_names) else f'A{best_action_idx}'}({q_vals[best_action_idx]:.3f})")
+        print(f"    All: {', '.join([f'{name}:{val:.2f}' for name, val in action_q_pairs[:4]])}...")
+    
+    # Show a few human Q-values
+    print("Human Q-values (first 5 state-goal pairs):")
+    for i, (state_goal, q_vals) in enumerate(list(human_q_table.items())[:5]):
+        if len(q_vals) > 0:
+            allowed_actions = iql.action_space_dict.get(human_id, list(range(len(q_vals))))
+            action_q_pairs = [(action_names[j] if j < len(action_names) else f"A{j}", q_vals[j]) 
+                             for j in allowed_actions]
+            best_action_idx = allowed_actions[np.argmax([q_vals[j] for j in allowed_actions])]
+            print(f"  State-Goal {state_goal}: Best={action_names[best_action_idx] if best_action_idx < len(action_names) else f'A{best_action_idx}'}({q_vals[best_action_idx]:.3f})")
+    
+    print(f"\n{'='*80}")
+    print("End of Q-value visualization")
+    print(f"{'='*80}\n")
+
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='IQL in custom gridworld environment')
@@ -39,6 +249,12 @@ def main():
                         help='Enable detailed debug prints during training (if rendering)')
     parser.add_argument('--debug_level', type=str, choices=['minimal', 'standard', 'verbose'], default='standard',
                         help='Level of debug output: minimal (goal reached only), standard (step info), verbose (full IQL details)')
+    parser.add_argument('--reward-function', type=str, 
+                        choices=['power', 'log', 'bounded', 'generalized_bounded'], 
+                        default='power',
+                        help='Robot reward function: power (default), log, bounded, or generalized_bounded')
+    parser.add_argument('--concavity-param', type=float, default=1.0,
+                        help='Concavity parameter c for generalized_bounded function (default: 1.0)')
     args = parser.parse_args()
 
     # Create environment with specified map
@@ -77,25 +293,43 @@ def main():
             print(f"Please train a model first using: python {sys.argv[0]} --mode train --save {args.load}")
             return
 
-        print(f"Visualizing trained agent using Q-values from {args.load} on map: {args.map}")
-        env.render_mode = "human"  # Enable rendering for visualization
-        
+        print(f"Loading trained agent from {args.load} for map: {args.map}")
         trained_agent = TrainedAgent(q_values_path=args.load)
-        obs = env.reset()
-        env.render()
-        done = False
-        while not done:
-            actions = {}
-            for agent_id, agent_obs in obs.items():
-                actions[agent_id] = trained_agent.choose_action(agent_obs, agent_id)
-            obs, rewards, terminations, truncations, infos = env.step(actions)
-            env.render()
-            done = any(terminations.values()) or any(truncations.values())
-            pygame.time.delay(args.delay)  # Slow down for visualization
         
-        print("Visualization finished.")
+        # Print Q-value map visualization
+        visualize_q_values_as_map(trained_agent, env, args.map)
+        
+        # Ask user if they want to see the pygame visualization too
+        try:
+            response = input("Would you like to see the pygame visualization as well? (y/n): ").lower().strip()
+            if response in ['y', 'yes']:
+                print(f"Running pygame visualization...")
+                env.render_mode = "human"  # Enable rendering for visualization
+                
+                obs = env.reset()
+                env.render()
+                done = False
+                step_count = 0
+                while not done and step_count < 100:  # Limit steps to prevent infinite loops
+                    actions = {}
+                    for agent_id, agent_obs in obs.items():
+                        actions[agent_id] = trained_agent.choose_action(agent_obs, agent_id)
+                    obs, rewards, terminations, truncations, infos = env.step(actions)
+                    env.render()
+                    done = any(terminations.values()) or any(truncations.values())
+                    pygame.time.delay(args.delay)  # Slow down for visualization
+                    step_count += 1
+                
+                print("Pygame visualization finished.")
+            else:
+                print("Skipping pygame visualization.")
+        except KeyboardInterrupt:
+            print("\nVisualization interrupted by user.")
+        except:
+            print("Invalid input, skipping pygame visualization.")
+        
         env.close()
-    
+
     else:  # args.mode == 'train'
         # Training mode
         if args.algorithm == 'timescale':
@@ -114,14 +348,6 @@ def main():
         # Use first robot and human IDs from environment lists
         robot_id_iql = env.robot_agent_ids[0]
         human_id_iql = env.human_agent_ids[0]
-
-        # IQL hyperparameters
-        alpha_h = 0.1
-        alpha_r = 0.01
-        gamma_h = 0.99
-        gamma_r = 0.99
-        beta_h = 5.0
-        epsilon_r = 1.0
         
         # Goals: G should be a list of goals. Retrieve the human goal using the selected human ID.
         human_goal = env.human_goals.get(human_id_iql)
@@ -142,53 +368,37 @@ def main():
             human_id_iql: human_action_space
         }
 
-        # Initialize algorithm based on choice
-        if args.algorithm == 'timescale':
-            # Timescale algorithm hyperparameters
-            alpha_m = 0.1   # Phase 1 learning rate
-            alpha_e = 0.2   # Phase 2 fast timescale learning rate
-            beta_r = 5.0    # Robot softmax temperature
-            eta = 0.1       # Power parameter for robot reward
-            epsilon_h = 0.1 # Human epsilon-greedy parameter
-            
-            iql_agent = TwoPhaseTimescaleIQL(
-                alpha_m=alpha_m,
-                alpha_e=alpha_e,
-                alpha_r=alpha_r,
-                gamma_h=gamma_h,
-                gamma_r=gamma_r,
-                beta_h=beta_h,
-                beta_r=beta_r,
-                G=G,
-                mu_g=mu_g,
-                p_g=p_g,
-                action_space_dict=action_space_dict,
-                robot_agent_ids=[robot_id_iql],
-                human_agent_ids=[human_id_iql],
-                eta=eta,
-                epsilon_h=epsilon_h,
-                debug=args.debug_level == 'verbose'
-            )
-        else:
-            # Standard IQL algorithm
-            E = args.episodes
-            iql_agent = TwoTimescaleIQL(
-                alpha_h=alpha_h,
-                alpha_r=alpha_r,
-                gamma_h=gamma_h,
-                gamma_r=gamma_r,
-                beta_h=beta_h,
-                epsilon_r=epsilon_r,
-                G=G,
-                mu_g=mu_g,
-                p_g=p_g,
-                E=E,
-                action_space_dict=action_space_dict,
-                robot_agent_id=robot_id_iql,
-                human_agent_ids=[human_id_iql],
-                debug=args.debug_level == 'verbose'
-            )
+        # Timescale algorithm hyperparameters
+        alpha_m = 0.1   # Phase 1 learning rate
+        alpha_e = 0.1   # Phase 2 fast timescale learning rate
+        alpha_r = 0.1
+        beta_r_0 = 5.0  # Target robot softmax temperature for Phase 2
+        eta = 0.1       # Power parameter for robot reward
+        epsilon_h_0 = 0.1 # Final human epsilon-greedy parameter
+        epsilon_r = 1   # Robot exploration in Phase 1
+        gamma_h = 0.99
+        gamma_r = 0.99
 
+        iql_agent = TwoPhaseTimescaleIQL(
+            alpha_m=alpha_m,
+            alpha_e=alpha_e,
+            alpha_r=alpha_r,
+            gamma_h=gamma_h,
+            gamma_r=gamma_r,
+            beta_r_0=beta_r_0,
+            G=G,
+            mu_g=mu_g,
+            p_g=p_g,
+            action_space_dict=action_space_dict,
+            robot_agent_ids=[robot_id_iql],
+            human_agent_ids=[human_id_iql],
+            eta=eta,
+            epsilon_h_0=epsilon_h_0,
+            epsilon_r=epsilon_r,
+            reward_function=args.reward_function,  # NEW
+            concavity_param=args.concavity_param,  # NEW
+            debug=args.debug_level == 'verbose'
+        )
         # Train the agent
         if args.algorithm == 'timescale':
             print(f"Starting Two-Phase Timescale IQL training...{' with rendering' if args.render else ''}{' and debug level: ' + args.debug_level if args.debug_prints else ''}")
