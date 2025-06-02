@@ -81,37 +81,25 @@ class TrainedAgent:
             if np.iscomplexobj(q_values):
                 q_values = np.real(q_values)
             
-            exp_q = np.exp(self.iql.beta_h * q_values)
-            sum_exp = np.sum(exp_q)
-            
-            if sum_exp == 0 or np.isnan(sum_exp) or np.isinf(sum_exp):
-                # Fallback to uniform distribution
-                if hasattr(self.iql, 'action_space_humans') and agent_id in self.iql.action_space_humans:
-                    space = self.iql.action_space_humans[agent_id]
-                elif hasattr(self.iql, 'action_space_dict') and agent_id in self.iql.action_space_dict:
-                    space = self.iql.action_space_dict[agent_id]
-                else:
-                    space = list(range(len(q_values)))  # Fallback to indices
-                probs = np.ones(len(space)) / len(space) if space else []
+            # Use epsilon-greedy policy with converged epsilon_h_0
+            if hasattr(self.iql, 'epsilon_h_0'):
+                epsilon = self.iql.epsilon_h_0
             else:
-                probs = exp_q / sum_exp
+                epsilon = 0.1  # Fallback
             
-            # Ensure probabilities are real and positive
-            probs = np.real(probs)
-            probs = np.maximum(probs, 0)
-            if np.sum(probs) > 0:
-                probs = probs / np.sum(probs)
-            else:
-                # Fallback to uniform
-                probs = np.ones(len(probs)) / len(probs)
+            # For deterministic visualization, use greedy action (no exploration)
+            # If you want some exploration, uncomment the epsilon-greedy code below
+            return int(np.argmax(q_values))
             
-            # Additional safety check for NaN
-            if np.any(np.isnan(probs)):
-                probs = np.ones(len(probs)) / len(probs)
-            
-            # For visualization, we can either sample from the distribution or take the most likely action
-            # deterministic choice
-            return int(np.argmax(probs))
+            # Epsilon-greedy version (uncomment if you want exploration in visualization):
+            # if np.random.random() < epsilon:
+            #     if hasattr(self.iql, 'action_space_dict') and agent_id in self.iql.action_space_dict:
+            #         allowed_actions = self.iql.action_space_dict[agent_id]
+            #         return np.random.choice(allowed_actions)
+            #     else:
+            #         return np.random.choice(len(q_values))
+            # else:
+            #     return int(np.argmax(q_values))
         
         else:
             # Unknown agent

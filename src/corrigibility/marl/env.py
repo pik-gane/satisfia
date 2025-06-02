@@ -288,21 +288,49 @@ class CustomEnvironment(ParallelEnv):
             obs_human_dir
         ])
 
-    def observe(self, agent_id): # MODIFIED: Standard ParallelEnv observe method
-        # Note: agent_id here is one of self.possible_agents (e.g., "robot_0")
-        # The observation is global but returned for the specified agent.
-        # Reduced state space: only agent positions and directions
-        obs_agent_pos = self.agent_pos if self.agent_pos is not None else (-1,-1) # This is robot's pos
-        obs_human_pos = self.human_pos if self.human_pos is not None else (-1,-1)
-        obs_agent_dir = self.agent_dirs.get(self.robot_agent_ids[0], 0) # Robot direction
-        obs_human_dir = self.agent_dirs.get(self.human_agent_ids[0], 0) # Human direction
+    def observe(self, agent_id):
+        """Standard ParallelEnv observe method with consistent state space for all agents."""
+        # Consistent observation for all agents: 
+        # [current_agent_direction, all_agent_positions_flattened, door_states, key_states, box_positions]
+        obs = []
         
-        return np.array([
-            obs_agent_pos[0], obs_agent_pos[1],
-            obs_human_pos[0], obs_human_pos[1],
-            obs_agent_dir,
-            obs_human_dir
-        ])
+        # Current agent's direction facing
+        obs.append(self.agent_dirs.get(agent_id, 0))
+        
+        # All agent positions (consistent order: robots first, then humans)
+        all_agent_ids = self.robot_agent_ids + self.human_agent_ids
+        for aid in all_agent_ids:
+            pos = self.agent_positions.get(aid, (-1, -1))
+            obs.extend([pos[0], pos[1]])
+        
+        # Door states (open/closed for all doors)
+        for door in self.doors:
+            obs.append(1 if door['is_open'] else 0)
+        
+        # Key states: position if not picked up, or special encoding if picked up
+        for i, key in enumerate(self.keys):
+            # Key exists in world at its position
+            obs.extend([key['pos'][0], key['pos'][1]])
+        
+        # Encode picked up keys (robot inventory) - use special position (-2, -2) for picked up
+        for color in self.robot_has_keys:
+            obs.extend([-2, -2])  # Special encoding for picked up keys
+        
+        # Pad to consistent size if needed (handle variable number of keys)
+        max_keys = self.initial_num_keys + len(self.robot_has_keys)
+        current_key_entries = len(self.keys) + len(self.robot_has_keys)
+        for _ in range(max_keys - current_key_entries):
+            obs.extend([-1, -1])  # Padding for non-existent keys
+        
+        # Box positions (flattened)
+        for box in self.boxes:
+            obs.extend([box['pos'][0], box['pos'][1]])
+        
+        return np.array(obs, dtype=np.int32)
+
+    def _get_obs(self, agent_id):
+        """Legacy method - redirects to observe for compatibility."""
+        return self.observe(agent_id)
 
     def _move_agent_vanilla(self, current_pos, action):
         x, y = current_pos
