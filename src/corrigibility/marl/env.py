@@ -487,19 +487,34 @@ class CustomEnvironment(ParallelEnv):
             if self.debug_mode and self.debug_level == 'verbose' and abs(shaped_reward) > 0.01:
                 print(f"🔄 SHAPED REWARD: Human {hid} got {shaped_reward:.3f} (potential: {prev_potential:.2f} → {current_potential_h:.2f})")
 
-        # Terminate and add large bonus reward if any human that reaches its goal
+        # Check for humans reaching their goals and track which ones have completed
+        humans_at_goals = []
         for hid in self.human_agent_ids:
             if self.agent_positions.get(hid) == self.human_goals.get(hid):
-                # add final reward for reaching goal (on top of any shaped reward for that step)
-                self.rewards[hid] += 500 
-                # end episode for all agents
-                for a in self.agents:
-                    self.terminations[a] = True
-                # Always print goal achievement regardless of debug level
-                if self.debug_mode or hasattr(self, '_minimal_debug_enabled'):
-                    episode_info = f" (Episode {self._current_episode})" if hasattr(self, '_current_episode') and self._current_episode is not None else ""
-                    print(f"🎯 GOAL REACHED: Human {hid} reached goal {self.human_goals.get(hid)} at step {self.timestep}{episode_info}")
-                break
+                # Check if this human just reached the goal (not already there)
+                if not hasattr(self, '_humans_completed') or hid not in self._humans_completed:
+                    # Initialize completed humans tracker if it doesn't exist
+                    if not hasattr(self, '_humans_completed'):
+                        self._humans_completed = set()
+                    
+                    # Mark this human as completed and give bonus reward
+                    self._humans_completed.add(hid)
+                    self.rewards[hid] += 500
+                    
+                    # Always print goal achievement regardless of debug level
+                    if self.debug_mode or hasattr(self, '_minimal_debug_enabled'):
+                        episode_info = f" (Episode {self._current_episode})" if hasattr(self, '_current_episode') and self._current_episode is not None else ""
+                        print(f"🎯 GOAL REACHED: Human {hid} reached goal {self.human_goals.get(hid)} at step {self.timestep}{episode_info}")
+                
+                humans_at_goals.append(hid)
+        
+        # End episode only when ALL humans have reached their respective goals
+        if len(humans_at_goals) == len(self.human_agent_ids):
+            for a in self.agents:
+                self.terminations[a] = True
+            if self.debug_mode or hasattr(self, '_minimal_debug_enabled'):
+                episode_info = f" (Episode {self._current_episode})" if hasattr(self, '_current_episode') and self._current_episode is not None else ""
+                print(f"🏆 ALL GOALS COMPLETED: All humans reached their goals at step {self.timestep}{episode_info}")
         
         self.timestep += 1 # Increment timestep
         # Check for truncation based on max_steps
