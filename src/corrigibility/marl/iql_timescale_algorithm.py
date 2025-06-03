@@ -187,17 +187,40 @@ class TwoPhaseTimescaleIQL:
         
         return total_expected_value
 
+    def calculate_distance(self, state_tuple: tuple, goal_tuple: tuple) -> float:
+        """Calculate Euclidean distance between state and goal."""
+        if len(state_tuple) >= 2 and len(goal_tuple) >= 2:
+            # Assuming first two elements are x, y coordinates
+            dx = state_tuple[0] - goal_tuple[0]
+            dy = state_tuple[1] - goal_tuple[1]
+            return math.sqrt(dx*dx + dy*dy)
+        else:
+            # Fallback: Manhattan distance for any dimension
+            return sum(abs(s - g) for s, g in zip(state_tuple, goal_tuple))
+
+    def calculate_human_utility(self, human_id: str, state_tuple: tuple, goal_tuple: tuple) -> float:
+        """
+        Calculate human utility based on inverse distance to goal.
+        Returns 250 at the goal, decreasing with distance.
+        """
+        distance = self.calculate_distance(state_tuple, goal_tuple)
+        
+        if distance == 0:
+            # At the goal
+            return 250.0
+        else:
+            # Inverse distance utility with scaling
+            # Use formula: 250 / (1 + distance) to ensure smooth falloff
+            utility = 250.0 / (1.0 + distance)
+            return utility
+
     def estimate_human_utility(self, human_id: str, state_tuple: tuple, goal_tuple: tuple, robot_action: int) -> float:
         """
         Estimate U_h(s',g_h) for a given robot action.
-        This is a simplified estimation for the backward induction.
+        Uses inverse distance to goal as the utility function.
         """
-        # Simple heuristic: assume robot actions that move away from human goals
-        # result in lower human utility
-        # In a full implementation, this would use the actual environment dynamics
-        
-        # For now, return a pessimistic estimate
-        return -0.1 * robot_action  # Simple linear penalty
+        # Calculate utility based on current state position relative to goal
+        return self.calculate_human_utility(human_id, state_tuple, goal_tuple)
 
     def sample_robot_action_phase2(self, robot_id: str, state_tuple: tuple) -> int:
         """Sample robot action using softmax policy in Phase 2."""

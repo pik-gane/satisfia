@@ -301,7 +301,7 @@ def main():
         
         # Ask user if they want to see the pygame visualization too
         try:
-            response = input("Would you like to see the pygame visualization as well? (y/n): ").lower().strip()
+            response = 'y'
             if response in ['y', 'yes']:
                 print(f"Running pygame visualization...")
                 env.render_mode = "human"  # Enable rendering for visualization
