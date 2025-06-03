@@ -1,6 +1,6 @@
 ### Command
 
-python main.py --mode train --phase1-episodes 1000 --phase2-episodes 1000 --save saved/q_values.pkl --map simple_map
+python main.py --mode train --phase1-episodes 1000 --phase2-episodes 1000 --save saved/q_values.pkl --map simple_map2
 
 # Two-Timescale Goal-Based IQL in a Custom Grid Environment
 
