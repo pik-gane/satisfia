@@ -12,7 +12,8 @@ class TwoPhaseTimescaleIQL:
     def __init__(self, alpha_m, alpha_e, alpha_r, gamma_h, gamma_r, beta_r_0,
                  G, mu_g, p_g, action_space_dict, robot_agent_ids, human_agent_ids,
                  eta=0.1, epsilon_h_0=0.1, epsilon_r=0.1, decay_epsilon_r_phase1=False, 
-                 reward_function='power', concavity_param=1.0, debug=False):
+                 reward_function='power', concavity_param=1.0, debug=False,
+                 zeta=1.0, xi=1.0):
         # Phase 1 parameters
         self.alpha_m = alpha_m  # Phase 1 learning rate for human models
         self.alpha_e = alpha_e  # Phase 2 fast timescale learning rate
@@ -37,6 +38,10 @@ class TwoPhaseTimescaleIQL:
         self.epsilon_r = epsilon_r  # Robot exploration in Phase 1
         self.debug = debug
         
+        # NEW: Mathematical formulation parameters
+        self.zeta = zeta  # Power parameter in X_h(s) calculation (equation Xh)
+        self.xi = xi      # Power parameter in U_r(s) calculation (equation Ur)
+        
         # Agent configuration
         self.robot_agent_ids = robot_agent_ids if isinstance(robot_agent_ids, list) else [robot_agent_ids]
         self.human_agent_ids = human_agent_ids if isinstance(human_agent_ids, list) else [human_agent_ids]
@@ -47,25 +52,52 @@ class TwoPhaseTimescaleIQL:
         self.action_space_robot = {rid: action_space_dict[rid] for rid in self.robot_agent_ids}
         self.action_space_humans = {hid: action_space_dict[hid] for hid in self.human_agent_ids}
         
-        # Q-tables for Phase 1: Human model learning
+        # Q-tables for Phase 1: Human model learning (Q^m_h)
         action_dim = len(Actions)
-        self.Q_h_dict = {hid: defaultdict(lambda: np.random.uniform(-0.1, 0.1, size=action_dim))
+        self.Q_m_h_dict = {hid: defaultdict(lambda: np.random.uniform(-0.1, 0.1, size=action_dim))
                          for hid in self.human_agent_ids}
         
-        # Q-tables for Phase 2: Robot policy learning
+        # Q-tables for Phase 2: Robot policy learning (Q_r)
         self.Q_r_dict = {rid: defaultdict(lambda: np.random.uniform(-0.1, 0.1, size=len(self.action_space_robot[rid])))
                          for rid in self.robot_agent_ids}
         
-        # NEW: Q_e tables for expected human Q-values under robot policy
+        # NEW: Mathematical formulation tables
+        # Q^e_h(s,g_h,a_h) - Expected Q-values under robot policy
         self.Q_e_dict = {hid: defaultdict(lambda: np.random.uniform(-0.1, 0.1, size=action_dim))
                          for hid in self.human_agent_ids}
+        
+        # V^m_h(s,g_h) - Value function for human model
+        self.V_m_h_dict = {hid: defaultdict(float) for hid in self.human_agent_ids}
+        
+        # V^e_h(s,g_h) - Expected value function under robot policy
+        self.V_e_h_dict = {hid: defaultdict(float) for hid in self.human_agent_ids}
+        
+        # X_h(s) - Aggregated human potential (equation Xh)
+        self.X_h_dict = {hid: defaultdict(float) for hid in self.human_agent_ids}
+        
+        # U_r(s) - Robot utility function (equation Ur)
+        self.U_r_dict = {rid: defaultdict(float) for rid in self.robot_agent_ids}
+        
+        # V_r(s) - Robot value function (equation Vr)
+        self.V_r_dict = {rid: defaultdict(float) for rid in self.robot_agent_ids}
+        
+        # Human policies π_h(s,g_h)
+        self.pi_h_dict = {hid: {} for hid in self.human_agent_ids}
+        
+        # Robot policies π_r(s)
+        self.pi_r_dict = {rid: {} for rid in self.robot_agent_ids}
+        
+        # Wide prior μ_{-h}(s) representing robot's assumption on human's belief about other humans
+        # For simplicity, assume uniform distribution over actions
+        self.mu_minus_h = lambda state: {hid: np.ones(action_dim) / action_dim for hid in self.human_agent_ids}
         
         # NEW: Robot reward function parameters
         self.reward_function = reward_function  # 'power', 'log', 'bounded', 'generalized_bounded'
         self.concavity_param = concavity_param  # c parameter for generalized bounded function
         
         # Compatibility attributes for trained_agent.py
-        self.Q_h = self.Q_h_dict
+        self.Q_h_dict = self.Q_m_h_dict  # Backward compatibility
+        self.Q_h = self.Q_m_h_dict
         self.Q_r = self.Q_r_dict
         
         # Convergence monitoring
@@ -96,49 +128,99 @@ class TwoPhaseTimescaleIQL:
             return tuple(int(x) for x in state_obs)
 
     def sample_robot_action_phase1(self, robot_id: str, state_tuple: tuple) -> int:
-        """Sample robot action using pessimistic policy in Phase 1."""
+        """
+        Sample robot action using backward induction approach in Phase 1.
+        Implements the min_{a_r} part of equation (Qm).
+        """
         allowed = self.action_space_dict[robot_id]
         
         if np.random.random() < self.epsilon_r:
             return np.random.choice(allowed)
         
-        # Calculate pessimistic values for each action
-        action_values = []
+        # Calculate the action that minimizes expected human future value
+        # This implements the "evil" robot behavior for learning human models
+        min_expected_values = []
+        
         for action in allowed:
             # Calculate expected negative human potential for this action
-            # This is a simplified pessimistic estimate
-            neg_value = self.calculate_pessimistic_value(robot_id, state_tuple, action)
-            action_values.append(neg_value)
+            neg_value = self.calculate_min_human_value(robot_id, state_tuple, action)
+            min_expected_values.append(neg_value)
         
-        # Choose action with most negative expected human value (pessimistic)
-        best_action_idx = np.argmax(action_values)  # Most negative = worst for human
+        # Choose action that minimizes human expected value (most "evil")
+        best_action_idx = np.argmin(min_expected_values)
         return allowed[best_action_idx]
 
-    def calculate_pessimistic_value(self, robot_id: str, state_tuple: tuple, action: int) -> float:
-        """Calculate pessimistic estimate of human potential for robot action."""
-        # Simple pessimistic heuristic: assume this action leads to worst outcomes for humans
-        # In a full implementation, this would simulate the action and calculate
-        # the minimum expected human value across all goals
+    def calculate_min_human_value(self, robot_id: str, state_tuple: tuple, robot_action: int) -> float:
+        """
+        Calculate min_{a_r} E_{s'} (U_h(s',g_h) + γ_h V^m_h(s',g_h))
+        This implements the backward induction for equation (Qm).
+        """
+        total_expected_value = 0.0
         
-        total_pessimistic_value = 0.0
+        # For each human
         for hid in self.human_agent_ids:
-            human_pessimistic_value = 0.0
+            human_expected_value = 0.0
+            
+            # For each goal weighted by goal probability
             for i, goal in enumerate(self.G):
                 goal_tuple = self.state_to_tuple(goal)
-                key = (state_tuple, goal_tuple)
+                goal_weight = self.mu_g[i]
                 
-                if key in self.Q_h_dict[hid]:
-                    q_values = self.Q_h_dict[hid][key]
-                    # Use minimum Q-value (pessimistic assumption)
-                    min_q_value = np.min(q_values)
-                    human_pessimistic_value += self.mu_g[i] * min_q_value
+                # Approximate expected future value under this robot action
+                # In a full implementation, this would simulate all possible next states
+                key = (state_tuple, goal_tuple)
+                if key in self.V_m_h_dict[hid]:
+                    future_value = self.V_m_h_dict[hid][key]
                 else:
-                    # For unseen states, assume negative value
-                    human_pessimistic_value += self.mu_g[i] * (-1.0)
+                    # For unseen states, assume pessimistic value
+                    future_value = -1.0
+                
+                # Add immediate utility (reward) estimate
+                # This is a simplified version - in full implementation, 
+                # we'd simulate the transition and get actual U_h(s',g_h)
+                immediate_utility = self.estimate_human_utility(hid, state_tuple, goal_tuple, robot_action)
+                
+                expected_return = immediate_utility + self.gamma_h * future_value
+                human_expected_value += goal_weight * expected_return
             
-            total_pessimistic_value += human_pessimistic_value
+            total_expected_value += human_expected_value
         
-        return total_pessimistic_value
+        return total_expected_value
+
+    def calculate_distance(self, state_tuple: tuple, goal_tuple: tuple) -> float:
+        """Calculate Euclidean distance between state and goal."""
+        if len(state_tuple) >= 2 and len(goal_tuple) >= 2:
+            # Assuming first two elements are x, y coordinates
+            dx = state_tuple[0] - goal_tuple[0]
+            dy = state_tuple[1] - goal_tuple[1]
+            return math.sqrt(dx*dx + dy*dy)
+        else:
+            # Fallback: Manhattan distance for any dimension
+            return sum(abs(s - g) for s, g in zip(state_tuple, goal_tuple))
+
+    def calculate_human_utility(self, human_id: str, state_tuple: tuple, goal_tuple: tuple) -> float:
+        """
+        Calculate human utility based on inverse distance to goal.
+        Returns 250 at the goal, decreasing with distance.
+        """
+        distance = self.calculate_distance(state_tuple, goal_tuple)
+        
+        if distance == 0:
+            # At the goal
+            return 250.0
+        else:
+            # Inverse distance utility with scaling
+            # Use formula: 250 / (1 + distance) to ensure smooth falloff
+            utility = 250.0 / (1.0 + distance)
+            return utility
+
+    def estimate_human_utility(self, human_id: str, state_tuple: tuple, goal_tuple: tuple, robot_action: int) -> float:
+        """
+        Estimate U_h(s',g_h) for a given robot action.
+        Uses inverse distance to goal as the utility function.
+        """
+        # Calculate utility based on current state position relative to goal
+        return self.calculate_human_utility(human_id, state_tuple, goal_tuple)
 
     def sample_robot_action_phase2(self, robot_id: str, state_tuple: tuple) -> int:
         """Sample robot action using softmax policy in Phase 2."""
@@ -246,7 +328,7 @@ class TwoPhaseTimescaleIQL:
                 current_goals[hid] = self.state_to_tuple(self.G[goal_idx])
             
             step_count = 0
-            episode_human_reward = 0.0
+            episode_human_rewards = {hid: 0.0 for hid in self.human_agent_ids}  # Track individual human rewards
             max_steps = getattr(environment, 'max_steps', 200)
             
             while step_count < max_steps:
@@ -287,7 +369,7 @@ class TwoPhaseTimescaleIQL:
                 # Update human Q-values (conservative)
                 for hid in self.human_agent_ids:
                     reward = rewards.get(hid, 0)
-                    episode_human_reward += reward
+                    episode_human_rewards[hid] += reward  # Track individual rewards
                     self.update_human_q_phase1(
                         hid, s_tuples[hid], current_goals[hid], actions[hid],
                         reward, next_s_tuples[hid], episode_done
@@ -307,8 +389,12 @@ class TwoPhaseTimescaleIQL:
             
             # Print progress and check convergence every 100 episodes
             if (episode + 1) % self.convergence_window == 0 or episode + 1 == phase1_episodes:
-                avg_human_reward = episode_human_reward / max(step_count, 1)
-                print(f"[PHASE1] Episode {episode + 1}/{phase1_episodes}: human={avg_human_reward:.2f}, robot=PESSIMISTIC, ε_h={self.epsilon_h:.3f}")
+                # Calculate average rewards for each human individually
+                avg_human_rewards = {hid: episode_human_rewards[hid] / max(step_count, 1) for hid in self.human_agent_ids}
+                
+                # Format individual human rewards for logging
+                human_rewards_str = ", ".join([f"{hid}={avg_human_rewards[hid]:.2f}" for hid in self.human_agent_ids])
+                print(f"[PHASE1] Episode {episode + 1}/{phase1_episodes}: humans=({human_rewards_str}), robot=PESSIMISTIC, ε_h={self.epsilon_h:.3f}")
                 
                 # Q-value change analysis
                 if episode >= self.convergence_window - 1:  # Only after sufficient episodes
@@ -351,7 +437,7 @@ class TwoPhaseTimescaleIQL:
             
             step_count = 0
             episode_robot_reward = 0.0
-            episode_human_reward = 0.0
+            episode_human_rewards = {hid: 0.0 for hid in self.human_agent_ids}  # Track individual human rewards
             max_steps = getattr(environment, 'max_steps', 200)
             
             while step_count < max_steps:
@@ -403,7 +489,7 @@ class TwoPhaseTimescaleIQL:
                 # Fast timescale human updates AND Q_e updates
                 for hid in self.human_agent_ids:
                     reward = rewards.get(hid, 0)
-                    episode_human_reward += reward
+                    episode_human_rewards[hid] += reward  # Track individual rewards
                     
                     # Update both Q_h and Q_e
                     self.update_human_q_phase2(
@@ -422,8 +508,12 @@ class TwoPhaseTimescaleIQL:
             # Print progress and check convergence every 100 episodes
             if (episode + 1) % self.convergence_window == 0 or episode + 1 == phase2_episodes:
                 avg_robot_reward = episode_robot_reward / max(step_count, 1)
-                avg_human_reward = episode_human_reward / max(step_count, 1)
-                print(f"[PHASE2] Episode {episode + 1}/{phase2_episodes}: human={avg_human_reward:.2f}, robot={avg_robot_reward:.2f}, β_r={self.beta_r:.3f}")
+                # Calculate average rewards for each human individually
+                avg_human_rewards = {hid: episode_human_rewards[hid] / max(step_count, 1) for hid in self.human_agent_ids}
+                
+                # Format individual human rewards for logging
+                human_rewards_str = ", ".join([f"{hid}={avg_human_rewards[hid]:.2f}" for hid in self.human_agent_ids])
+                print(f"[PHASE2] Episode {episode + 1}/{phase2_episodes}: humans=({human_rewards_str}), robot={avg_robot_reward:.2f}, β_r={self.beta_r:.3f}")
                 
                 # Q-value change analysis
                 if episode >= self.convergence_window - 1:  # Only after sufficient episodes
@@ -444,23 +534,88 @@ class TwoPhaseTimescaleIQL:
                     self.last_q_snapshot = current_snapshot
 
     def update_human_q_phase1(self, human_id, state_tuple, goal_tuple, action, reward, next_state_tuple, done):
-        """Conservative Q-learning update for human in Phase 1."""
+        """
+        Update Q^m_h using backward induction approach (equation Qm).
+        Q^m_h(s,g_h,a_h) ← E_{a_{-h}~μ_{-h}(s)} min_{a_r∈A_r(s)} E_{s'~s,a} (U_h(s',g_h) + γ_h V^m_h(s',g_h))
+        """
         key = (state_tuple, goal_tuple)
-        current_q = self.Q_h_dict[human_id][key][action]
+        current_q = self.Q_m_h_dict[human_id][key][action]
         
         if done:
             target = reward
         else:
+            # Calculate V^m_h(s',g_h) using equation (Vm)
             next_key = (next_state_tuple, goal_tuple)
-            next_q_values = self.Q_h_dict[human_id][next_key]
-            # Conservative: use minimum Q-value instead of expected value
-            next_value = np.min(next_q_values)
-            target = reward + self.gamma_h * next_value
+            next_v_m_h = self.compute_v_m_h(human_id, next_state_tuple, goal_tuple)
+            target = reward + self.gamma_h * next_v_m_h
         
-        self.Q_h_dict[human_id][key][action] += self.alpha_m * (target - current_q)
+        self.Q_m_h_dict[human_id][key][action] += self.alpha_m * (target - current_q)
+        
+        # Update π_h(s,g_h) using ε-greedy policy (equation pih)
+        self.update_pi_h(human_id, state_tuple, goal_tuple)
+        
+        # Update V^m_h(s,g_h) using equation (Vm)
+        self.update_v_m_h(human_id, state_tuple, goal_tuple)
+
+    def compute_v_m_h(self, human_id: str, state_tuple: tuple, goal_tuple: tuple) -> float:
+        """
+        Compute V^m_h(s,g_h) = E_{a_h~π_h(s,g_h)} Q^m_h(s,g_h,a_h) (equation Vm)
+        """
+        key = (state_tuple, goal_tuple)
+        if key not in self.Q_m_h_dict[human_id]:
+            return 0.0
+        
+        q_values = self.Q_m_h_dict[human_id][key]
+        allowed_actions = self.action_space_dict[human_id]
+        
+        # Get current policy π_h(s,g_h)
+        policy = self.get_pi_h(human_id, state_tuple, goal_tuple)
+        
+        # Calculate expected value
+        expected_value = sum(policy.get(a, 0.0) * q_values[a] for a in allowed_actions)
+        return expected_value
+
+    def update_pi_h(self, human_id: str, state_tuple: tuple, goal_tuple: tuple):
+        """Update π_h(s,g_h) ← ε_h-greedy policy for Q^m_h(s,g_h,·) (equation pih)"""
+        key = (state_tuple, goal_tuple)
+        if key not in self.Q_m_h_dict[human_id]:
+            return
+        
+        q_values = self.Q_m_h_dict[human_id][key]
+        allowed_actions = self.action_space_dict[human_id]
+        
+        # Find best action
+        q_subset = [q_values[a] for a in allowed_actions]
+        best_action_idx = np.argmax(q_subset)
+        best_action = allowed_actions[best_action_idx]
+        
+        # Create ε-greedy policy
+        policy = {}
+        for a in allowed_actions:
+            if a == best_action:
+                policy[a] = (1.0 - self.epsilon_h) + self.epsilon_h / len(allowed_actions)
+            else:
+                policy[a] = self.epsilon_h / len(allowed_actions)
+        
+        self.pi_h_dict[human_id][key] = policy
+
+    def get_pi_h(self, human_id: str, state_tuple: tuple, goal_tuple: tuple) -> dict:
+        """Get π_h(s,g_h) policy"""
+        key = (state_tuple, goal_tuple)
+        if key in self.pi_h_dict[human_id]:
+            return self.pi_h_dict[human_id][key]
+        
+        # Default to uniform policy
+        allowed_actions = self.action_space_dict[human_id]
+        return {a: 1.0 / len(allowed_actions) for a in allowed_actions}
+
+    def update_v_m_h(self, human_id: str, state_tuple: tuple, goal_tuple: tuple):
+        """Update V^m_h(s,g_h) using equation (Vm)"""
+        key = (state_tuple, goal_tuple)
+        self.V_m_h_dict[human_id][key] = self.compute_v_m_h(human_id, state_tuple, goal_tuple)
 
     def update_human_q_phase2(self, human_id, state_tuple, goal_tuple, action, reward, next_state_tuple, done):
-        """Minimal fast timescale update for human in Phase 2."""
+        """Fast timescale update for human Q-values in Phase 2, keeping Q^m_h updated."""
         key = (state_tuple, goal_tuple)
         current_q = self.Q_h_dict[human_id][key][action]
         
@@ -468,143 +623,213 @@ class TwoPhaseTimescaleIQL:
             target = reward
         else:
             next_key = (next_state_tuple, goal_tuple)
-            next_q_values = self.Q_h_dict[human_id][next_key]
-            # Simple max Q-value for greedy policy
-            next_value = np.max(next_q_values)
-            target = reward + self.gamma_h * next_value
+            next_v_m_h = self.compute_v_m_h(human_id, next_state_tuple, goal_tuple)
+            target = reward + self.gamma_h * next_v_m_h
         
-        # Use smaller learning rate for Phase 2 updates
+        # Use fast learning rate for Phase 2 updates
         self.Q_h_dict[human_id][key][action] += self.alpha_e * (target - current_q)
+        
+        # Also update the mathematical tables
+        self.update_pi_h(human_id, state_tuple, goal_tuple)
+        self.update_v_m_h(human_id, state_tuple, goal_tuple)
 
     def update_robot_q_phase2(self, robot_id, state_tuple, action, reward, next_state_tuple, done):
-        """Update robot Q-values in Phase 2."""
+        """
+        Update robot Q-values in Phase 2 using equation (Qr):
+        Q_r(s,a_r) ← E_g E_{a_H~π_H(s,g)} E_{s'~s,a} γ_r V_r(s')
+        """
         current_q = self.Q_r_dict[robot_id][state_tuple][action]
         
         if done:
             target = reward
         else:
-            next_q_values = self.Q_r_dict[robot_id][next_state_tuple]
-            next_value = np.max(next_q_values)
-            target = reward + self.gamma_r * next_value
+            # Calculate V_r(s') using equation (Vr)
+            next_v_r = self.compute_v_r(robot_id, next_state_tuple)
+            target = reward + self.gamma_r * next_v_r
         
         self.Q_r_dict[robot_id][state_tuple][action] += self.alpha_r * (target - current_q)
+        
+        # Update π_r(s) using β_r-softmax policy (equation pir)
+        self.update_pi_r(robot_id, state_tuple)
+        
+        # Update V_r(s) using equation (Vr)
+        self.update_v_r(robot_id, state_tuple)
+
+    def compute_v_r(self, robot_id: str, state_tuple: tuple) -> float:
+        """
+        Compute V_r(s) using equation (Vr):
+        V_r(s) = U_r(s) + E_{a_r~π_r(s)} Q_r(s,a_r)
+        """
+        # Get U_r(s) - robot utility function
+        U_r = self.U_r_dict[robot_id].get(state_tuple, 0.0)
+        
+        # Get Q_r values for this state
+        if state_tuple not in self.Q_r_dict[robot_id]:
+            return U_r
+        
+        q_values = self.Q_r_dict[robot_id][state_tuple]
+        allowed_actions = self.action_space_dict[robot_id]
+        
+        # Get robot policy π_r(s)
+        policy = self.get_pi_r(robot_id, state_tuple)
+        
+        # Calculate expected Q-value under policy
+        expected_q = sum(policy.get(a, 0.0) * q_values[a] for a in allowed_actions)
+        
+        return U_r + expected_q
+
+    def update_pi_r(self, robot_id: str, state_tuple: tuple):
+        """Update π_r(s) ← β_r-softmax policy for Q_r(s,·) (equation pir)"""
+        if state_tuple not in self.Q_r_dict[robot_id]:
+            return
+        
+        q_values = self.Q_r_dict[robot_id][state_tuple]
+        allowed_actions = self.action_space_dict[robot_id]
+        
+        # Compute softmax probabilities with current beta_r
+        q_subset = np.array([q_values[a] for a in allowed_actions])
+        q_subset = np.clip(q_subset, -500, 500)  # Prevent overflow
+        
+        exp_q = np.exp(self.beta_r * q_subset)
+        
+        # Handle numerical issues
+        if np.any(np.isnan(exp_q)) or np.any(np.isinf(exp_q)) or np.sum(exp_q) == 0:
+            # Fallback to uniform distribution
+            probs = np.ones(len(allowed_actions)) / len(allowed_actions)
+        else:
+            probs = exp_q / np.sum(exp_q)
+        
+        # Create policy dictionary
+        policy = {allowed_actions[i]: probs[i] for i in range(len(allowed_actions))}
+        self.pi_r_dict[robot_id][state_tuple] = policy
+
+    def get_pi_r(self, robot_id: str, state_tuple: tuple) -> dict:
+        """Get π_r(s) policy"""
+        if state_tuple in self.pi_r_dict[robot_id]:
+            return self.pi_r_dict[robot_id][state_tuple]
+        
+        # Default to uniform policy
+        allowed_actions = self.action_space_dict[robot_id]
+        return {a: 1.0 / len(allowed_actions) for a in allowed_actions}
+
+    def update_v_r(self, robot_id: str, state_tuple: tuple):
+        """Update V_r(s) using equation (Vr)"""
+        self.V_r_dict[robot_id][state_tuple] = self.compute_v_r(robot_id, state_tuple)
 
     def calculate_robot_reward_new(self, next_states, current_goals, done):
         """
-        Calculate robot reward using Q_e and concave function f following the mathematical formulation:
-        
-        r_r(s', π_r) = f(z(s', π_r))
-        where z(s', π_r) = E_{g~μ_g} V_e^{π_r}(s', g)^{1+η}
-        and V_e^{π_r}(s', g) = E_{a_h~π_h*(s',g)} Q_e^{π_r}(s', g, a_h)
+        Calculate robot reward using the mathematical formulation:
+        U_r(s) = -((∑_h X_h(s)^{-ξ})^η)  (equation Ur)
+        where X_h(s) = ∑_{g_h∈G_h} V^e_h(s,g_h)^ζ  (equation Xh)
         """
         if done:
             return 0.0
         
         if self.debug:
-            print(f"\n🔧 ROBOT REWARD CALCULATION:")
+            print(f"\n🔧 ROBOT REWARD CALCULATION (Mathematical Formulation):")
             print(f"  Next states: {next_states}")
-            print(f"  Current goals: {current_goals}")
-            print(f"  Reward function: {self.reward_function}")
-            print(f"  η (eta): {self.eta}")
+            print(f"  ζ (zeta): {self.zeta}, ξ (xi): {self.xi}, η (eta): {self.eta}")
         
-        # Calculate z(s', π_r) = E_{g~μ_g} V_e^{π_r}(s', g)^{1+η}
-        z_total = 0.0
+        # Calculate X_h(s) for each human (equation Xh)
+        X_h_values = []
         
-        for i, goal in enumerate(self.G):
-            goal_tuple = self.state_to_tuple(goal)
-            goal_weight = self.mu_g[i]
+        for hid in self.human_agent_ids:
+            next_state_hid = next_states.get(hid)
+            if next_state_hid is None:
+                continue
             
-            if self.debug:
-                print(f"  Goal {i}: {goal} -> {goal_tuple}, weight: {goal_weight}")
-            
-            # Calculate V_e^{π_r}(s', g) for each human and average
-            v_e_total = 0.0
-            for hid in self.human_agent_ids:
-                next_state_hid = next_states.get(hid)
-                if next_state_hid is None:
-                    continue
-                    
-                v_e = self.compute_v_e(hid, next_state_hid, goal_tuple)
-                v_e_total += v_e
+            # Calculate X_h(s) = ∑_{g_h∈G_h} V^e_h(s,g_h)^ζ
+            X_h = 0.0
+            for i, goal in enumerate(self.G):
+                goal_tuple = self.state_to_tuple(goal)
+                
+                # Compute V^e_h(s,g_h) (equation Ve)
+                V_e_h = self.compute_v_e_h(hid, next_state_hid, goal_tuple)
+                
+                # Apply power ζ and add to sum
+                V_e_h_safe = max(V_e_h, 0.0)  # Ensure non-negative for power
+                X_h += V_e_h_safe ** self.zeta
                 
                 if self.debug:
-                    print(f"    Human {hid}: V_e({next_state_hid}, {goal_tuple}) = {v_e:.3f}")
+                    print(f"    Human {hid}, Goal {i}: V^e_h = {V_e_h:.3f}, V^e_h^ζ = {V_e_h_safe ** self.zeta:.3f}")
             
-            # Average across humans
-            v_e_avg = v_e_total / max(len(self.human_agent_ids), 1)
-            
-            # Apply power (1 + η) - ensure non-negative for power operation
-            v_e_safe = max(v_e_avg, 0.0)
-            v_e_powered = v_e_safe ** (1 + self.eta)
-            
-            # Weight by goal probability μ_g
-            weighted_contribution = goal_weight * v_e_powered
-            z_total += weighted_contribution
+            X_h_values.append(X_h)
+            self.X_h_dict[hid][next_state_hid] = X_h  # Store for future use
             
             if self.debug:
-                print(f"    Average V_e: {v_e_avg:.3f}")
-                print(f"    V_e^(1+η): {v_e_powered:.3f}")
-                print(f"    Weighted contribution: {weighted_contribution:.3f}")
+                print(f"    X_{hid}(s) = {X_h:.3f}")
+        
+        if len(X_h_values) == 0:
+            return 0.0
+        
+        # Calculate U_r(s) = -((∑_h X_h(s)^{-ξ})^η)  (equation Ur)
+        sum_X_h_neg_xi = 0.0
+        for X_h in X_h_values:
+            if X_h > 0:
+                sum_X_h_neg_xi += X_h ** (-self.xi)
+            else:
+                sum_X_h_neg_xi += 1e6  # Large penalty for zero potential
+        
+        U_r = -((sum_X_h_neg_xi) ** self.eta)
         
         if self.debug:
-            print(f"  Total z: {z_total:.3f}")
+            print(f"  ∑_h X_h(s)^(-ξ) = {sum_X_h_neg_xi:.3f}")
+            print(f"  U_r(s) = {U_r:.3f}")
         
-        # Apply concave function f(z)
-        robot_reward = self.concave_function_f(z_total)
-        
-        if self.debug:
-            print(f"  f(z): {robot_reward:.3f}")
+        # Store U_r for all robot agents
+        for rid in self.robot_agent_ids:
+            next_state_rid = next_states.get(rid)
+            if next_state_rid is not None:
+                self.U_r_dict[rid][next_state_rid] = U_r
         
         # Ensure finite result
-        if not np.isfinite(robot_reward):
+        if not np.isfinite(U_r):
             if self.debug:
                 print(f"  ⚠️ Non-finite reward, returning 0.0")
             return 0.0
         
         # Clip to reasonable range
-        clipped_reward = np.clip(robot_reward, -1000, 1000)
+        clipped_reward = np.clip(U_r, -1000, 1000)
         
         if self.debug:
             print(f"  Final clipped reward: {clipped_reward:.3f}")
         
         return clipped_reward
 
-    def compute_v_e(self, human_id: str, state_tuple: tuple, goal_tuple: tuple) -> float:
+    def compute_v_e_h(self, human_id: str, state_tuple: tuple, goal_tuple: tuple) -> float:
         """
-        Compute V_e^{π_r}(s,g) = E_{a_h~π_h*(s,g)} Q_e^{π_r}(s,g,a_h)
-        
-        This represents the expected value for the human following their optimal policy
-        in state s for goal g, under the current robot policy π_r.
+        Compute V^e_h(s,g_h) using equation (Ve):
+        V^e_h(s,g_h) = E_{g_{-h}} E_{a_H~π_H(s,g)} E_{a_r~π_r(s)} E_{s'~s,a} (U_h(s',g_h) + γ_h V^e_h(s',g_h))
         """
         key = (state_tuple, goal_tuple)
-        if key not in self.Q_e_dict[human_id]:
-            # For unseen state-goal pairs, return neutral value
+        if key in self.V_e_h_dict[human_id]:
+            return self.V_e_h_dict[human_id][key]
+        
+        # For now, approximate V^e_h using the human Q-values under current policy
+        # This is a simplified implementation - full version would require more computation
+        if key not in self.Q_h_dict[human_id]:
             return 0.0
-            
-        q_e_values = self.Q_e_dict[human_id][key]
+        
+        q_values = self.Q_h_dict[human_id][key]
         allowed_actions = self.action_space_dict[human_id]
         
-        # Compute human's optimal policy π_h*(s,g) - epsilon-greedy with converged epsilon
-        epsilon = self.epsilon_h_0  # Use converged epsilon for policy
+        # Get human policy π_h(s,g_h)
+        policy = self.get_pi_h(human_id, state_tuple, goal_tuple)
         
-        # Get Q-values for allowed actions
-        q_subset = [q_e_values[a] for a in allowed_actions]
+        # Calculate expected value under policy
+        expected_value = sum(policy.get(a, 0.0) * q_values[a] for a in allowed_actions)
         
-        if len(q_subset) == 0:
-            return 0.0
-        
-        # Find best action
-        best_action_idx = np.argmax(q_subset)
-        
-        # Compute action probabilities under epsilon-greedy policy
-        action_probs = np.full(len(allowed_actions), epsilon / len(allowed_actions))
-        action_probs[best_action_idx] += (1.0 - epsilon)
-        
-        # Compute expected value: E_{a_h~π_h*(s,g)} Q_e^{π_r}(s,g,a_h)
-        expected_value = sum(action_probs[i] * q_e_values[allowed_actions[i]] 
-                           for i in range(len(allowed_actions)))
+        # Store for future use
+        self.V_e_h_dict[human_id][key] = expected_value
         
         return expected_value
+
+    def compute_v_e(self, human_id: str, state_tuple: tuple, goal_tuple: tuple) -> float:
+        """
+        Legacy function for backward compatibility.
+        Calls the new compute_v_e_h function.
+        """
+        return self.compute_v_e_h(human_id, state_tuple, goal_tuple)
 
     def update_q_e(self, human_id: str, state_tuple: tuple, goal_tuple: tuple, 
                    action: int, reward: float, next_state_tuple: tuple, done: bool):
