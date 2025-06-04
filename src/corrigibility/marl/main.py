@@ -345,17 +345,33 @@ def main():
         env.reset()
 
         # Agent IDs for IQL (consistent with env.possible_agents)
-        # Use first robot and human IDs from environment lists
+        # Use first robot and ALL human IDs from environment lists
         robot_id_iql = env.robot_agent_ids[0]
-        human_id_iql = env.human_agent_ids[0]
         
-        # Goals: G should be a list of goals. Retrieve the human goal using the selected human ID.
-        human_goal = env.human_goals.get(human_id_iql)
-        if human_goal is None:
-            print(f"Error: No goal mapped for human agent '{human_id_iql}' in environment.")
-            return
-        G = [human_goal]
-        mu_g = np.array([1.0])  # Prior probability for the single goal
+        # Goals: G should be a list of goals for all humans. 
+        # Collect all human goals from environment
+        G = []
+        goal_weights = []
+        human_agent_ids_iql = []
+        
+        for human_id in env.human_agent_ids:
+            human_goal = env.human_goals.get(human_id)
+            if human_goal is None:
+                print(f"Error: No goal mapped for human agent '{human_id}' in environment.")
+                return
+            G.append(human_goal)
+            goal_weights.append(1.0)  # Equal weight for each goal
+            human_agent_ids_iql.append(human_id)
+        
+        # Normalize goal probabilities
+        total_weight = sum(goal_weights)
+        mu_g = np.array([w / total_weight for w in goal_weights])
+        
+        print(f"Multi-human setup:")
+        print(f"  Robot: {robot_id_iql}")
+        print(f"  Humans: {human_agent_ids_iql}")
+        print(f"  Goals: {G}")
+        print(f"  Goal probabilities: {mu_g}")
 
         p_g = 0.01  # Probability of goal change per step
         E = args.episodes
@@ -364,9 +380,12 @@ def main():
         robot_action_space = [0, 1, 2, 3, 4, 5, 6]
         human_action_space = [0, 1, 2, 6]
         action_space_dict = {
-            robot_id_iql: robot_action_space,
-            human_id_iql: human_action_space
+            robot_id_iql: robot_action_space
         }
+        
+        # Add action spaces for all humans
+        for human_id in human_agent_ids_iql:
+            action_space_dict[human_id] = human_action_space
 
         # Timescale algorithm hyperparameters
         alpha_m = 0.1   # Phase 1 learning rate
@@ -391,7 +410,7 @@ def main():
             p_g=p_g,
             action_space_dict=action_space_dict,
             robot_agent_ids=[robot_id_iql],
-            human_agent_ids=[human_id_iql],
+            human_agent_ids=human_agent_ids_iql,  # Use all human IDs
             eta=eta,
             epsilon_h_0=epsilon_h_0,
             epsilon_r=epsilon_r,
@@ -472,7 +491,9 @@ def main():
                             episode_done = True
                     
                     # Track total episode rewards
-                    human_rewards_last_episodes.append(total_episode_rewards.get(human_id_iql, 0))
+                    # Sum rewards from all humans for tracking
+                    total_human_reward = sum(total_episode_rewards.get(hid, 0) for hid in human_agent_ids_iql)
+                    human_rewards_last_episodes.append(total_human_reward)
                     robot_rewards_last_episodes.append(total_episode_rewards.get(robot_id_iql, 0))
                     
                     if args.debug_prints:

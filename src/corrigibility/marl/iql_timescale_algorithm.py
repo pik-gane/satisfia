@@ -328,7 +328,7 @@ class TwoPhaseTimescaleIQL:
                 current_goals[hid] = self.state_to_tuple(self.G[goal_idx])
             
             step_count = 0
-            episode_human_reward = 0.0
+            episode_human_rewards = {hid: 0.0 for hid in self.human_agent_ids}  # Track individual human rewards
             max_steps = getattr(environment, 'max_steps', 200)
             
             while step_count < max_steps:
@@ -369,7 +369,7 @@ class TwoPhaseTimescaleIQL:
                 # Update human Q-values (conservative)
                 for hid in self.human_agent_ids:
                     reward = rewards.get(hid, 0)
-                    episode_human_reward += reward
+                    episode_human_rewards[hid] += reward  # Track individual rewards
                     self.update_human_q_phase1(
                         hid, s_tuples[hid], current_goals[hid], actions[hid],
                         reward, next_s_tuples[hid], episode_done
@@ -389,8 +389,12 @@ class TwoPhaseTimescaleIQL:
             
             # Print progress and check convergence every 100 episodes
             if (episode + 1) % self.convergence_window == 0 or episode + 1 == phase1_episodes:
-                avg_human_reward = episode_human_reward / max(step_count, 1)
-                print(f"[PHASE1] Episode {episode + 1}/{phase1_episodes}: human={avg_human_reward:.2f}, robot=PESSIMISTIC, ε_h={self.epsilon_h:.3f}")
+                # Calculate average rewards for each human individually
+                avg_human_rewards = {hid: episode_human_rewards[hid] / max(step_count, 1) for hid in self.human_agent_ids}
+                
+                # Format individual human rewards for logging
+                human_rewards_str = ", ".join([f"{hid}={avg_human_rewards[hid]:.2f}" for hid in self.human_agent_ids])
+                print(f"[PHASE1] Episode {episode + 1}/{phase1_episodes}: humans=({human_rewards_str}), robot=PESSIMISTIC, ε_h={self.epsilon_h:.3f}")
                 
                 # Q-value change analysis
                 if episode >= self.convergence_window - 1:  # Only after sufficient episodes
@@ -433,7 +437,7 @@ class TwoPhaseTimescaleIQL:
             
             step_count = 0
             episode_robot_reward = 0.0
-            episode_human_reward = 0.0
+            episode_human_rewards = {hid: 0.0 for hid in self.human_agent_ids}  # Track individual human rewards
             max_steps = getattr(environment, 'max_steps', 200)
             
             while step_count < max_steps:
@@ -485,7 +489,7 @@ class TwoPhaseTimescaleIQL:
                 # Fast timescale human updates AND Q_e updates
                 for hid in self.human_agent_ids:
                     reward = rewards.get(hid, 0)
-                    episode_human_reward += reward
+                    episode_human_rewards[hid] += reward  # Track individual rewards
                     
                     # Update both Q_h and Q_e
                     self.update_human_q_phase2(
@@ -504,8 +508,12 @@ class TwoPhaseTimescaleIQL:
             # Print progress and check convergence every 100 episodes
             if (episode + 1) % self.convergence_window == 0 or episode + 1 == phase2_episodes:
                 avg_robot_reward = episode_robot_reward / max(step_count, 1)
-                avg_human_reward = episode_human_reward / max(step_count, 1)
-                print(f"[PHASE2] Episode {episode + 1}/{phase2_episodes}: human={avg_human_reward:.2f}, robot={avg_robot_reward:.2f}, β_r={self.beta_r:.3f}")
+                # Calculate average rewards for each human individually
+                avg_human_rewards = {hid: episode_human_rewards[hid] / max(step_count, 1) for hid in self.human_agent_ids}
+                
+                # Format individual human rewards for logging
+                human_rewards_str = ", ".join([f"{hid}={avg_human_rewards[hid]:.2f}" for hid in self.human_agent_ids])
+                print(f"[PHASE2] Episode {episode + 1}/{phase2_episodes}: humans=({human_rewards_str}), robot={avg_robot_reward:.2f}, β_r={self.beta_r:.3f}")
                 
                 # Q-value change analysis
                 if episode >= self.convergence_window - 1:  # Only after sufficient episodes
