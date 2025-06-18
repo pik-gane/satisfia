@@ -6,14 +6,15 @@ import os
 import math
 import time
 import pygame
-from env import Actions
+from .env import Actions
+from .q_learning_backends import create_q_learning_backend, QLearningBackend
 
 class TwoPhaseTimescaleIQL:
     def __init__(self, alpha_m, alpha_e, alpha_r, gamma_h, gamma_r, beta_r_0,
                  G, mu_g, p_g, action_space_dict, robot_agent_ids, human_agent_ids,
                  eta=0.1, epsilon_h_0=0.1, epsilon_r=0.1, decay_epsilon_r_phase1=False, 
                  reward_function='power', concavity_param=1.0, debug=False,
-                 zeta=1.0, xi=1.0):
+                 zeta=1.0, xi=1.0, beta_h=5.0, nu_h=0.1, network=False, state_dim=4):
         # Phase 1 parameters
         self.alpha_m = alpha_m  # Phase 1 learning rate for human models
         self.alpha_e = alpha_e  # Phase 2 fast timescale learning rate
@@ -27,7 +28,12 @@ class TwoPhaseTimescaleIQL:
         self.beta_r_0 = beta_r_0  # Target beta_r for Phase 2
         self.beta_r = 0.1  # Current beta_r (starts low, increases to beta_r_0)
         
-        # Human exploration parameters
+        # NEW: Human softmax policy parameters (replacing epsilon-greedy)
+        self.beta_h = beta_h  # Human inverse temperature for softmax policy
+        self.nu_h = nu_h  # Weight for prior policy in smooth updates
+        self.policy_update_rate = 1.0 / (2.0 * self.beta_h)  # Smooth policy update rate
+        
+        # DEPRECATED: Keep for backward compatibility but not used
         self.epsilon_h_0 = epsilon_h_0  # Final epsilon_h for converged policy
         self.epsilon_h = 0.5  # Current epsilon_h (starts high, decreases to epsilon_h_0)
         
@@ -42,6 +48,10 @@ class TwoPhaseTimescaleIQL:
         self.zeta = zeta  # Power parameter in X_h(s) calculation (equation Xh)
         self.xi = xi      # Power parameter in U_r(s) calculation (equation Ur)
         
+        # NEW: Network vs Tabular learning
+        self.network = network
+        self.state_dim = state_dim
+        
         # Agent configuration
         self.robot_agent_ids = robot_agent_ids if isinstance(robot_agent_ids, list) else [robot_agent_ids]
         self.human_agent_ids = human_agent_ids if isinstance(human_agent_ids, list) else [human_agent_ids]
@@ -52,19 +62,44 @@ class TwoPhaseTimescaleIQL:
         self.action_space_robot = {rid: action_space_dict[rid] for rid in self.robot_agent_ids}
         self.action_space_humans = {hid: action_space_dict[hid] for hid in self.human_agent_ids}
         
-        # Q-tables for Phase 1: Human model learning (Q^m_h)
-        action_dim = len(Actions)
-        self.Q_m_h_dict = {hid: defaultdict(lambda: np.random.uniform(-0.1, 0.1, size=action_dim))
-                         for hid in self.human_agent_ids}
+        # NEW: Modular Q-learning backends
+        # Human backends (with goals): Q^m_h(s,g,a) and Q^e_h(s,g,a)
+        self.human_q_m_backend = create_q_learning_backend(
+            network, self.human_agent_ids, action_space_dict, state_dim, 
+            use_goals=True, debug=debug, beta_h=beta_h, policy_update_rate=self.policy_update_rate, nu_h=nu_h
+        )
+        self.human_q_e_backend = create_q_learning_backend(
+            network, self.human_agent_ids, action_space_dict, state_dim, 
+            use_goals=True, debug=debug, beta_h=beta_h, policy_update_rate=self.policy_update_rate, nu_h=nu_h
+        )
         
-        # Q-tables for Phase 2: Robot policy learning (Q_r)
-        self.Q_r_dict = {rid: defaultdict(lambda: np.random.uniform(-0.1, 0.1, size=len(self.action_space_robot[rid])))
-                         for rid in self.robot_agent_ids}
+        # Robot backend (no goals): Q_r(s,a)
+        self.robot_q_backend = create_q_learning_backend(
+            network, self.robot_agent_ids, action_space_dict, state_dim, 
+            use_goals=False, debug=debug, beta_h=beta_h, policy_update_rate=self.policy_update_rate, nu_h=nu_h
+        )
         
-        # NEW: Mathematical formulation tables
-        # Q^e_h(s,g_h,a_h) - Expected Q-values under robot policy
-        self.Q_e_dict = {hid: defaultdict(lambda: np.random.uniform(-0.1, 0.1, size=action_dim))
-                         for hid in self.human_agent_ids}
+        # Backward compatibility: expose Q-tables as properties
+        if not network:
+            self.Q_m_h_dict = self.human_q_m_backend.q_tables
+            self.Q_r_dict = self.robot_q_backend.q_tables
+            self.Q_e_dict = self.human_q_e_backend.q_tables
+            self.Q_h_dict = self.Q_m_h_dict  # Backward compatibility
+            self.Q_h = self.Q_m_h_dict
+            self.Q_r = self.Q_r_dict
+            # Expose policy dictionaries
+            self.pi_h_dict = self.human_q_m_backend.policies
+            self.pi_r_dict = self.robot_q_backend.policies
+        else:
+            # For network mode, create empty dicts for compatibility
+            self.Q_m_h_dict = {}
+            self.Q_r_dict = {}
+            self.Q_e_dict = {}
+            self.Q_h_dict = {}
+            self.Q_h = {}
+            self.Q_r = {}
+            self.pi_h_dict = {}
+            self.pi_r_dict = {}
         
         # V^m_h(s,g_h) - Value function for human model
         self.V_m_h_dict = {hid: defaultdict(float) for hid in self.human_agent_ids}
@@ -81,24 +116,14 @@ class TwoPhaseTimescaleIQL:
         # V_r(s) - Robot value function (equation Vr)
         self.V_r_dict = {rid: defaultdict(float) for rid in self.robot_agent_ids}
         
-        # Human policies π_h(s,g_h)
-        self.pi_h_dict = {hid: {} for hid in self.human_agent_ids}
-        
-        # Robot policies π_r(s)
-        self.pi_r_dict = {rid: {} for rid in self.robot_agent_ids}
-        
         # Wide prior μ_{-h}(s) representing robot's assumption on human's belief about other humans
         # For simplicity, assume uniform distribution over actions
+        action_dim = len(Actions)
         self.mu_minus_h = lambda state: {hid: np.ones(action_dim) / action_dim for hid in self.human_agent_ids}
         
         # NEW: Robot reward function parameters
         self.reward_function = reward_function  # 'power', 'log', 'bounded', 'generalized_bounded'
         self.concavity_param = concavity_param  # c parameter for generalized bounded function
-        
-        # Compatibility attributes for trained_agent.py
-        self.Q_h_dict = self.Q_m_h_dict  # Backward compatibility
-        self.Q_h = self.Q_m_h_dict
-        self.Q_r = self.Q_r_dict
         
         # Convergence monitoring
         self.convergence_threshold = 1e-4  # Threshold for Q-value changes
@@ -113,7 +138,11 @@ class TwoPhaseTimescaleIQL:
             print(f"  Human IDs: {self.human_agent_ids}")
             print(f"  Goals G: {self.G}")
             print(f"  beta_r: {self.beta_r} -> {self.beta_r_0}")
-            print(f"  epsilon_h: {self.epsilon_h} -> {self.epsilon_h_0}")
+            print(f"  beta_h: {self.beta_h} (softmax inverse temperature)")
+            print(f"  nu_h: {self.nu_h} (prior weight)")
+            print(f"  policy_update_rate: {self.policy_update_rate:.4f}")
+            print(f"  Network mode: {self.network}")
+            print(f"  State dimension: {self.state_dim}")
             print(f"  Reward function: {self.reward_function} (c={self.concavity_param})")
             print(f"  Convergence threshold: {self.convergence_threshold}")
 
@@ -226,82 +255,42 @@ class TwoPhaseTimescaleIQL:
         """Sample robot action using softmax policy in Phase 2."""
         allowed = self.action_space_dict[robot_id]
         
-        if state_tuple not in self.Q_r_dict[robot_id]:
-            # Return random action for unseen states
-            return np.random.choice(allowed)
+        # Get policy from backend
+        policy = self.get_pi_r(robot_id, state_tuple)
         
-        q_values = self.Q_r_dict[robot_id][state_tuple]
+        # Convert policy to probability array for allowed actions
+        probs = np.array([policy.get(a, 1.0 / len(allowed)) for a in allowed])
         
-        # Ensure q_values are real numbers
-        if np.iscomplexobj(q_values):
-            q_values = np.real(q_values)
-            
-        # Clip extreme values to prevent overflow
-        q_values = np.clip(q_values, -500, 500)
+        # Ensure probabilities are normalized and positive
+        probs = np.maximum(probs, 1e-8)  # Avoid zero probabilities
+        probs = probs / np.sum(probs)
         
-        # Compute softmax probabilities with current beta_r
-        exp_q = np.exp(self.beta_r * q_values)
-        
-        # Handle numerical issues
-        if np.any(np.isnan(exp_q)) or np.any(np.isinf(exp_q)):
-            # Fallback to uniform distribution
-            effective_probs = np.ones(len(allowed)) / len(allowed)
-        else:
-            sum_exp = np.sum(exp_q)
-            if sum_exp == 0 or np.isnan(sum_exp) or np.isinf(sum_exp):
-                effective_probs = np.ones(len(allowed)) / len(allowed)
-            else:
-                effective_probs = exp_q / sum_exp
-        
-        # Ensure probabilities are real and positive
-        effective_probs = np.real(effective_probs)
-        effective_probs = np.maximum(effective_probs, 0)
-        
-        # Normalize if sum is not 1
-        if np.sum(effective_probs) > 0:
-            effective_probs = effective_probs / np.sum(effective_probs)
-        else:
-            effective_probs = np.ones(len(allowed)) / len(allowed)
-        
-        # Final safety check
-        if np.any(np.isnan(effective_probs)) or np.any(np.isinf(effective_probs)):
-            effective_probs = np.ones(len(allowed)) / len(allowed)
-        
-        # Ensure effective_probs is a real-valued float array
-        effective_probs = effective_probs.astype(np.float64)
-        
-        idx = np.random.choice(len(allowed), p=effective_probs)
+        # Sample action according to policy
+        idx = np.random.choice(len(allowed), p=probs)
         return allowed[idx]
 
     def sample_human_action_phase1(self, human_id: str, state_tuple: tuple, goal_tuple: tuple) -> int:
-        """Sample human action using epsilon-greedy policy in Phase 1."""
+        """Sample human action using softmax policy in Phase 1."""
         allowed = self.action_space_dict[human_id]
         
-        if np.random.random() < self.epsilon_h:
-            return np.random.choice(allowed)
+        # Get current policy π_h(s,g_h) 
+        policy = self.get_pi_h(human_id, state_tuple, goal_tuple)
         
-        if (state_tuple, goal_tuple) not in self.Q_h_dict[human_id]:
-            return np.random.choice(allowed)
+        # Convert policy to probability array for allowed actions
+        probs = np.array([policy.get(a, 1.0 / len(allowed)) for a in allowed])
         
-        q_values = self.Q_h_dict[human_id][(state_tuple, goal_tuple)]
-        q_subset = [q_values[a] for a in allowed]
-        best_action_idx = np.argmax(q_subset)
-        return allowed[best_action_idx]
+        # Ensure probabilities are normalized and positive
+        probs = np.maximum(probs, 1e-8)  # Avoid zero probabilities
+        probs = probs / np.sum(probs)
+        
+        # Sample action according to policy
+        idx = np.random.choice(len(allowed), p=probs)
+        return allowed[idx]
 
     def sample_human_action_phase2(self, human_id: str, state_tuple: tuple, goal_tuple: tuple) -> int:
-        """Sample human action using converged epsilon-greedy policy in Phase 2."""
-        allowed = self.action_space_dict[human_id]
-        
-        # Use converged epsilon_h_0 for final policy
-        if np.random.random() < self.epsilon_h_0:
-            return np.random.choice(allowed)
-        
-        if (state_tuple, goal_tuple) not in self.Q_h_dict[human_id]:
-            return np.random.choice(allowed)
-        
-        q_values = self.Q_h_dict[human_id][(state_tuple, goal_tuple)]
-        q_subset = [q_values[a] for a in allowed]
-        best_action_idx = np.argmax(q_subset)
+        """Sample human action using converged softmax policy in Phase 2."""
+        # Phase 2 uses the same policy as Phase 1, but policies should be converged
+        return self.sample_human_action_phase1(human_id, state_tuple, goal_tuple)
         return allowed[best_action_idx]
 
     def train_phase1(self, environment, phase1_episodes, render=False, render_delay=0):
@@ -314,11 +303,8 @@ class TwoPhaseTimescaleIQL:
         for episode in range(phase1_episodes):
             environment.reset()
             
-            # Update epsilon_h: decay from 0.5 to epsilon_h_0
-            progress = episode / max(phase1_episodes - 1, 1)
-            self.epsilon_h = 0.5 * (1 - progress) + self.epsilon_h_0 * progress
-            
             # Update epsilon_r: decay to 0
+            progress = episode / max(phase1_episodes - 1, 1)
             self.epsilon_r = max(0.1 * (1 - progress), 0.01)
             
             # Sample initial goal for each human
@@ -394,7 +380,7 @@ class TwoPhaseTimescaleIQL:
                 
                 # Format individual human rewards for logging
                 human_rewards_str = ", ".join([f"{hid}={avg_human_rewards[hid]:.2f}" for hid in self.human_agent_ids])
-                print(f"[PHASE1] Episode {episode + 1}/{phase1_episodes}: humans=({human_rewards_str}), robot=PESSIMISTIC, ε_h={self.epsilon_h:.3f}")
+                print(f"[PHASE1] Episode {episode + 1}/{phase1_episodes}: humans=({human_rewards_str}), robot=PESSIMISTIC, β_h={self.beta_h:.3f}")
                 
                 # Q-value change analysis
                 if episode >= self.convergence_window - 1:  # Only after sufficient episodes
@@ -538,20 +524,17 @@ class TwoPhaseTimescaleIQL:
         Update Q^m_h using backward induction approach (equation Qm).
         Q^m_h(s,g_h,a_h) ← E_{a_{-h}~μ_{-h}(s)} min_{a_r∈A_r(s)} E_{s'~s,a} (U_h(s',g_h) + γ_h V^m_h(s',g_h))
         """
-        key = (state_tuple, goal_tuple)
-        current_q = self.Q_m_h_dict[human_id][key][action]
-        
         if done:
             target = reward
         else:
             # Calculate V^m_h(s',g_h) using equation (Vm)
-            next_key = (next_state_tuple, goal_tuple)
             next_v_m_h = self.compute_v_m_h(human_id, next_state_tuple, goal_tuple)
             target = reward + self.gamma_h * next_v_m_h
         
-        self.Q_m_h_dict[human_id][key][action] += self.alpha_m * (target - current_q)
+        # Update Q-values using backend
+        self.human_q_m_backend.update_q_values(human_id, state_tuple, action, target, self.alpha_m, goal_tuple)
         
-        # Update π_h(s,g_h) using ε-greedy policy (equation pih)
+        # Update π_h(s,g_h) using smooth policy updates (equation pih)
         self.update_pi_h(human_id, state_tuple, goal_tuple)
         
         # Update V^m_h(s,g_h) using equation (Vm)
@@ -561,11 +544,8 @@ class TwoPhaseTimescaleIQL:
         """
         Compute V^m_h(s,g_h) = E_{a_h~π_h(s,g_h)} Q^m_h(s,g_h,a_h) (equation Vm)
         """
-        key = (state_tuple, goal_tuple)
-        if key not in self.Q_m_h_dict[human_id]:
-            return 0.0
-        
-        q_values = self.Q_m_h_dict[human_id][key]
+        # Get Q-values from backend
+        q_values = self.human_q_m_backend.get_q_values(human_id, state_tuple, goal_tuple)
         allowed_actions = self.action_space_dict[human_id]
         
         # Get current policy π_h(s,g_h)
@@ -576,38 +556,29 @@ class TwoPhaseTimescaleIQL:
         return expected_value
 
     def update_pi_h(self, human_id: str, state_tuple: tuple, goal_tuple: tuple):
-        """Update π_h(s,g_h) ← ε_h-greedy policy for Q^m_h(s,g_h,·) (equation pih)"""
-        key = (state_tuple, goal_tuple)
-        if key not in self.Q_m_h_dict[human_id]:
-            return
+        """Update π_h(s,g_h) using smooth policy updates with softmax (replacing ε-greedy)"""
+        # Get current Q-values from backend
+        q_values = self.human_q_m_backend.get_q_values(human_id, state_tuple, goal_tuple)
         
-        q_values = self.Q_m_h_dict[human_id][key]
-        allowed_actions = self.action_space_dict[human_id]
-        
-        # Find best action
-        q_subset = [q_values[a] for a in allowed_actions]
-        best_action_idx = np.argmax(q_subset)
-        best_action = allowed_actions[best_action_idx]
-        
-        # Create ε-greedy policy
-        policy = {}
-        for a in allowed_actions:
-            if a == best_action:
-                policy[a] = (1.0 - self.epsilon_h) + self.epsilon_h / len(allowed_actions)
-            else:
-                policy[a] = self.epsilon_h / len(allowed_actions)
-        
-        self.pi_h_dict[human_id][key] = policy
+        if self.network:
+            # For networks, we don't store explicit policies, so we update the backend directly
+            # The policy is computed on-demand from Q-values
+            pass
+        else:
+            # For tabular, use smooth policy update
+            self.human_q_m_backend.update_policy_smooth(
+                human_id, state_tuple, q_values, self.beta_h, 
+                self.policy_update_rate, self.nu_h, goal_tuple
+            )
 
     def get_pi_h(self, human_id: str, state_tuple: tuple, goal_tuple: tuple) -> dict:
         """Get π_h(s,g_h) policy"""
-        key = (state_tuple, goal_tuple)
-        if key in self.pi_h_dict[human_id]:
-            return self.pi_h_dict[human_id][key]
-        
-        # Default to uniform policy
-        allowed_actions = self.action_space_dict[human_id]
-        return {a: 1.0 / len(allowed_actions) for a in allowed_actions}
+        if self.network:
+            # For networks, compute policy on-demand from Q-values
+            return self.human_q_m_backend.get_policy(human_id, state_tuple, self.beta_h, goal_tuple)
+        else:
+            # For tabular, use stored policy
+            return self.human_q_m_backend.get_policy(human_id, state_tuple, self.beta_h, goal_tuple)
 
     def update_v_m_h(self, human_id: str, state_tuple: tuple, goal_tuple: tuple):
         """Update V^m_h(s,g_h) using equation (Vm)"""
@@ -616,18 +587,14 @@ class TwoPhaseTimescaleIQL:
 
     def update_human_q_phase2(self, human_id, state_tuple, goal_tuple, action, reward, next_state_tuple, done):
         """Fast timescale update for human Q-values in Phase 2, keeping Q^m_h updated."""
-        key = (state_tuple, goal_tuple)
-        current_q = self.Q_h_dict[human_id][key][action]
-        
         if done:
             target = reward
         else:
-            next_key = (next_state_tuple, goal_tuple)
             next_v_m_h = self.compute_v_m_h(human_id, next_state_tuple, goal_tuple)
             target = reward + self.gamma_h * next_v_m_h
         
         # Use fast learning rate for Phase 2 updates
-        self.Q_h_dict[human_id][key][action] += self.alpha_e * (target - current_q)
+        self.human_q_m_backend.update_q_values(human_id, state_tuple, action, target, self.alpha_e, goal_tuple)
         
         # Also update the mathematical tables
         self.update_pi_h(human_id, state_tuple, goal_tuple)
@@ -638,8 +605,6 @@ class TwoPhaseTimescaleIQL:
         Update robot Q-values in Phase 2 using equation (Qr):
         Q_r(s,a_r) ← E_g E_{a_H~π_H(s,g)} E_{s'~s,a} γ_r V_r(s')
         """
-        current_q = self.Q_r_dict[robot_id][state_tuple][action]
-        
         if done:
             target = reward
         else:
@@ -647,7 +612,8 @@ class TwoPhaseTimescaleIQL:
             next_v_r = self.compute_v_r(robot_id, next_state_tuple)
             target = reward + self.gamma_r * next_v_r
         
-        self.Q_r_dict[robot_id][state_tuple][action] += self.alpha_r * (target - current_q)
+        # Update Q-values using backend
+        self.robot_q_backend.update_q_values(robot_id, state_tuple, action, target, self.alpha_r)
         
         # Update π_r(s) using β_r-softmax policy (equation pir)
         self.update_pi_r(robot_id, state_tuple)
@@ -664,10 +630,7 @@ class TwoPhaseTimescaleIQL:
         U_r = self.U_r_dict[robot_id].get(state_tuple, 0.0)
         
         # Get Q_r values for this state
-        if state_tuple not in self.Q_r_dict[robot_id]:
-            return U_r
-        
-        q_values = self.Q_r_dict[robot_id][state_tuple]
+        q_values = self.robot_q_backend.get_q_values(robot_id, state_tuple)
         allowed_actions = self.action_space_dict[robot_id]
         
         # Get robot policy π_r(s)
@@ -680,37 +643,19 @@ class TwoPhaseTimescaleIQL:
 
     def update_pi_r(self, robot_id: str, state_tuple: tuple):
         """Update π_r(s) ← β_r-softmax policy for Q_r(s,·) (equation pir)"""
-        if state_tuple not in self.Q_r_dict[robot_id]:
-            return
+        # Get Q-values from backend
+        q_values = self.robot_q_backend.get_q_values(robot_id, state_tuple)
         
-        q_values = self.Q_r_dict[robot_id][state_tuple]
-        allowed_actions = self.action_space_dict[robot_id]
-        
-        # Compute softmax probabilities with current beta_r
-        q_subset = np.array([q_values[a] for a in allowed_actions])
-        q_subset = np.clip(q_subset, -500, 500)  # Prevent overflow
-        
-        exp_q = np.exp(self.beta_r * q_subset)
-        
-        # Handle numerical issues
-        if np.any(np.isnan(exp_q)) or np.any(np.isinf(exp_q)) or np.sum(exp_q) == 0:
-            # Fallback to uniform distribution
-            probs = np.ones(len(allowed_actions)) / len(allowed_actions)
+        if self.network:
+            # For networks, policy is computed on-demand
+            pass
         else:
-            probs = exp_q / np.sum(exp_q)
-        
-        # Create policy dictionary
-        policy = {allowed_actions[i]: probs[i] for i in range(len(allowed_actions))}
-        self.pi_r_dict[robot_id][state_tuple] = policy
+            # For tabular, update stored policy
+            self.robot_q_backend.update_policy_direct(robot_id, state_tuple, q_values, self.beta_r)
 
     def get_pi_r(self, robot_id: str, state_tuple: tuple) -> dict:
         """Get π_r(s) policy"""
-        if state_tuple in self.pi_r_dict[robot_id]:
-            return self.pi_r_dict[robot_id][state_tuple]
-        
-        # Default to uniform policy
-        allowed_actions = self.action_space_dict[robot_id]
-        return {a: 1.0 / len(allowed_actions) for a in allowed_actions}
+        return self.robot_q_backend.get_policy(robot_id, state_tuple, self.beta_r)
 
     def update_v_r(self, robot_id: str, state_tuple: tuple):
         """Update V_r(s) using equation (Vr)"""
@@ -807,10 +752,7 @@ class TwoPhaseTimescaleIQL:
         
         # For now, approximate V^e_h using the human Q-values under current policy
         # This is a simplified implementation - full version would require more computation
-        if key not in self.Q_h_dict[human_id]:
-            return 0.0
-        
-        q_values = self.Q_h_dict[human_id][key]
+        q_values = self.human_q_m_backend.get_q_values(human_id, state_tuple, goal_tuple)
         allowed_actions = self.action_space_dict[human_id]
         
         # Get human policy π_h(s,g_h)
@@ -839,9 +781,6 @@ class TwoPhaseTimescaleIQL:
         Q_e represents the expected Q-value for the human taking action a_h in state s
         for goal g, when the robot follows its current policy π_r.
         """
-        key = (state_tuple, goal_tuple)
-        current_q_e = self.Q_e_dict[human_id][key][action]
-        
         if done:
             target = reward
         else:
@@ -849,8 +788,8 @@ class TwoPhaseTimescaleIQL:
             next_v_e = self.compute_v_e(human_id, next_state_tuple, goal_tuple)
             target = reward + self.gamma_h * next_v_e
         
-        # Update Q_e with learning rate
-        self.Q_e_dict[human_id][key][action] += self.alpha_e * (target - current_q_e)
+        # Update Q_e with learning rate using backend
+        self.human_q_e_backend.update_q_values(human_id, state_tuple, action, target, self.alpha_e, goal_tuple)
 
     def concave_function_f(self, z: float) -> float:
         """Implement concave function f(z) for robot reward"""
@@ -895,9 +834,6 @@ class TwoPhaseTimescaleIQL:
     def save_models(self, filepath="q_values.pkl"):
         """Save both human and robot models."""
         models = {
-            "Q_h_dict": {hid: dict(qtable) for hid, qtable in self.Q_h_dict.items()},
-            "Q_r_dict": {rid: dict(qtable) for rid, qtable in self.Q_r_dict.items()},
-            "Q_e_dict": {hid: dict(qtable) for hid, qtable in self.Q_e_dict.items()},  # NEW
             "params": {
                 "alpha_m": self.alpha_m,
                 "alpha_e": self.alpha_e,
@@ -905,6 +841,8 @@ class TwoPhaseTimescaleIQL:
                 "gamma_h": self.gamma_h,
                 "gamma_r": self.gamma_r,
                 "beta_r_0": self.beta_r_0,
+                "beta_h": self.beta_h,
+                "nu_h": self.nu_h,
                 "G": [tuple(g) for g in self.G],
                 "mu_g": self.mu_g.tolist() if isinstance(self.mu_g, np.ndarray) else self.mu_g,
                 "action_space_dict": self.action_space_dict,
@@ -912,12 +850,39 @@ class TwoPhaseTimescaleIQL:
                 "human_agent_ids": self.human_agent_ids,
                 "eta": self.eta,
                 "epsilon_h_0": self.epsilon_h_0,
-                "reward_function": self.reward_function,  # NEW
-                "concavity_param": self.concavity_param  # NEW
+                "reward_function": self.reward_function,
+                "concavity_param": self.concavity_param,
+                "network": self.network,
+                "state_dim": self.state_dim,
+                "zeta": self.zeta,
+                "xi": self.xi
             }
         }
         
         os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else '.', exist_ok=True)
+        
+        # Save backend models
+        if self.network:
+            # For neural networks, save to separate files
+            base_path = filepath.replace('.pkl', '')
+            self.human_q_m_backend.save_models(f"{base_path}_human_q_m.pt")
+            self.human_q_e_backend.save_models(f"{base_path}_human_q_e.pt")
+            self.robot_q_backend.save_models(f"{base_path}_robot_q.pt")
+            models["backend_files"] = {
+                "human_q_m": f"{base_path}_human_q_m.pt",
+                "human_q_e": f"{base_path}_human_q_e.pt", 
+                "robot_q": f"{base_path}_robot_q.pt"
+            }
+        else:
+            # For tabular, include Q-tables in the main file
+            self.human_q_m_backend.save_models(filepath.replace('.pkl', '_human_q_m.pkl'))
+            self.human_q_e_backend.save_models(filepath.replace('.pkl', '_human_q_e.pkl'))
+            self.robot_q_backend.save_models(filepath.replace('.pkl', '_robot_q.pkl'))
+            models["backend_files"] = {
+                "human_q_m": filepath.replace('.pkl', '_human_q_m.pkl'),
+                "human_q_e": filepath.replace('.pkl', '_human_q_e.pkl'),
+                "robot_q": filepath.replace('.pkl', '_robot_q.pkl')
+            }
         
         with open(filepath, 'wb') as f:
             pickle.dump(models, f)
@@ -933,7 +898,7 @@ class TwoPhaseTimescaleIQL:
             
             params = data["params"]
             
-            # Create instance
+            # Create instance with new parameters
             instance = cls(
                 alpha_m=params.get("alpha_m", 0.1),
                 alpha_e=params.get("alpha_e", 0.2),
@@ -949,45 +914,77 @@ class TwoPhaseTimescaleIQL:
                 human_agent_ids=params.get("human_agent_ids", ["human_0"]),
                 eta=params.get("eta", 0.1),
                 epsilon_h_0=params.get("epsilon_h_0", 0.1),
-                reward_function=params.get("reward_function", "power"),  # NEW
-                concavity_param=params.get("concavity_param", 1.0),  # NEW
+                reward_function=params.get("reward_function", "power"),
+                concavity_param=params.get("concavity_param", 1.0),
+                # New parameters for modular backends
+                network=params.get("network", False),
+                state_dim=params.get("state_dim", 4),
+                beta_h=params.get("beta_h", 5.0),
+                nu_h=params.get("nu_h", 0.1),
                 debug=False
             )
             
-            # Load Q-tables
-            for hid, qtable_dict in data["Q_h_dict"].items():
-                q_table = defaultdict(lambda: np.zeros(len(Actions)))
-                for key_str, values in qtable_dict.items():
-                    try:
-                        key = eval(key_str) if isinstance(key_str, str) else key_str
-                        q_table[key] = np.array(values)
-                    except:
-                        pass
-                instance.Q_h_dict[hid] = q_table
+            # Load backend models
+            if "backend_files" in data:
+                # New format with separate backend files
+                backend_files = data["backend_files"]
+                
+                # Load human Q^m backend
+                if "human_q_m" in backend_files:
+                    instance.human_q_m_backend.load_models(backend_files["human_q_m"])
+                
+                # Load human Q^e backend
+                if "human_q_e" in backend_files:
+                    instance.human_q_e_backend.load_models(backend_files["human_q_e"])
+                
+                # Load robot Q backend
+                if "robot_q" in backend_files:
+                    instance.robot_q_backend.load_models(backend_files["robot_q"])
+                    
+            else:
+                # Legacy format - convert old Q-tables to new backend format
+                print("Loading legacy format, converting to new backend system...")
+                
+                # Load legacy Q^m tables (Q_h_dict)
+                if "Q_h_dict" in data:
+                    for hid, qtable_dict in data["Q_h_dict"].items():
+                        for key_str, values in qtable_dict.items():
+                            try:
+                                key = eval(key_str) if isinstance(key_str, str) else key_str
+                                instance.human_q_m_backend.q_tables[key] = np.array(values)
+                            except:
+                                pass
+                
+                # Load legacy Q^e tables if they exist
+                if "Q_e_dict" in data:
+                    for hid, qtable_dict in data["Q_e_dict"].items():
+                        for key_str, values in qtable_dict.items():
+                            try:
+                                key = eval(key_str) if isinstance(key_str, str) else key_str
+                                instance.human_q_e_backend.q_tables[key] = np.array(values)
+                            except:
+                                pass
+                
+                # Load legacy robot Q tables
+                if "Q_r_dict" in data:
+                    for rid, qtable_dict in data["Q_r_dict"].items():
+                        for key_str, values in qtable_dict.items():
+                            try:
+                                key = eval(key_str) if isinstance(key_str, str) else key_str
+                                instance.robot_q_backend.q_tables[key] = np.array(values)
+                            except:
+                                pass
+                
+                # Update policies from loaded Q-values for tabular backends
+                if not instance.network:
+                    instance.human_q_m_backend.update_all_policies()
+                    instance.human_q_e_backend.update_all_policies()
+                    instance.robot_q_backend.update_all_policies()
             
-            for rid, qtable_dict in data["Q_r_dict"].items():
-                q_table = defaultdict(lambda: np.zeros(len(instance.action_space_dict[rid])))
-                for key_str, values in qtable_dict.items():
-                    try:
-                        key = eval(key_str) if isinstance(key_str, str) else key_str
-                        q_table[key] = np.array(values)
-                    except:
-                        pass
-                instance.Q_r_dict[rid] = q_table
-            
-            # NEW: Load Q_e tables
-            if "Q_e_dict" in data:
-                for hid, qtable_dict in data["Q_e_dict"].items():
-                    q_table = defaultdict(lambda: np.zeros(len(Actions)))
-                    for key_str, values in qtable_dict.items():
-                        try:
-                            key = eval(key_str) if isinstance(key_str, str) else key_str
-                            q_table[key] = np.array(values)
-                        except:
-                            pass
-                    instance.Q_e_dict[hid] = q_table
-            
-            # Update compatibility attributes
+            # Maintain backward compatibility attributes
+            instance.Q_h_dict = instance.human_q_m_backend.q_tables if hasattr(instance.human_q_m_backend, 'q_tables') else {}
+            instance.Q_e_dict = instance.human_q_e_backend.q_tables if hasattr(instance.human_q_e_backend, 'q_tables') else {}
+            instance.Q_r_dict = instance.robot_q_backend.q_tables if hasattr(instance.robot_q_backend, 'q_tables') else {}
             instance.Q_h = instance.Q_h_dict
             instance.Q_r = instance.Q_r_dict
             
@@ -999,98 +996,147 @@ class TwoPhaseTimescaleIQL:
 
     def take_q_value_snapshot(self):
         """Take a snapshot of current Q-values for convergence monitoring."""
-        snapshot = {'robot': {}, 'human': {}}
+        snapshot = {'robot': {}, 'human_m': {}, 'human_e': {}}
         
-        # Snapshot robot Q-values
-        for rid in self.robot_agent_ids:
-            snapshot['robot'][rid] = {}
-            for state, q_values in self.Q_r_dict[rid].items():
-                snapshot['robot'][rid][state] = np.copy(q_values)
-        
-        # Snapshot human Q-values
-        for hid in self.human_agent_ids:
-            snapshot['human'][hid] = {}
-            for state_goal, q_values in self.Q_h_dict[hid].items():
-                snapshot['human'][hid][state_goal] = np.copy(q_values)
+        if self.network:
+            # For network backends, we can't easily snapshot all Q-values
+            # Instead, snapshot a representative set of states
+            snapshot['network_mode'] = True
+            # Could implement sampling of representative states if needed
+            return snapshot
+        else:
+            # Tabular mode - snapshot all Q-values
+            snapshot['network_mode'] = False
+            
+            # Snapshot robot Q-values from backend
+            snapshot['robot'] = {}
+            robot_q_values = self.robot_q_backend.get_q_values()
+            for state, q_values in robot_q_values.items():
+                snapshot['robot'][state] = np.copy(q_values)
+            
+            # Snapshot human Q^m values from backend
+            snapshot['human_m'] = {}
+            human_m_q_values = self.human_q_m_backend.get_q_values()
+            for state_goal, q_values in human_m_q_values.items():
+                snapshot['human_m'][state_goal] = np.copy(q_values)
+            
+            # Snapshot human Q^e values from backend
+            snapshot['human_e'] = {}
+            human_e_q_values = self.human_q_e_backend.get_q_values()
+            for state_goal, q_values in human_e_q_values.items():
+                snapshot['human_e'][state_goal] = np.copy(q_values)
         
         return snapshot
 
     def calculate_q_value_changes(self, old_snapshot, new_snapshot):
         """Calculate the magnitude of Q-value changes between snapshots."""
-        changes = {'robot': {}, 'human': {}}
+        changes = {'robot': {}, 'human_m': {}, 'human_e': {}}
+        
+        # Handle network mode (no detailed change tracking)
+        if old_snapshot.get('network_mode', False) or new_snapshot.get('network_mode', False):
+            changes['network_mode'] = True
+            return changes
+        
+        changes['network_mode'] = False
         
         # Calculate robot Q-value changes
-        for rid in self.robot_agent_ids:
-            total_change = 0.0
-            count = 0
-            max_change = 0.0
-            
-            old_robot = old_snapshot['robot'].get(rid, {})
-            new_robot = new_snapshot['robot'].get(rid, {})
-            
-            # Check states present in both snapshots
-            common_states = set(old_robot.keys()) & set(new_robot.keys())
-            for state in common_states:
-                diff = np.abs(new_robot[state] - old_robot[state])
-                state_max_change = np.max(diff)
-                state_avg_change = np.mean(diff)
-                
-                total_change += state_avg_change
-                max_change = max(max_change, state_max_change)
-                count += 1
-            
-            avg_change = total_change / max(count, 1)
-            changes['robot'][rid] = {
-                'avg_change': avg_change,
-                'max_change': max_change,
-                'states_tracked': count
-            }
+        total_change = 0.0
+        count = 0
+        max_change = 0.0
         
-        # Calculate human Q-value changes
-        for hid in self.human_agent_ids:
-            total_change = 0.0
-            count = 0
-            max_change = 0.0
+        old_robot = old_snapshot.get('robot', {})
+        new_robot = new_snapshot.get('robot', {})
+        
+        # Check states present in both snapshots
+        common_states = set(old_robot.keys()) & set(new_robot.keys())
+        for state in common_states:
+            diff = np.abs(new_robot[state] - old_robot[state])
+            state_max_change = np.max(diff)
+            state_avg_change = np.mean(diff)
             
-            old_human = old_snapshot['human'].get(hid, {})
-            new_human = new_snapshot['human'].get(hid, {})
+            total_change += state_avg_change
+            max_change = max(max_change, state_max_change)
+            count += 1
+        
+        avg_change = total_change / max(count, 1)
+        changes['robot'] = {
+            'avg_change': avg_change,
+            'max_change': max_change,
+            'states_tracked': count
+        }
+        
+        # Calculate human Q^m value changes
+        total_change = 0.0
+        count = 0
+        max_change = 0.0
+        
+        old_human_m = old_snapshot.get('human_m', {})
+        new_human_m = new_snapshot.get('human_m', {})
+        
+        # Check state-goal pairs present in both snapshots
+        common_keys = set(old_human_m.keys()) & set(new_human_m.keys())
+        for key in common_keys:
+            diff = np.abs(new_human_m[key] - old_human_m[key])
+            key_max_change = np.max(diff)
+            key_avg_change = np.mean(diff)
             
-            # Check state-goal pairs present in both snapshots
-            common_keys = set(old_human.keys()) & set(new_human.keys())
-            for key in common_keys:
-                diff = np.abs(new_human[key] - old_human[key])
-                key_max_change = np.max(diff)
-                key_avg_change = np.mean(diff)
-                
-                total_change += key_avg_change
-                max_change = max(max_change, key_max_change)
-                count += 1
+            total_change += key_avg_change
+            max_change = max(max_change, key_max_change)
+            count += 1
+        
+        avg_change = total_change / max(count, 1)
+        changes['human_m'] = {
+            'avg_change': avg_change,
+            'max_change': max_change,
+            'state_goal_pairs_tracked': count
+        }
+        
+        # Calculate human Q^e value changes
+        total_change = 0.0
+        count = 0
+        max_change = 0.0
+        
+        old_human_e = old_snapshot.get('human_e', {})
+        new_human_e = new_snapshot.get('human_e', {})
+        
+        # Check state-goal pairs present in both snapshots
+        common_keys = set(old_human_e.keys()) & set(new_human_e.keys())
+        for key in common_keys:
+            diff = np.abs(new_human_e[key] - old_human_e[key])
+            key_max_change = np.max(diff)
+            key_avg_change = np.mean(diff)
             
-            avg_change = total_change / max(count, 1)
-            changes['human'][hid] = {
-                'avg_change': avg_change,
-                'max_change': max_change,
-                'state_goals_tracked': count
-            }
+            total_change += key_avg_change
+            max_change = max(max_change, key_max_change)
+            count += 1
+        
+        avg_change = total_change / max(count, 1)
+        changes['human_e'] = {
+            'avg_change': avg_change,
+            'max_change': max_change,
+            'state_goal_pairs_tracked': count
+        }
         
         return changes
 
     def check_convergence(self, changes):
         """Check if Q-values have converged based on recent changes."""
+        if changes.get('network_mode', False):
+            # For network mode, we can't easily check convergence from Q-values
+            # Could implement other convergence criteria if needed
+            return False, False
+        
         robot_converged = True
         human_converged = True
         
         # Check robot convergence
-        for rid, change_info in changes['robot'].items():
-            if change_info['avg_change'] > self.convergence_threshold:
-                robot_converged = False
-                break
+        if 'robot' in changes and changes['robot']['avg_change'] > self.convergence_threshold:
+            robot_converged = False
         
-        # Check human convergence
-        for hid, change_info in changes['human'].items():
-            if change_info['avg_change'] > self.convergence_threshold:
-                human_converged = False
-                break
+        # Check human convergence (both Q^m and Q^e)
+        if ('human_m' in changes and changes['human_m']['avg_change'] > self.convergence_threshold) or \
+           ('human_e' in changes and changes['human_e']['avg_change'] > self.convergence_threshold):
+            human_converged = False
         
         return robot_converged, human_converged
 
@@ -1099,21 +1145,32 @@ class TwoPhaseTimescaleIQL:
         print(f"\n📊 Q-VALUE CHANGE ANALYSIS - {phase} Episode {episode}")
         print("=" * 60)
         
-        # Log robot changes
-        print("🤖 ROBOT Q-VALUE CHANGES:")
-        for rid, change_info in changes['robot'].items():
-            print(f"  Agent {rid}:")
-            print(f"    Average change: {change_info['avg_change']:.6f}")
-            print(f"    Maximum change: {change_info['max_change']:.6f}")
-            print(f"    States tracked: {change_info['states_tracked']}")
-        
-        # Log human changes
-        print("👤 HUMAN Q-VALUE CHANGES:")
-        for hid, change_info in changes['human'].items():
-            print(f"  Agent {hid}:")
-            print(f"    Average change: {change_info['avg_change']:.6f}")
-            print(f"    Maximum change: {change_info['max_change']:.6f}")
-            print(f"    State-goal pairs tracked: {change_info['state_goals_tracked']}")
+        if changes.get('network_mode', False):
+            print("🔧 Network mode - detailed change tracking not available")
+        else:
+            # Log robot changes
+            print("🤖 ROBOT Q-VALUE CHANGES:")
+            if 'robot' in changes:
+                change_info = changes['robot']
+                print(f"    Average change: {change_info['avg_change']:.6f}")
+                print(f"    Maximum change: {change_info['max_change']:.6f}")
+                print(f"    States tracked: {change_info['states_tracked']}")
+            
+            # Log human Q^m changes
+            print("👤 HUMAN Q^m VALUE CHANGES:")
+            if 'human_m' in changes:
+                change_info = changes['human_m']
+                print(f"    Average change: {change_info['avg_change']:.6f}")
+                print(f"    Maximum change: {change_info['max_change']:.6f}")
+                print(f"    State-goal pairs tracked: {change_info['state_goal_pairs_tracked']}")
+            
+            # Log human Q^e changes
+            print("👤 HUMAN Q^e VALUE CHANGES:")
+            if 'human_e' in changes:
+                change_info = changes['human_e']
+                print(f"    Average change: {change_info['avg_change']:.6f}")
+                print(f"    Maximum change: {change_info['max_change']:.6f}")
+                print(f"    State-goal pairs tracked: {change_info['state_goal_pairs_tracked']}")
         
         # Check convergence
         robot_converged, human_converged = self.check_convergence(changes)
@@ -1121,7 +1178,8 @@ class TwoPhaseTimescaleIQL:
         print("\n🎯 CONVERGENCE STATUS:")
         print(f"  Robot converged: {'✅ YES' if robot_converged else '❌ NO'}")
         print(f"  Human converged: {'✅ YES' if human_converged else '❌ NO'}")
-        print(f"  Threshold: {self.convergence_threshold}")
+        if not changes.get('network_mode', False):
+            print(f"  Threshold: {self.convergence_threshold}")
         
         if robot_converged and human_converged:
             print("🎉 BOTH AGENTS HAVE CONVERGED!")

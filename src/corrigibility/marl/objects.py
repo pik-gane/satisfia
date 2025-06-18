@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
-from rendering_utils import fill_coords, point_in_rect, point_in_circle, point_in_line
+from .rendering_utils import fill_coords, point_in_rect, point_in_circle, point_in_line
 
 # Simplified color palette similar to MiniGrid
 COLORS = {
