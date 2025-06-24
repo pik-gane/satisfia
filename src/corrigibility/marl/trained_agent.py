@@ -25,6 +25,9 @@ class TrainedAgent:
         # support multiple humans
         self.human_agent_ids = getattr(self.iql, 'human_agent_ids', [])
         
+        # Detect if this is a network-based or tabular agent
+        self.is_network_based = getattr(self.iql, 'network', False)
+        
     def choose_action(self, observation, agent_id):
         """
         Choose an action for the given agent based on trained Q-values.
@@ -41,21 +44,25 @@ class TrainedAgent:
         # Check if this is a robot agent
         if hasattr(self.iql, 'robot_agent_ids') and agent_id in self.iql.robot_agent_ids:
             # For the robot, choose the action with highest Q-value
-            # Try different Q-table access patterns for different algorithm types
-            q_table = None
-            if hasattr(self.iql, 'Q_r_dict') and agent_id in self.iql.Q_r_dict:
-                q_table = self.iql.Q_r_dict[agent_id]
-            elif hasattr(self.iql, 'Q_r') and agent_id in self.iql.Q_r:
-                q_table = self.iql.Q_r[agent_id]
-            elif hasattr(self.iql, 'robot_agent_id') and agent_id == self.iql.robot_agent_id:
-                if hasattr(self.iql, 'Q_r'):
-                    q_table = self.iql.Q_r.get(agent_id)
-            
-            if q_table is None:
-                raise KeyError(f"No Q-table found for robot '{agent_id}'")
-            
-            # defaultdict returns default random array for unseen states
-            q_values = q_table[state_tuple]
+            if self.is_network_based:
+                # Use network backend for Q-value computation
+                q_values = self.iql.robot_q_backend.get_q_values(agent_id, state_tuple)
+            else:
+                # Use tabular Q-table access
+                q_table = None
+                if hasattr(self.iql, 'Q_r_dict') and agent_id in self.iql.Q_r_dict:
+                    q_table = self.iql.Q_r_dict[agent_id]
+                elif hasattr(self.iql, 'Q_r') and agent_id in self.iql.Q_r:
+                    q_table = self.iql.Q_r[agent_id]
+                elif hasattr(self.iql, 'robot_agent_id') and agent_id == self.iql.robot_agent_id:
+                    if hasattr(self.iql, 'Q_r'):
+                        q_table = self.iql.Q_r.get(agent_id)
+                
+                if q_table is None:
+                    raise KeyError(f"No Q-table found for robot '{agent_id}'")
+                
+                # defaultdict returns default random array for unseen states
+                q_values = q_table[state_tuple]
             
             # Ensure q_values are real numbers
             if np.iscomplexobj(q_values):
@@ -69,13 +76,17 @@ class TrainedAgent:
             current_goal = self.G[self.goal_idx]
             goal_tuple = self.iql.state_to_tuple(current_goal)
             
-            # select Q_h table for this agent
-            if hasattr(self.iql, 'Q_h_dict') and agent_id in self.iql.Q_h_dict:
-                qtable = self.iql.Q_h_dict[agent_id]
+            if self.is_network_based:
+                # Use network backend for Q-value computation
+                q_values = self.iql.human_q_m_backend.get_q_values(agent_id, state_tuple, goal_tuple)
             else:
-                qtable = self.iql.Q_h[agent_id]
-            
-            q_values = qtable[(state_tuple, goal_tuple)]
+                # Use tabular Q-table access
+                if hasattr(self.iql, 'Q_h_dict') and agent_id in self.iql.Q_h_dict:
+                    qtable = self.iql.Q_h_dict[agent_id]
+                else:
+                    qtable = self.iql.Q_h[agent_id]
+                
+                q_values = qtable[(state_tuple, goal_tuple)]
             
             # Ensure q_values are real numbers
             if np.iscomplexobj(q_values):

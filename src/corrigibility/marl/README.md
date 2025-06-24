@@ -1,12 +1,31 @@
-### Command
+### Command Examples
 
+**Training with Tabular Q-learning (Default):**
+
+```bash
 python main.py --mode train --phase1-episodes 1000 --phase2-episodes 1000 --save saved/q_values.pkl --map simple_map2
 
 python main.py --mode train --phase1-episodes 1000 --phase2-episodes 1000 --save saved/q_values.pkl --map team_map
+```
 
-python main.py --mode visualize --load saved/q_values_simple_map.pkl --map simple_map --delay 200
+**Training with Neural Network Q-learning:**
+
+```bash
+python main.py --mode train --phase1-episodes 1000 --phase2-episodes 1000 --save saved/q_values_nn.pkl --map simple_map2 --network --state-dim 4
+
+python main.py --mode train --phase1-episodes 500 --phase2-episodes 500 --save saved/q_values_nn_team.pkl --map team_map --network --state-dim 6 --render
+```
+
+**Visualization:**
+
+```bash
+python main.py --mode visualize --load saved/q_values.pkl --map simple_map --delay 200
 
 python main.py --mode visualize --load saved/q_values_simple_map4.pkl --map simple_map4 --delay 200
+
+# Visualize neural network trained model
+python main.py --mode visualize --load saved/q_values_nn.pkl --map simple_map2 --delay 200 --network --state-dim 4
+```
 
 # Two-Timescale Goal-Based IQL in a Custom Grid Environment
 
@@ -83,6 +102,23 @@ The environment is rendered using `pygame`. The grid elements are displayed with
 
 The Two-Timescale Goal-Based Independent Q-Learning (IQL) algorithm is implemented with the following key features:
 
+Add multiple Envs as well
+
+### Learning Backends
+
+The algorithm supports two learning backends:
+
+1. **Tabular Q-Learning (Default)**: Uses lookup tables for Q-values and policies
+
+   - Suitable for small discrete state spaces
+   - Fast convergence for simple environments
+   - Complete policy tracking and analysis
+
+2. **Neural Network Q-Learning**: Uses PyTorch neural networks for Q-value approximation
+   - Suitable for large or continuous state spaces
+   - Scalable to complex environments
+   - Automatic feature learning
+
 ### Phase 1: Learning Human Behavior Models
 
 - **Human Policy**: ε-greedy with ε_h decreasing from 0.5 to ε_h_0
@@ -108,6 +144,11 @@ The Two-Timescale Goal-Based Independent Q-Learning (IQL) algorithm is implement
 - Prior probability distribution over goals: `mu_g`
 - Probability of goal change per step: `p_g`
 - Power function exponent: `eta`
+- **Neural Network Parameters:**
+  - `network`: Boolean flag to enable neural network mode (default: False)
+  - `state_dim`: Dimension of state vector for neural networks (default: 4)
+  - `beta_h`: Softmax inverse temperature for human policies (default: 5.0)
+  - `nu_h`: Prior weight in smooth policy updates (default: 0.1)
 
 ## Gridworld Application of IQL
 
@@ -211,32 +252,95 @@ def get_map():
 
 ## Running the Code
 
+### Choosing the Right Mode
+
+**Tabular Mode (Default):**
+
+- Use for small discrete state spaces (typically < 10,000 states)
+- Faster training for simple environments
+- Complete policy analysis and visualization
+- Example: Simple gridworlds with few objects
+
+**Neural Network Mode:**
+
+- Use for large state spaces or when state representation is complex
+- Better generalization across similar states
+- Scalable to continuous or high-dimensional state spaces
+- Example: Large gridworlds, complex object interactions, or continuous control
+
+### Installation and Setup
+
 1. Install the required dependencies:
 
    ```bash
    pip install -r requirements.txt
-   cd src/corrigibility/iql
+   cd src/corrigibility/marl
    ```
 
-2. Train the IQL algorithm:
-
+2. **For Neural Network Support (Optional):**
    ```bash
-   python main.py --mode train --episodes 100 --save saved/q_values.pkl --map simple_map
+   pip install torch  # PyTorch for neural networks
    ```
 
+### Running the Code
+
+**Note:** Use `run_iql.py` from the root directory instead of `main.py` for easier imports and full feature support.
+
+### Complete Examples
+
+**Example 1: Quick Tabular Training (Small Map)**
+
+```bash
+# Train with tabular Q-learning on a simple map
+python run_iql.py --mode train --phase1-episodes 500 --phase2-episodes 500 --save saved/simple_tabular.pkl --map simple_map
+
+# Visualize the results
+python run_iql.py --mode visualize --load saved/simple_tabular.pkl --map simple_map --delay 200
+```
+
+**Example 2: Neural Network Training (Complex Map)**
+
+```bash
+# Train with neural networks for scalability
+python run_iql.py --mode train --phase1-episodes 1000 --phase2-episodes 1000 --save saved/complex_network.pkl --map complex_map --network --state-dim 6
+
+# Visualize with network mode
+python run_iql.py --mode visualize --load saved/complex_network.pkl --map complex_map --network --state-dim 6 --delay 150
+```
+
+**Example 3: Training with Rendering and Debug**
+
+```bash
+# Watch the training process with debug output
+python run_iql.py --mode train --phase1-episodes 200 --phase2-episodes 200 --save saved/debug_run.pkl --map simple_map2 --render --debug_prints --debug_level verbose
+```
+
+**Example 4: Comparing Reward Functions**
+
+```bash
+# Train with different robot reward functions
+python run_iql.py --mode train --phase1-episodes 500 --phase2-episodes 500 --save saved/power_reward.pkl --map team_map --reward-function power
+
+python run_iql.py --mode train --phase1-episodes 500 --phase2-episodes 500 --save saved/bounded_reward.pkl --map team_map --reward-function bounded --concavity-param 2.0
+```
+
+### Visualization Examples
+
+5. **Visualize Tabular Trained Agent:**
+
    ```bash
-   python main.py --mode train --episodes 100 --save saved/q_values.pkl --map collaborator_map --render
+   python run_iql.py --mode visualize --load saved/q_values.pkl --delay 100 --map simple_map
    ```
 
-3. Visualize the trained agent:
+6. **Visualize Neural Network Trained Agent:**
 
    ```bash
-   python main.py --mode visualize --load saved/q_values.pkl --delay 100 --map simple_map
+   python run_iql.py --mode visualize --load saved/q_values_nn.pkl --delay 100 --map complex_map --network --state-dim 6
    ```
 
-4. Run the baseline deterministic test:
+7. **Run Baseline Deterministic Test:**
    ```bash
-   python main.py --mode test --delay 100 --map simple_map
+   python run_iql.py --mode test --delay 100 --map simple_map
    ```
 
 ### Command-line Arguments
@@ -244,12 +348,23 @@ def get_map():
 The following command-line arguments are available:
 
 - `--mode`: Choose between `train` (train the model), `visualize` (run trained model), or `test` (run deterministic test). Default: `train`.
+- `--algorithm`: Choose between `timescale` (two-phase algorithm) or `standard` (original IQL). Default: `timescale`.
 - `--save`: Path to save trained Q-values. Default: `saved/q_values.pkl`.
 - `--load`: Path to load trained Q-values for visualization. Default: `saved/q_values.pkl`.
-- `--episodes`: Number of episodes for training. Default: `1000`.
+- `--episodes`: Number of episodes for training (standard algorithm). Default: `1000`.
+- `--phase1-episodes`: Number of episodes for Phase 1 (timescale algorithm). Default: `500`.
+- `--phase2-episodes`: Number of episodes for Phase 2 (timescale algorithm). Default: `500`.
 - `--delay`: Delay in milliseconds between steps during visualization. Default: `100`.
 - `--map`: The map to use (e.g., `simple_map`, `complex_map`). Default: `simple_map`.
 - `--grid-size`: The size of the grid (optional, default is derived from map).
+- `--render`: Enable rendering during training.
+- `--debug_prints`: Enable detailed debug prints during training.
+- `--debug_level`: Level of debug output (`minimal`, `standard`, `verbose`). Default: `standard`.
+- `--reward-function`: Robot reward function (`power`, `log`, `bounded`, `generalized_bounded`). Default: `power`.
+- `--concavity-param`: Concavity parameter for generalized_bounded function. Default: `1.0`.
+- **Neural Network Arguments:**
+  - `--network`: Use neural network Q-learning instead of tabular. Default: `False`.
+  - `--state-dim`: State vector dimension for neural networks. Default: `4`.
 
 ### Training and Visualization Flow
 

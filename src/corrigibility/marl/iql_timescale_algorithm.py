@@ -6,8 +6,8 @@ import os
 import math
 import time
 import pygame
-from .env import Actions
-from .q_learning_backends import create_q_learning_backend, QLearningBackend
+from env import Actions
+from q_learning_backends import create_q_learning_backend, QLearningBackend
 
 class TwoPhaseTimescaleIQL:
     def __init__(self, alpha_m, alpha_e, alpha_r, gamma_h, gamma_r, beta_r_0,
@@ -1155,21 +1155,27 @@ class TwoPhaseTimescaleIQL:
             
             # Snapshot robot Q-values from backend
             snapshot['robot'] = {}
-            robot_q_values = self.robot_q_backend.get_q_values()
-            for state, q_values in robot_q_values.items():
-                snapshot['robot'][state] = np.copy(q_values)
+            if hasattr(self.robot_q_backend, 'q_tables'):
+                for aid in self.robot_agent_ids:
+                    if aid in self.robot_q_backend.q_tables:
+                        for state, q_values in self.robot_q_backend.q_tables[aid].items():
+                            snapshot['robot'][state] = np.copy(q_values)
             
             # Snapshot human Q^m values from backend
             snapshot['human_m'] = {}
-            human_m_q_values = self.human_q_m_backend.get_q_values()
-            for state_goal, q_values in human_m_q_values.items():
-                snapshot['human_m'][state_goal] = np.copy(q_values)
+            if hasattr(self.human_q_m_backend, 'q_tables'):
+                for aid in self.human_agent_ids:
+                    if aid in self.human_q_m_backend.q_tables:
+                        for state_goal, q_values in self.human_q_m_backend.q_tables[aid].items():
+                            snapshot['human_m'][state_goal] = np.copy(q_values)
             
             # Snapshot human Q^e values from backend
             snapshot['human_e'] = {}
-            human_e_q_values = self.human_q_e_backend.get_q_values()
-            for state_goal, q_values in human_e_q_values.items():
-                snapshot['human_e'][state_goal] = np.copy(q_values)
+            if hasattr(self.human_q_e_backend, 'q_tables'):
+                for aid in self.human_agent_ids:
+                    if aid in self.human_q_e_backend.q_tables:
+                        for state_goal, q_values in self.human_q_e_backend.q_tables[aid].items():
+                            snapshot['human_e'][state_goal] = np.copy(q_values)
         
         return snapshot
 
@@ -1543,5 +1549,3 @@ class TwoPhaseTimescaleIQL:
         expected_return = immediate_utility + self.gamma_h * future_value
         
         return expected_return
-
-    # ...existing code...

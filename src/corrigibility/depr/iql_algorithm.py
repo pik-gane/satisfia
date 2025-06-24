@@ -419,8 +419,17 @@ class TwoTimescaleIQL:
             count = self.N_r[(robot_id, s_r_tuple, a)]
             bonuses.append(1.0 / math.sqrt(count + 1))
         eff_q = np.array(q_values) + np.array(bonuses)
-        # Boltzmann over effective Q
-        exp_vals = np.exp(self.beta_r * eff_q)
+        
+        # For robot agents, use -log(-Qr) transformation (equation 7)
+        # Transform Q-values: use -log(-Qr) instead of Qr directly
+        # Add small epsilon to ensure -Qr is positive for log computation
+        epsilon = 1e-8
+        neg_q = -eff_q + epsilon  # Ensure positive values for log
+        neg_q = np.maximum(neg_q, epsilon)  # Additional safety check
+        transformed_q = -np.log(neg_q)
+        
+        # Boltzmann over transformed Q
+        exp_vals = np.exp(self.beta_r * transformed_q)
         # check for invalid or infinite values
         if not np.isfinite(exp_vals).all():
             probs = np.ones_like(exp_vals) / len(exp_vals)

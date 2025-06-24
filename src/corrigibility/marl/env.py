@@ -13,9 +13,9 @@ from enum import IntEnum
 from pettingzoo.utils.env import ParallelEnv
 from pettingzoo.utils import agent_selector
 
-from .objects import WorldObj, Goal, Key, Wall, Door, Lava, Floor, Box, CHAR_TO_OBJ_CLASS, COLORS, TILE_PIXELS
-from .rendering_utils import fill_coords, point_in_circle
-from .envs.map_loader import load_map, DEFAULT_MAP
+from objects import WorldObj, Goal, Key, Wall, Door, Lava, Floor, Box, CHAR_TO_OBJ_CLASS, COLORS, TILE_PIXELS
+from rendering_utils import fill_coords, point_in_circle
+from envs.map_loader import load_map, DEFAULT_MAP
 
 # Mapping from code letter to color names
 COLOR_CODE_MAP = {'B': 'blue', 'G': 'green', 'Y': 'yellow', 'P': 'purple', 'O': 'orange', 'R': 'red', 'W': 'white'}

@@ -6,7 +6,8 @@ import pickle
 from collections import defaultdict
 from abc import ABC, abstractmethod
 from typing import Dict, Tuple, List, Any, Optional
-from .env import Actions
+from env import Actions
+from state_encoder import encode_full_observable_state
 
 
 class QLearningBackend(ABC):
@@ -119,6 +120,18 @@ class TabularQLearning(QLearningBackend):
         
         # Compute softmax policy from Q-values
         q_subset = np.array([q_values[a] for a in allowed_actions])
+        
+        # For robot agents, use -log(-Qr) transformation (equation 7)
+        # Check if this is a robot agent by looking for 'robot' in agent_id
+        if 'robot' in agent_id.lower():
+            # Transform Q-values: use -log(-Qr) instead of Qr directly
+            # Add small epsilon to ensure -Qr is positive for log computation
+            epsilon = 1e-8
+            neg_q = -q_subset + epsilon  # Ensure positive values for log
+            neg_q = np.maximum(neg_q, epsilon)  # Additional safety check
+            transformed_q = -np.log(neg_q)
+            q_subset = transformed_q
+        
         q_subset = np.clip(q_subset, -500, 500)  # Prevent overflow
         
         exp_q = np.exp(temperature * q_subset)
@@ -163,6 +176,18 @@ class TabularQLearning(QLearningBackend):
         
         # Compute softmax probabilities with temperature
         q_subset = np.array([q_values[a] for a in allowed_actions])
+        
+        # For robot agents, use -log(-Qr) transformation (equation 7)
+        # Check if this is a robot agent by looking for 'robot' in agent_id
+        if 'robot' in agent_id.lower():
+            # Transform Q-values: use -log(-Qr) instead of Qr directly
+            # Add small epsilon to ensure -Qr is positive for log computation
+            epsilon = 1e-8
+            neg_q = -q_subset + epsilon  # Ensure positive values for log
+            neg_q = np.maximum(neg_q, epsilon)  # Additional safety check
+            transformed_q = -np.log(neg_q)
+            q_subset = transformed_q
+        
         q_subset = np.clip(q_subset, -500, 500)  # Prevent overflow
         
         exp_q = np.exp(temperature * q_subset)
@@ -276,22 +301,22 @@ class NetworkQLearning(QLearningBackend):
         self.target_update_freq = 100
         self.update_counter = 0
     
-    def _state_to_tensor(self, state: Tuple, goal: Optional[Tuple] = None) -> torch.Tensor:
-        """Convert state (and optional goal) to tensor."""
-        state_array = np.array(state, dtype=np.float32)
-        
+    def _state_to_tensor(self, state: Tuple, goal: Optional[Tuple] = None, env=None) -> torch.Tensor:
+        """Convert state (and optional goal) to tensor. Uses full observable encoding if env is provided."""
+        if env is not None:
+            state_array = encode_full_observable_state(env, state)
+        else:
+            state_array = np.array(state, dtype=np.float32)
         if self.use_goals and goal is not None:
             goal_array = np.array(goal, dtype=np.float32)
             input_array = np.concatenate([state_array, goal_array])
         else:
             input_array = state_array
-        
         # Pad or truncate to expected input dimension
         if len(input_array) < self.input_dim:
             input_array = np.pad(input_array, (0, self.input_dim - len(input_array)))
         elif len(input_array) > self.input_dim:
             input_array = input_array[:self.input_dim]
-        
         return torch.FloatTensor(input_array).to(self.device)
     
     def get_q_values(self, agent_id: str, state: Tuple, goal: Optional[Tuple] = None) -> np.ndarray:
@@ -332,6 +357,18 @@ class NetworkQLearning(QLearningBackend):
         
         # Compute softmax probabilities with temperature
         q_subset = np.array([q_values[a] for a in allowed_actions])
+        
+        # For robot agents, use -log(-Qr) transformation (equation 7)
+        # Check if this is a robot agent by looking for 'robot' in agent_id
+        if 'robot' in agent_id.lower():
+            # Transform Q-values: use -log(-Qr) instead of Qr directly
+            # Add small epsilon to ensure -Qr is positive for log computation
+            epsilon = 1e-8
+            neg_q = -q_subset + epsilon  # Ensure positive values for log
+            neg_q = np.maximum(neg_q, epsilon)  # Additional safety check
+            transformed_q = -np.log(neg_q)
+            q_subset = transformed_q
+        
         q_subset = np.clip(q_subset, -500, 500)  # Prevent overflow
         
         exp_q = np.exp(temperature * q_subset)

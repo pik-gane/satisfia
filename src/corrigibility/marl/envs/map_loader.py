@@ -33,13 +33,32 @@ def load_map(map_name=DEFAULT_MAP):
         ImportError: If the map cannot be loaded
     """
     try:
-        # Import the map module dynamically
-        map_module = importlib.import_module(f".{map_name}", package="envs")
-        # Call get_map() function to retrieve map data
+        # First try relative import (when running from root with proper package structure)
+        map_module = importlib.import_module(f".{map_name}", package="corrigibility.marl.envs")
         return map_module.get_map()
-    except (ImportError, AttributeError) as e:
-        available_maps = list_available_maps()
-        raise ImportError(
-            f"Failed to load map '{map_name}': {e}. "
-            f"Available maps: {', '.join(available_maps)}"
-        )
+    except (ImportError, ModuleNotFoundError):
+        try:
+            # If relative import fails, try direct import from current directory
+            # This handles the case when running from the marl folder
+            envs_dir = Path(__file__).parent
+            map_file = envs_dir / f"{map_name}.py"
+            
+            if not map_file.exists():
+                available_maps = list_available_maps()
+                raise ImportError(f"Map file '{map_name}.py' not found. Available maps: {', '.join(available_maps)}")
+            
+            # Add the envs directory to sys.path temporarily if not already there
+            envs_dir_str = str(envs_dir)
+            if envs_dir_str not in sys.path:
+                sys.path.insert(0, envs_dir_str)
+            
+            # Import the module directly
+            map_module = importlib.import_module(map_name)
+            return map_module.get_map()
+            
+        except (ImportError, AttributeError) as e:
+            available_maps = list_available_maps()
+            raise ImportError(
+                f"Failed to load map '{map_name}': {e}. "
+                f"Available maps: {', '.join(available_maps)}"
+            )
