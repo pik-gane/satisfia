@@ -294,7 +294,7 @@ class TwoTimescaleIQL:
 
                 # select actions for each robot
                 a_r = {rid: self.select_robot_action(rid, s_r_tuple[rid]) for rid in self.robot_agent_ids}
-                a_h = {hid: self.select_human_action(s_h_tuples[hid], current_human_goals[hid]) for hid in self.human_agent_ids}
+                a_h = {hid: self.select_human_action(hid, s_h_tuples[hid], current_human_goals[hid]) for hid in self.human_agent_ids}
 
                 prev_s_r_tuple = s_r_tuple
                 prev_s_h_tuples = s_h_tuples
@@ -336,7 +336,7 @@ class TwoTimescaleIQL:
                     phi_prev = phi_s_map.get(hid, 0.0)
                     phi_post = phi_s_prime_map.get(hid, 0.0)
                     r_h_shaped = r_h + self.gamma_h * phi_post - phi_prev
-                    self.update_human_q(prev_s_h_tuples[hid], current_human_goals[hid], a_h[hid], r_h_shaped, s_h_prime_tuples[hid], episode_done_iql, self.debug)
+                    self.update_human_q(hid, prev_s_h_tuples[hid], current_human_goals[hid], a_h[hid], r_h_shaped, s_h_prime_tuples[hid], episode_done_iql, self.debug)
                 # --- Robot Q-Updates per robot ---
                 for rid in self.robot_agent_ids:
                     base_rr = self.calculate_robot_internal_reward(s_r_prime_tuple[rid], episode_done_iql)
@@ -445,15 +445,12 @@ class TwoTimescaleIQL:
         self.N_r[(robot_id, s_r_tuple, action)] += 1
         return action
 
-    def select_human_action(self, s_h_tuple, goal_tuple):
+    def select_human_action(self, hid, s_h_tuple, goal_tuple):
         """
         Boltzmann with count-based exploration for human over allowed actions.
         """
-        hid = self.human_agent_ids[0]
-        # allowed human actions (e.g., from main): a subset of Actions
         allowed = self.action_space_humans[hid]
         q_full = self.Q_h[hid][(s_h_tuple, goal_tuple)]
-        # extract q and compute bonuses for allowed actions
         q_vals = np.array([q_full[a] for a in allowed])
         bonuses = []
         for idx, a in enumerate(allowed):
@@ -469,165 +466,71 @@ class TwoTimescaleIQL:
             probs = exp_q / np.sum(exp_q)
         idx = np.random.choice(len(allowed), p=probs)
         action = allowed[idx]
-        # update count for selected action
         self.N_h[hid][(s_h_tuple, goal_tuple, action)] += 1
         return action
 
-    def update_human_q(self, s_h_tuple, goal_tuple, a_h, r_h_obs, s_h_prime_tuple, done, do_debug_episode):
+    def update_human_q(self, hid, s_h_tuple, goal_tuple, a_h, r_h_obs, s_h_prime_tuple, done, do_debug_episode):
         q_key = (s_h_tuple, goal_tuple)
-        q_current_val = self.Q_h[self.human_agent_ids[0]][q_key][a_h]
-        
+        q_current_val = self.Q_h[hid][q_key][a_h]
         v_h_s_prime_g = 0
         if not done:
-            q_values_next_state_goal = self.Q_h[self.human_agent_ids[0]][(s_h_prime_tuple, goal_tuple)]
+            q_values_next_state_goal = self.Q_h[hid][(s_h_prime_tuple, goal_tuple)]
             exp_q_next = np.exp(self.beta_h * q_values_next_state_goal)
             sum_exp_q_next = np.sum(exp_q_next)
             if sum_exp_q_next == 0 or np.isinf(sum_exp_q_next) or np.isnan(sum_exp_q_next):
-                 if self.debug == "verbose" and random.random() < 0.01: print(f"    WARN: Softmax issue in V_h calc for s_h'={s_h_prime_tuple}, goal={goal_tuple}. Q_h'={q_values_next_state_goal}. V_h set to 0.")
-                 v_h_s_prime_g = 0
+                if self.debug == "verbose" and random.random() < 0.01:
+                    print(f"    WARN: Softmax issue in V_h calc for s_h'={s_h_prime_tuple}, goal={goal_tuple}. Q_h'={q_values_next_state_goal}. V_h set to 0.")
+                v_h_s_prime_g = 0
             else:
                 probs_next = exp_q_next / sum_exp_q_next
                 if np.isnan(probs_next).any():
-                    if self.debug == "verbose" and random.random() < 0.01: print(f"    WARN: NaN probs in V_h calc for s_h'={s_h_prime_tuple}, goal={goal_tuple}. Q_h'={q_values_next_state_goal}. V_h set to 0.")
+                    if self.debug == "verbose" and random.random() < 0.01:
+                        print(f"    WARN: NaN probs in V_h calc for s_h'={s_h_prime_tuple}, goal={goal_tuple}. Q_h'={q_values_next_state_goal}. V_h set to 0.")
                     v_h_s_prime_g = 0
                 else:
                     v_h_s_prime_g = np.sum(probs_next * q_values_next_state_goal)
-        
         q_target = r_h_obs + self.gamma_h * v_h_s_prime_g
-        self.Q_h[self.human_agent_ids[0]][q_key][a_h] += self.alpha_h * (q_target - q_current_val)
-
+        self.Q_h[hid][q_key][a_h] += self.alpha_h * (q_target - q_current_val)
         if self.debug == "verbose" and random.random() < self.debug_q_update_sample_rate:
-             print(f"    Human Q_h update: s_h={s_h_tuple}, g={goal_tuple}, a_h={a_h}, r_h={r_h_obs:.2f}, s_h'={s_h_prime_tuple}, done={done}")
-             print(f"      Q_h_curr={q_current_val:.3f}, V_h(s',g)={v_h_s_prime_g:.3f}, Q_h_target={q_target:.3f}, New_Q_h={self.Q_h[self.human_agent_ids[0]][q_key][a_h]:.3f}")
+            print(f"    Human Q_h update: hid={hid}, s_h={s_h_tuple}, g={goal_tuple}, a_h={a_h}, r_h={r_h_obs:.2f}, s_h'={s_h_prime_tuple}, done={done}")
+            print(f"      Q_h_curr={q_current_val:.3f}, V_h(s',g)={v_h_s_prime_g:.3f}, Q_h_target={q_target:.3f}, New_Q_h={self.Q_h[hid][q_key][a_h]:.3f}")
 
-    def calculate_robot_internal_reward(self, s_prime_tuple, done):
+    def train_phase1(self, environment, phase1_episodes, render=False, render_delay=0):
         """
-        Compute robot internal reward by aggregating over multiple humans.
+        Phase 1: Learn conservative human models for each human agent in sequence.
         """
-        # collect each human's expected value
-        human_rewards = []
-        for hid in self.human_agent_ids:
-            # sum over goals for this human
-            exp_val = 0
-            if not done:
-                for i, g in enumerate(self.G):
-                    qtable = self.Q_h[hid]
-                    q_vals = qtable[(s_prime_tuple, g)]
-                    exp_q = np.exp(self.beta_h * q_vals)
-                    sum_exp = np.sum(exp_q)
-                    v = 0
-                    if sum_exp>0 and not np.isnan(sum_exp) and not np.isinf(sum_exp):
-                        v = np.sum((exp_q/sum_exp)*q_vals)
-                    exp_val += self.mu_g[i] * v
-            human_rewards.append(exp_val)
-        # aggregate across humans
-        return self.reward_agg_fn(human_rewards)
-
-    def update_robot_q(self, robot_id, s_r_tuple, a_r, r_r_calc, s_r_prime_tuple, done, do_debug_episode):
-        q_current_val = self.Q_r[robot_id][s_r_tuple][a_r]
-        
-        max_q_next = 0
-        if not done:
-            # Check if s_r_prime_tuple is actually in Q_r, if not, it implies Q values are default (e.g. 0 or small random)
-            # This is handled by defaultdict returning default values for new states.
-            max_q_next = np.max(self.Q_r[robot_id][s_r_prime_tuple])
-            
-        q_target = r_r_calc + self.gamma_r * max_q_next
-        self.Q_r[robot_id][s_r_tuple][a_r] += self.alpha_r * (q_target - q_current_val)
-
-        if self.debug == "verbose" and random.random() < self.debug_q_update_sample_rate:
-             print(f"    Robot Q_r update: robot_id={robot_id}, s_r={s_r_tuple}, a_r={a_r}, r_r_calc={r_r_calc:.3f}, s_r'={s_r_prime_tuple}, done={done}")
-             print(f"      Q_r_curr={q_current_val:.3f}, max_Q_r(s',a')={max_q_next:.3f}, Q_r_target={q_target:.3f}, New_Q_r={self.Q_r[robot_id][s_r_tuple][a_r]:.3f}")
-
-    def update_q_values(self, obs_dict, actions_dict, rewards_dict, next_obs_dict, terminations_dict, truncations_dict):
-        """
-        Update Q-values for both human and robot agents based on the step transition.
-        Returns the robot's calculated internal reward for logging purposes.
-        """
-        # Convert observations to tuples for Q-table indexing
-        s_h_tuple = self.state_to_tuple(obs_dict[self.human_agent_ids[0]])
-        s_r_tuple = self.state_to_tuple(obs_dict[self.robot_agent_id])
-        s_h_prime_tuple = self.state_to_tuple(next_obs_dict[self.human_agent_ids[0]])
-        s_r_prime_tuple = self.state_to_tuple(next_obs_dict[self.robot_agent_id])
-        
-        # Get actions
-        action_h = actions_dict[self.human_agent_ids[0]]
-        action_r = actions_dict[self.robot_agent_id]
-        
-        # Convert robot action to index in action space
-        try:
-            action_r_idx = self.action_space_robot[self.robot_agent_id].index(action_r)
-        except ValueError:
-            if self.debug:
-                print(f"Warning: Robot action {action_r} not in action space {self.action_space_robot[self.robot_agent_id]}, using 0")
-            action_r_idx = 0
-        
-        # Determine if episode is done
-        is_terminal_next_state = (terminations_dict.get(self.human_agent_ids[0], False) or 
-                                terminations_dict.get(self.robot_agent_id, False) or
-                                truncations_dict.get(self.human_agent_ids[0], False) or
-                                truncations_dict.get(self.robot_agent_id, False))
-        
-        # Get human reward from environment
-        r_h_obs = rewards_dict.get(self.human_agent_ids[0], 0)
-        
-        # --- Human Q-Update using first goal (simplified for now) ---
-        if len(self.G) > 0:
-            current_goal = self.state_to_tuple(self.G[0])  # Use first goal for now
-            q_key = (s_h_tuple, current_goal)
-            
-            # Calculate V_h(s', g) for human value function
-            v_h_s_prime_g = 0
-            if not is_terminal_next_state:
-                q_values_next = self.Q_h[self.human_agent_ids[0]][(s_h_prime_tuple, current_goal)]
-                exp_q_next = np.exp(self.beta_h * q_values_next)
-                sum_exp_q_next = np.sum(exp_q_next)
-                if sum_exp_q_next > 0 and np.isfinite(sum_exp_q_next):
-                    probs_next = exp_q_next / sum_exp_q_next
-                    v_h_s_prime_g = np.sum(probs_next * q_values_next)
-            
-            # Update human Q-value
-            q_current_h = self.Q_h[self.human_agent_ids[0]][q_key][action_h]
-            q_target_h = r_h_obs + self.gamma_h * v_h_s_prime_g
-            self.Q_h[self.human_agent_ids[0]][q_key][action_h] += self.alpha_h * (q_target_h - q_current_h)
-        
-        # --- Calculate Robot's Internal Reward ---
-        r_r_calc = self.calculate_robot_internal_reward(s_r_prime_tuple, is_terminal_next_state)
-        
-        # --- Robot Q-Update ---
-        q_current_r = self.Q_r[self.robot_agent_id][s_r_tuple][action_r_idx]
-        
-        max_q_r_prime = 0
-        if not is_terminal_next_state:
-            max_q_r_prime = np.max(self.Q_r[self.robot_agent_id][s_r_prime_tuple])
-        
-        q_target_r = r_r_calc + self.gamma_r * max_q_r_prime
-        self.Q_r[self.robot_agent_id][s_r_tuple][action_r_idx] += self.alpha_r * (q_target_r - q_current_r)
-        
-        if self.debug:
-            print(f"IQL_DEBUG: Robot Q-Update for (s_r={s_r_tuple}, a_r={action_r} (idx {action_r_idx})):")
-            print(f"  Old Q_r value: {q_current_r:.4f}")
-            print(f"  Robot reward: {r_r_calc:.4f}")
-            print(f"  Q_r target: {q_target_r:.4f}")
-            print(f"  New Q_r value: {self.Q_r[self.robot_agent_id][s_r_tuple][action_r_idx]:.4f}")
-        
-        return r_r_calc
-
-    def choose_actions_for_training(self, obs_dict):
-        """
-        Choose actions for all agents during training.
-        """
-        actions = {}
-        
-        # Robot actions
-        for rid in self.robot_agent_ids:
-            s_r_tuple = self.state_to_tuple(obs_dict[rid])
-            actions[rid] = self.select_robot_action(rid, s_r_tuple)
-        
-        # Human actions (using first goal for simplicity)
-        for hid in self.human_agent_ids:
-            s_h_tuple = self.state_to_tuple(obs_dict[hid])
-            current_goal = self.state_to_tuple(self.G[0]) if self.G else (0, 0)
-            actions[hid] = self.select_human_action(s_h_tuple, current_goal)
-        
-        return actions
+        print(f"Phase 1: Learning cautious human models for {phase1_episodes} episodes")
+        num_humans = len(self.human_agent_ids)
+        episodes_per_human = phase1_episodes // num_humans
+        remaining_episodes = phase1_episodes % num_humans
+        for idx, hid in enumerate(self.human_agent_ids):
+            current_episodes = episodes_per_human + (1 if idx < remaining_episodes else 0)
+            print(f"\n--- Learning conservative model for {hid} ({current_episodes} episodes) ---")
+            for ep in range(current_episodes):
+                environment.reset()
+                # Sample initial goal for this human
+                goal_idx = np.random.choice(len(self.G), p=self.mu_g)
+                goal_tuple = self.state_to_tuple(self.G[goal_idx])
+                s_h_tuple = self.state_to_tuple(environment.observe(hid))
+                step_count = 0
+                episode_human_reward = 0.0
+                max_steps = getattr(environment, 'max_steps', 200)
+                done = False
+                while step_count < max_steps and not done:
+                    a_h = self.select_human_action(hid, s_h_tuple, goal_tuple)
+                    actions = {hid: a_h}
+                    obs_dict, reward_dict, term_dict, trunc_dict, info_dict = environment.step(actions)
+                    r_h_obs = reward_dict.get(hid, 0)
+                    s_h_prime_tuple = self.state_to_tuple(obs_dict[hid])
+                    done = term_dict.get(hid, False) or trunc_dict.get(hid, False)
+                    self.update_human_q(hid, s_h_tuple, goal_tuple, a_h, r_h_obs, s_h_prime_tuple, done, self.debug)
+                    episode_human_reward += r_h_obs
+                    s_h_tuple = s_h_prime_tuple
+                    step_count += 1
+                    if render:
+                        environment.render()
+                        pygame.time.delay(render_delay)
+                if (ep + 1) % max(1, current_episodes // 5) == 0 or (ep + 1) == current_episodes:
+                    print(f"[PHASE1-{hid}] Episode {ep+1}/{current_episodes}: avg_reward={episode_human_reward/step_count if step_count else 0:.2f}")
+            print(f"[INFO] Conservative model learned for human '{hid}' after {current_episodes} episodes.")
+        print(f"\n✅ Phase 1 complete: Individual conservative models learned for all humans")

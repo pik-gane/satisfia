@@ -830,7 +830,7 @@ class TwoPhaseTimescaleIQL:
                 V_e_h = self.compute_v_e_h(hid, next_state_hid, goal_tuple)
                 
                 # Apply power ζ and add to sum
-                V_e_h_safe = max(V_e_h, 0.0)  # Ensure non-negative for power
+                V_e_h_safe = max(V_e_h, 1e-8)  # Ensure strictly positive for power
                 X_h += V_e_h_safe ** self.zeta
                 
                 if self.debug:

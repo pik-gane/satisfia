@@ -4,8 +4,8 @@ Map legend:
 - '##': Wall
 - '  ': Empty space
 - 'vR': Robot starting position
-- 'vH0': Human 0 starting position
-- 'vH1': Human 1 starting position
+- 'H': Human 0 starting position
+- 'h': Human 1 starting position
 - 'YD': Door
 - 'YK': Key
 - 'GG': Green Goal (for human_0)
@@ -19,7 +19,7 @@ SIMPLE_MAP = [
     # Top walls
     ["##", "##", "##", "##", "##", "##", "##"],
     # Starting positions: Robot in center, humans on sides
-    ["##", "vH0", "  ", "vR", "  ", "vH1", "##"],
+    ["##", "H", "  ", "vR", "  ", "h", "##"],
     # Empty middle area
     ["##", "  ", "  ", "  ", "  ", "  ", "##"],
     # Goals at bottom: Green goal (left) and Red goal (right)

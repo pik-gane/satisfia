@@ -462,10 +462,10 @@ def main():
         hyperparam_grid = [
             # (alpha_m, alpha_e, alpha_r, beta_r_0, epsilon_h_0, episodes)
             (0.1, 0.1, 0.1, 5.0, 0.1, 500),
-            (0.2, 0.2, 0.1, 5.0, 0.1, 500),
-            (0.1, 0.1, 0.1, 10.0, 0.05, 700),
-            (0.05, 0.05, 0.05, 7.0, 0.05, 1000),
-            (0.15, 0.15, 0.1, 8.0, 0.01, 800),
+            # (0.2, 0.2, 0.1, 5.0, 0.1, 500),
+            # (0.1, 0.1, 0.1, 10.0, 0.05, 700),
+            # (0.05, 0.05, 0.05, 7.0, 0.05, 1000),
+            # (0.15, 0.15, 0.1, 8.0, 0.01, 800),
         ]
         best_success_rate = 0
         best_config = None
@@ -494,7 +494,8 @@ def main():
                 state_dim=args.state_dim,
                 debug=False
             )
-            iql_agent.train(environment=env, phase1_episodes=episodes//2, phase2_episodes=episodes//2, render=False, render_delay=args.delay)
+            # --- Phase 1: Learn conservative model for each human ---
+            iql_agent.train_phase1(environment=env, phase1_episodes=episodes//2, render=False, render_delay=args.delay)
             # Save to a temp file for this config
             save_path = f"tune_config_{idx+1}.pkl"
             iql_agent.save_models(filepath=save_path)
@@ -506,12 +507,14 @@ def main():
             obs = env.reset()
             max_steps = 100
             reached_goal = False
+            # Only use agent IDs that exist in trained_agent and env
+            valid_agent_ids = [aid for aid in obs.keys() if aid in trained_agent.agent_ids]
             for step in range(max_steps):
                 actions = {}
-                for agent_id, agent_obs in obs.items():
-                    actions[agent_id] = trained_agent.choose_action(agent_obs, agent_id)
+                for agent_id in valid_agent_ids:
+                    actions[agent_id] = trained_agent.choose_action(obs[agent_id], agent_id)
                 obs, rewards, terminations, truncations, infos = env.step(actions)
-                if any(terminations.values()):
+                if any(terminations.get(aid, False) for aid in valid_agent_ids):
                     reached_goal = True
                     print(f"[Checker] Agent reached a goal at step {step+1}.")
                     break
@@ -532,14 +535,16 @@ def main():
         else:
             print("[Hyperparam Tuning] No config reliably reached the goal. Consider expanding the grid or increasing episodes.")
         print("Training complete.")
+        # Always print the visualization command for both agent types
+        print("\n[INFO] To visualize the trained agent, run:")
         if args.network:
-            print("To visualize the trained neural network agent, run:")
             print(f"python {sys.argv[0]} --mode visualize --load {args.save} --map {args.map} --network")
             print("[INFO] For neural network agents, the policy is stored in the network weights (e.g., .pt files), not a Q-table. Ensure the .pt files are present in the same directory as the .pkl file.")
+            print("[INFO] To visualize a tabular agent, rerun without --network.")
         else:
-            print("To visualize the trained tabular agent, run:")
             print(f"python {sys.argv[0]} --mode visualize --load {args.save} --map {args.map}")
             print("[INFO] For tabular agents, the Q-table is stored in the .pkl file.")
+            print("[INFO] To visualize a neural network agent, rerun with --network.")
         
         # --- Post-training: verify both tabular and neural network agents if possible ---
         print("\n[Verification] Checking that both Q-learning (tabular) and model-based (neural network) agents can be trained and reach the goal...")

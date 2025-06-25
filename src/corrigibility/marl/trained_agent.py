@@ -28,6 +28,15 @@ class TrainedAgent:
         # Detect if this is a network-based or tabular agent
         self.is_network_based = getattr(self.iql, 'network', False)
         
+    @property
+    def agent_ids(self):
+        """
+        Returns a list of all valid agent IDs (robots and humans) for this trained agent.
+        """
+        robot_ids = getattr(self.iql, 'robot_agent_ids', [])
+        human_ids = getattr(self.iql, 'human_agent_ids', [])
+        return list(robot_ids) + list(human_ids)
+
     def choose_action(self, observation, agent_id):
         """
         Choose an action for the given agent based on trained Q-values.
