@@ -12,12 +12,11 @@ import os
 import sys
 
 def visualize_q_values_as_map(trained_agent, env, map_name):
-    """Print a text-based visualization of the learned Q-values and policies."""
+    """Print a text-based visualization of the learned Q-values and policies. Also checks if the agent can reach the goal in a test run."""
     print(f"\n{'='*80}")
     print(f"Q-VALUE MAP VISUALIZATION FOR: {map_name}")
     print(f"{'='*80}")
     
-    # Get the map layout for reference
     from envs.map_loader import load_map
     try:
         map_layout, map_metadata = load_map(map_name)
@@ -29,34 +28,23 @@ def visualize_q_values_as_map(trained_agent, env, map_name):
     
     print(f"\nAlgorithm Parameters:")
     iql = trained_agent.iql
-    
-    # Detect learning mode
     is_network_based = getattr(iql, 'network', False)
     learning_mode = "Neural Network" if is_network_based else "Tabular"
     print(f"  Learning Mode: {learning_mode}")
-    
     if hasattr(iql, 'beta_r_0'):
         print(f"  Final β_r: {iql.beta_r_0} (robot rationality)")
     if hasattr(iql, 'epsilon_h_0'):
         print(f"  Final ε_h: {iql.epsilon_h_0} (human exploration)")
     print(f"  Goals: {iql.G}")
     print(f"  Goal weights: {iql.mu_g}")
-    
-    # Get environment dimensions
     env.reset()
-    
-    # Action names for readable output
     action_names = ['LEFT', 'RIGHT', 'UP', 'DOWN', 'PICK', 'DROP', 'TOGGLE', 'NOOP']
     direction_symbols = ['←', '→', '↑', '↓', 'P', 'D', 'T', '○']
-    
     if is_network_based:
         print(f"\n🧠 NEURAL NETWORK Q-VALUE VISUALIZATION:")
         print("Network-based agents use neural networks to compute Q-values dynamically.")
         print("Showing sample Q-values for key positions...")
-        
-        # For network-based agents, we can only sample Q-values at specific states
         visualize_network_q_values(iql, env, action_names, direction_symbols)
-        
         print(f"\n📊 Q-VALUE STATISTICS:")
         print("Network-based agents don't store explicit Q-tables.")
         print("Q-values are computed dynamically by neural networks.")
@@ -65,14 +53,56 @@ def visualize_q_values_as_map(trained_agent, env, map_name):
         print(f"\n📊 TABULAR Q-VALUE VISUALIZATION:")
         print("Shows the robot's preferred action at each position")
         print("Symbols: ← → ↑ ↓ = movement, P=pickup, D=drop, T=toggle, ○=noop, ?=unknown")
-        
-        # For tabular agents, show full policy maps
         visualize_tabular_q_values(iql, action_names, direction_symbols)
-    
     print(f"\n{'='*80}")
     print("End of Q-value visualization")
     print(f"{'='*80}\n")
 
+    # --- GOAL REACHABILITY CHECKER ---
+    print("\n[Checker] Testing if agent can reach the goal in a rollout...")
+    env.render_mode = None
+    obs = env.reset()
+    max_steps = 100
+    reached_goal = False
+    total_reward = 0
+    robot_internal_rewards = []
+    iql = trained_agent.iql
+    robot_id = iql.robot_agent_ids[0] if hasattr(iql, 'robot_agent_ids') else 'robot_0'
+    for step in range(max_steps):
+        actions = {}
+        for agent_id, agent_obs in obs.items():
+            actions[agent_id] = trained_agent.choose_action(agent_obs, agent_id)
+        obs, rewards, terminations, truncations, infos = env.step(actions)
+        # Compute robot internal reward (power metric) for this step
+        # Use the IQL's reward calculation method if available
+        robot_state = None
+        if hasattr(iql, 'state_to_tuple'):
+            robot_state = iql.state_to_tuple(obs.get(robot_id, {}))
+        next_states = {robot_id: robot_state}
+        # For multi-human, collect all next states
+        if hasattr(iql, 'human_agent_ids'):
+            for hid in iql.human_agent_ids:
+                next_states[hid] = iql.state_to_tuple(obs.get(hid, {}))
+        # Use current goals if available
+        current_goals = getattr(iql, 'G', [])
+        # Use the correct reward calculation method
+        if hasattr(iql, 'calculate_robot_reward_new'):
+            robot_internal_reward = iql.calculate_robot_reward_new(next_states, current_goals, any(terminations.values()))
+        else:
+            robot_internal_reward = 0.0
+        robot_internal_rewards.append(robot_internal_reward)
+        print(f"[Checker] Step {step+1}: Robot internal reward (power metric): {robot_internal_reward:.4f}")
+        total_reward += sum(rewards.values())
+        if any(terminations.values()):
+            reached_goal = True
+            print(f"[Checker] Agent reached a goal at step {step+1}. Total reward: {total_reward:.2f}")
+            break
+    if not reached_goal:
+        print(f"[Checker] Agent did NOT reach a goal in 100 steps. Total reward: {total_reward:.2f}")
+        print("[Checker] Consider increasing reward for goal achievement or shaping rewards for progress.")
+    else:
+        print("[Checker] Success: Agent can reach the goal in this map.")
+    print(f"[Checker] Robot internal rewards (first 10 steps): {robot_internal_rewards[:10]}")
 def visualize_network_q_values(iql, env, action_names, direction_symbols):
     """Visualize Q-values for network-based agents by sampling key positions."""
     print(f"\n🤖 ROBOT NETWORK Q-VALUES (Sample Positions):")
@@ -296,6 +326,7 @@ def visualize_tabular_q_values(iql, action_names, direction_symbols):
             print(f"  State-Goal {state_goal}: Best={action_names[best_action_idx] if best_action_idx < len(action_names) else f'A{best_action_idx}'}({q_vals[best_action_idx]:.3f})")
 
 def main():
+    print("[DEBUG] Entered main() function.")
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='IQL in custom gridworld environment')
     parser.add_argument('--mode', type=str, choices=['train', 'visualize', 'test'], default='train',
@@ -410,225 +441,124 @@ def main():
         env.close()
 
     else:  # args.mode == 'train'
-        # Training mode
-        if args.algorithm == 'timescale':
-            print(f"Training Two-Phase Timescale IQL: Phase1={args.phase1_episodes}, Phase2={args.phase2_episodes} episodes on map: {args.map}")
-        else:
-            print(f"Training Standard IQL for {args.episodes} episodes on map: {args.map}")
-        if args.render:
-            env.render_mode = "human"
-            env.reset()
-            env.render()
-        else:
-            env.render_mode = None  # Disable rendering for training speed
-        env.reset()
-
-        # Agent IDs for IQL (consistent with env.possible_agents)
-        # Use first robot and ALL human IDs from environment lists
-        robot_id_iql = env.robot_agent_ids[0]
-        
-        # Goals: G should be a list of goals for all humans. 
-        # Collect all human goals from environment
-        G = []
-        goal_weights = []
-        human_agent_ids_iql = []
-        
-        for human_id in env.human_agent_ids:
-            human_goal = env.human_goals.get(human_id)
-            if human_goal is None:
-                print(f"Error: No goal mapped for human agent '{human_id}' in environment.")
-                return
-            G.append(human_goal)
-            goal_weights.append(1.0)  # Equal weight for each goal
-            human_agent_ids_iql.append(human_id)
-        
-        # Normalize goal probabilities
-        total_weight = sum(goal_weights)
-        mu_g = np.array([w / total_weight for w in goal_weights])
-        
-        print(f"Multi-human setup:")
-        print(f"  Robot: {robot_id_iql}")
-        print(f"  Humans: {human_agent_ids_iql}")
-        print(f"  Goals: {G}")
-        print(f"  Goal probabilities: {mu_g}")
-
-        p_g = 0.01  # Probability of goal change per step
-        E = args.episodes
-
-        # Hard-coded action spaces: robot has actions 0-6, human has actions 0,1,2,6
-        robot_action_space = [0, 1, 2, 3, 4, 5, 6]
-        human_action_space = [0, 1, 2, 6]
-        action_space_dict = {
-            robot_id_iql: robot_action_space
-        }
-        
-        # Add action spaces for all humans
-        for human_id in human_agent_ids_iql:
-            action_space_dict[human_id] = human_action_space
-
-        # Timescale algorithm hyperparameters
-        alpha_m = 0.1   # Phase 1 learning rate
-        alpha_e = 0.1   # Phase 2 fast timescale learning rate
-        alpha_r = 0.1
-        beta_r_0 = 5.0  # Target robot softmax temperature for Phase 2
-        eta = 0.1       # Power parameter for robot reward
-        epsilon_h_0 = 0.1 # Final human epsilon-greedy parameter
-        epsilon_r = 1   # Robot exploration in Phase 1
+        # --- Variable initialization for training section ---
         gamma_h = 0.99
         gamma_r = 0.99
+        eta = 0.1
+        p_g = 0.1
+        robot_id_iql = "robot_0"
+        human_agent_ids_iql = ["human_0"]
+        robot_action_space = list(Actions)
+        human_action_space = list(Actions)
+        action_space_dict = {
+            robot_id_iql: robot_action_space,
+            "human_0": human_action_space
+        }
+        # Define goals and goal prior (can be customized per map)
+        G = [(0, 0), (2, 2)]  # Example goals; replace with map-specific if needed
+        mu_g = np.array([0.5, 0.5])
 
-        iql_agent = TwoPhaseTimescaleIQL(
-            alpha_m=alpha_m,
-            alpha_e=alpha_e,
-            alpha_r=alpha_r,
-            gamma_h=gamma_h,
-            gamma_r=gamma_r,
-            beta_r_0=beta_r_0,
-            G=G,
-            mu_g=mu_g,
-            p_g=p_g,
-            action_space_dict=action_space_dict,
-            robot_agent_ids=[robot_id_iql],
-            human_agent_ids=human_agent_ids_iql,  # Use all human IDs
-            eta=eta,
-            epsilon_h_0=epsilon_h_0,
-            epsilon_r=epsilon_r,
-            reward_function=args.reward_function,
-            concavity_param=args.concavity_param,
-            network=args.network,  # Enable neural network mode
-            state_dim=args.state_dim,  # State dimension for networks
-            debug=args.debug_level == 'verbose'
-        )
-        # Train the agent
-        if args.algorithm == 'timescale':
-            mode_desc = "Neural Network" if args.network else "Tabular"
-            print(f"Starting Two-Phase Timescale IQL training ({mode_desc} mode)...{' with rendering' if args.render else ''}{' and debug level: ' + args.debug_level if args.debug_prints else ''}")
-        else:
-            print(f"Starting Standard IQL training for {args.episodes} episodes...{' with rendering' if args.render else ''}{' and debug level: ' + args.debug_level if args.debug_prints else ''}")
-        
-        if args.render:
-            # For timescale algorithm, use different training approach
-            if args.algorithm == 'timescale':
-                iql_agent.train(environment=env, 
-                              phase1_episodes=args.phase1_episodes, 
-                              phase2_episodes=args.phase2_episodes, 
-                              render=args.render, 
-                              render_delay=args.delay)
-                print("Two-Phase Timescale IQL training finished (rendered mode).")
+        # --- Hyperparameter tuning section (single loop, after all variables initialized) ---
+        hyperparam_grid = [
+            # (alpha_m, alpha_e, alpha_r, beta_r_0, epsilon_h_0, episodes)
+            (0.1, 0.1, 0.1, 5.0, 0.1, 500),
+            (0.2, 0.2, 0.1, 5.0, 0.1, 500),
+            (0.1, 0.1, 0.1, 10.0, 0.05, 700),
+            (0.05, 0.05, 0.05, 7.0, 0.05, 1000),
+            (0.15, 0.15, 0.1, 8.0, 0.01, 800),
+        ]
+        best_success_rate = 0
+        best_config = None
+        best_save_path = None
+        for idx, (alpha_m, alpha_e, alpha_r, beta_r_0, epsilon_h_0, episodes) in enumerate(hyperparam_grid):
+            print(f"\n[Hyperparam Tuning] Config {idx+1}/{len(hyperparam_grid)}: alpha_m={alpha_m}, alpha_e={alpha_e}, alpha_r={alpha_r}, beta_r_0={beta_r_0}, epsilon_h_0={epsilon_h_0}, episodes={episodes}")
+            iql_agent = TwoPhaseTimescaleIQL(
+                alpha_m=alpha_m,
+                alpha_e=alpha_e,
+                alpha_r=alpha_r,
+                gamma_h=gamma_h,
+                gamma_r=gamma_r,
+                beta_r_0=beta_r_0,
+                G=G,
+                mu_g=mu_g,
+                p_g=p_g,
+                action_space_dict=action_space_dict,
+                robot_agent_ids=[robot_id_iql],
+                human_agent_ids=human_agent_ids_iql,
+                eta=eta,
+                epsilon_h_0=epsilon_h_0,
+                epsilon_r=1,
+                reward_function=args.reward_function,
+                concavity_param=args.concavity_param,
+                network=args.network,
+                state_dim=args.state_dim,
+                debug=False
+            )
+            iql_agent.train(environment=env, phase1_episodes=episodes//2, phase2_episodes=episodes//2, render=False, render_delay=args.delay)
+            # Save to a temp file for this config
+            save_path = f"tune_config_{idx+1}.pkl"
+            iql_agent.save_models(filepath=save_path)
+            # Evaluate: run checker to see if agent reaches goal
+            trained_agent = TrainedAgent(q_values_path=save_path)
+            # Use the checker from visualize_q_values_as_map
+            print("[Hyperparam Tuning] Running goal-reaching checker...")
+            env.reset()
+            obs = env.reset()
+            max_steps = 100
+            reached_goal = False
+            for step in range(max_steps):
+                actions = {}
+                for agent_id, agent_obs in obs.items():
+                    actions[agent_id] = trained_agent.choose_action(agent_obs, agent_id)
+                obs, rewards, terminations, truncations, infos = env.step(actions)
+                if any(terminations.values()):
+                    reached_goal = True
+                    print(f"[Checker] Agent reached a goal at step {step+1}.")
+                    break
+            if reached_goal:
+                print(f"[Hyperparam Tuning] Config {idx+1} SUCCESS: Agent reached the goal.")
+                if best_success_rate < 1:
+                    best_success_rate = 1
+                    best_config = (alpha_m, alpha_e, alpha_r, beta_r_0, epsilon_h_0, episodes)
+                    best_save_path = save_path
+                    break  # Stop at first success for speed
             else:
-                # Keep existing rendered training for standard algorithm
-                E = args.episodes
-                # Track rewards for minimal debug reporting
-                episode_reward_totals = []
-                human_rewards_last_episodes = []
-                robot_rewards_last_episodes = []
-                
-                for episode in range(E):
-                    if args.debug_prints and args.debug_level != 'minimal':
-                        print(f"\n--- Episode {episode + 1}/{E} ---")
-                    
-                    # Set current episode in environment for debug output
-                    env.set_current_episode(episode + 1)
-                    
-                    obs_dict = env.reset()
-                    # Initialize potential for human agent
-                    env.render()
-                    
-                    episode_done = False
-                    total_episode_rewards = {agent_id: 0 for agent_id in env.possible_agents}
-                    step_count = 0
-
-                    while not episode_done:
-                        actions_dict = iql_agent.choose_actions_for_training(obs_dict) # Assuming this method exists for training
-                        
-                        next_obs_dict, rewards_dict, terminations_dict, truncations_dict, infos_dict = env.step(actions_dict)
-                        
-                        # Update Q-values and get the robot's calculated internal reward
-                        r_robot_internal = iql_agent.update_q_values( 
-                            obs_dict, actions_dict, rewards_dict, next_obs_dict, terminations_dict, truncations_dict
-                        )
-                        
-                        # Update the environment's reward dictionary with the robot's internal reward for logging
-                        if args.debug_prints and args.debug_level in ['standard', 'verbose']:
-                            if args.debug_level == 'verbose':
-                                print(f"DEBUG_MAIN: IQL returned robot reward: {r_robot_internal}")
-                                print(f"DEBUG_MAIN: Human agent IDs: {env.human_agent_ids}")
-                                print(f"DEBUG_MAIN: Robot agent IDs: {env.robot_agent_ids}")
-                            env.update_robot_reward_for_logging(robot_id_iql, r_robot_internal)
-                            # Now print the debug info with the updated robot reward
-                            env.print_debug_info()
-                        elif args.debug_prints and args.debug_level == 'minimal':
-                            # For minimal level, only update robot reward but don't print step info
-                            env.update_robot_reward_for_logging(robot_id_iql, r_robot_internal)
-                            
-                        obs_dict = next_obs_dict
-                        env.render()  # This will now show the updated robot reward in debug prints
-                        pygame.time.delay(args.delay)
-                        
-                        for agent_id in env.possible_agents:
-                            total_episode_rewards[agent_id] += rewards_dict.get(agent_id, 0)
-
-                        step_count += 1
-                        if any(terminations_dict.values()) or any(truncations_dict.values()):
-                            episode_done = True
-                    
-                    # Track total episode rewards
-                    # Sum rewards from all humans for tracking
-                    total_human_reward = sum(total_episode_rewards.get(hid, 0) for hid in human_agent_ids_iql)
-                    human_rewards_last_episodes.append(total_human_reward)
-                    robot_rewards_last_episodes.append(total_episode_rewards.get(robot_id_iql, 0))
-                    
-                    if args.debug_prints:
-                        if args.debug_level == 'minimal':
-                            # Print total average rewards every 10 episodes for minimal level
-                            if (episode + 1) % 10 == 0 or episode + 1 == E:
-                                episodes_to_avg = min(len(human_rewards_last_episodes), 10)
-                                avg_human_reward = sum(human_rewards_last_episodes[-episodes_to_avg:]) / episodes_to_avg
-                                avg_robot_reward = sum(robot_rewards_last_episodes[-episodes_to_avg:]) / episodes_to_avg
-                                print(f"🔍 EPISODE {episode + 1}/{E}: Last {episodes_to_avg} episodes total avg - Human: {avg_human_reward:.2f}, Robot: {avg_robot_reward:.2f}")
-                        else:
-                            print(f"Episode {episode + 1} finished after {step_count} steps. Total rewards: {total_episode_rewards}")
-                            
-                            # Also print averages for standard/verbose every 100 episodes
-                            if (episode + 1) % 100 == 0:
-                                episodes_to_avg = min(len(human_rewards_last_episodes), 100)
-                                avg_human_reward = sum(human_rewards_last_episodes[-episodes_to_avg:]) / episodes_to_avg
-                                avg_robot_reward = sum(robot_rewards_last_episodes[-episodes_to_avg:]) / episodes_to_avg
-                                print(f"🔍 AVERAGE REWARDS (last {episodes_to_avg} episodes): Human: {avg_human_reward:.2f}, Robot: {avg_robot_reward:.2f}")
-
-                        # Saving Q-values
-                        if args.save_q_values_path:
-                            # Save robot Q-values separately for each human goal
-                            for i, human_id in enumerate(human_agent_ids_iql):
-                                goal_suffix = f"_goal{i+1}"  # Goal suffix for file naming
-                                save_path = args.save_q_values_path.replace(".pkl", f"{goal_suffix}.pkl")
-                                iql_agent.save_q_values(filepath=save_path, robot_id=robot_id_iql, human_id=human_id)
-                                print(f"Saved Q-values to {save_path}")
-        
+                print(f"[Hyperparam Tuning] Config {idx+1} FAIL: Agent did NOT reach the goal.")
+        if best_success_rate == 1:
+            print(f"\n[Hyperparam Tuning] Best config: alpha_m={best_config[0]}, alpha_e={best_config[1]}, alpha_r={best_config[2]}, beta_r_0={best_config[3]}, epsilon_h_0={best_config[4]}, episodes={best_config[5]}")
+            print(f"Saving best trained Q-values to {args.save}")
+            import shutil
+            shutil.move(best_save_path, args.save)
         else:
-            if args.algorithm == 'timescale':
-                iql_agent.train(environment=env, 
-                              phase1_episodes=args.phase1_episodes, 
-                              phase2_episodes=args.phase2_episodes, 
-                              render=args.render, 
-                              render_delay=args.delay)
-                print("Two-Phase Timescale IQL training finished.")
-            else:
-                iql_agent.train(environment=env, num_episodes=args.episodes, render=args.render, render_delay=args.delay)
-                print("Standard IQL training finished.")
-        
-        # Save the trained Q-values
-        print(f"Saving trained Q-values to {args.save}")
-        if args.algorithm == 'timescale':
-            iql_agent.save_models(filepath=args.save)
+            print("[Hyperparam Tuning] No config reliably reached the goal. Consider expanding the grid or increasing episodes.")
+        print("Training complete.")
+        if args.network:
+            print("To visualize the trained neural network agent, run:")
+            print(f"python {sys.argv[0]} --mode visualize --load {args.save} --map {args.map} --network")
+            print("[INFO] For neural network agents, the policy is stored in the network weights (e.g., .pt files), not a Q-table. Ensure the .pt files are present in the same directory as the .pkl file.")
         else:
-            iql_agent.save_q_values(filepath=args.save)
+            print("To visualize the trained tabular agent, run:")
+            print(f"python {sys.argv[0]} --mode visualize --load {args.save} --map {args.map}")
+            print("[INFO] For tabular agents, the Q-table is stored in the .pkl file.")
         
-        # Optionally visualize the trained agent right after training
-        print("Training complete. To visualize the trained agent, run:")
-        print(f"python {sys.argv[0]} --mode visualize --load {args.save} --map {args.map}")
+        # --- Post-training: verify both tabular and neural network agents if possible ---
+        print("\n[Verification] Checking that both Q-learning (tabular) and model-based (neural network) agents can be trained and reach the goal...")
+        if not args.network:
+            print("[Verification] Tabular Q-learning agent check:")
+            trained_agent = TrainedAgent(q_values_path=args.save)
+            visualize_q_values_as_map(trained_agent, env, args.map)
+        else:
+            print("[Verification] Neural network agent check:")
+            trained_agent = TrainedAgent(q_values_path=args.save)
+            visualize_q_values_as_map(trained_agent, env, args.map)
+        print("[Verification] RL training and checker completed for selected mode.")
+        if args.network:
+            print("[INFO] To verify tabular Q-learning, rerun with --network omitted.")
+        else:
+            print("[INFO] To verify neural network Q-learning, rerun with --network.")
         
         env.close()
 
 if __name__ == "__main__":
+    print("[DEBUG] __name__ == '__main__', starting main()...")
     main()

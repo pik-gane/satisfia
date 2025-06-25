@@ -11,9 +11,9 @@ python main.py --mode train --phase1-episodes 1000 --phase2-episodes 1000 --save
 **Training with Neural Network Q-learning:**
 
 ```bash
-python main.py --mode train --phase1-episodes 1000 --phase2-episodes 1000 --save saved/q_values_nn.pkl --map simple_map2 --network --state-dim 4
+python src/corrigibility/marl/main.py --mode train --algorithm timescale --map simple_map --save network_agent.pkl --network
 
-python main.py --mode train --phase1-episodes 500 --phase2-episodes 500 --save saved/q_values_nn_team.pkl --map team_map --network --state-dim 6 --render
+python src/corrigibility/marl/main.py --mode visualize --load network_agent.pkl --map simple_map --network
 ```
 
 **Visualization:**
