@@ -43,6 +43,7 @@ MAP_METADATA = {
     "human_goals": {"human_0": (1, 3), "human_1": (5, 3)},
 }
 
+
 def get_map():
     """Return the map layout and metadata."""
     return COLLABORATOR_MAP, MAP_METADATA

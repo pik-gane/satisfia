@@ -1,0 +1,59 @@
+{
+  "checkpoint_name": "env_03_multi_key_20250703_094948",
+  "env_name": "env_03_multi_key",
+  "timestamp": "20250703_094948",
+  "stage_info": {
+    "env_index": 2,
+    "env_name": "env_03_multi_key",
+    "total_envs": 5,
+    "training_complete": true
+  },
+  "performance_metrics": {
+    "success_rate": 0.85,
+    "attempts_used": 2,
+    "final_robot_reward": 0.0,
+    "final_human_reward": 1.7,
+    "average_steps": 53.5,
+    "humans_reached_goals": 0.85
+  },
+  "agent_config": {
+    "network_mode": true,
+    "robot_agent_ids": [
+      "robot_0"
+    ],
+    "human_agent_ids": [
+      "human_0"
+    ],
+    "state_dim": 4,
+    "action_space_dict": {
+      "robot_0": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "human_0": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    "hyperparameters": {
+      "alpha_m": 0.1,
+      "alpha_e": 0.2,
+      "alpha_r": 0.01,
+      "gamma_h": 0.99,
+      "gamma_r": 0.99,
+      "beta_r_0": 5.0,
+      "beta_h": 5.0,
+      "nu_h": 0.1
+    }
+  },
+  "model_files": {
+    "main": "curriculum_checkpoints/models/env_03_multi_key_20250703_094948.pkl",
+    "human_q_m": "curriculum_checkpoints/models/env_03_multi_key_20250703_094948_human_q_m.pkl",
+    "human_q_e": "curriculum_checkpoints/models/env_03_multi_key_20250703_094948_human_q_e.pkl",
+    "robot_q": "curriculum_checkpoints/models/env_03_multi_key_20250703_094948_robot_q.pkl"
+  }
+}

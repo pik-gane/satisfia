@@ -1,6 +1,8 @@
-import os
 import json
-from env import Actions
+import os
+
+from .env import Actions
+
 
 class DeterministicAlgorithm:
     def __init__(self, map_name="simple_map", algo_dir="saved"):
@@ -22,9 +24,29 @@ class DeterministicAlgorithm:
             self._load_algorithm()
         else:
             # default sequences: override per map as needed
-            self.robot_hardcoded_actions = [self.ACTION_LEFT, self.ACTION_NO_OP, self.ACTION_FORWARD, self.ACTION_RIGHT, self.ACTION_TOGGLE, self.ACTION_RIGHT, self.ACTION_FORWARD]
+            self.robot_hardcoded_actions = [
+                self.ACTION_LEFT,
+                self.ACTION_NO_OP,
+                self.ACTION_FORWARD,
+                self.ACTION_RIGHT,
+                self.ACTION_TOGGLE,
+                self.ACTION_RIGHT,
+                self.ACTION_FORWARD,
+            ]
             # Use forward for movement, default facing down
-            self.human_hardcoded_actions = [self.ACTION_RIGHT, self.ACTION_NO_OP, self.ACTION_NO_OP, self.ACTION_NO_OP, self.ACTION_NO_OP, self.ACTION_NO_OP, self.ACTION_NO_OP, self.ACTION_FORWARD, self.ACTION_LEFT, self.ACTION_FORWARD,self.ACTION_FORWARD]
+            self.human_hardcoded_actions = [
+                self.ACTION_RIGHT,
+                self.ACTION_NO_OP,
+                self.ACTION_NO_OP,
+                self.ACTION_NO_OP,
+                self.ACTION_NO_OP,
+                self.ACTION_NO_OP,
+                self.ACTION_NO_OP,
+                self.ACTION_FORWARD,
+                self.ACTION_LEFT,
+                self.ACTION_FORWARD,
+                self.ACTION_FORWARD,
+            ]
             self.save_algorithm()
         self.robot_action_index = 0
         self.human_action_index = 0
@@ -32,9 +54,9 @@ class DeterministicAlgorithm:
     def save_algorithm(self):
         data = {
             "robot_actions": self.robot_hardcoded_actions,
-            "human_actions": self.human_hardcoded_actions
+            "human_actions": self.human_hardcoded_actions,
         }
-        with open(self.algo_path, 'w') as f:
+        with open(self.algo_path, "w") as f:
             json.dump(data, f)
 
     def _load_algorithm(self):
@@ -47,19 +69,19 @@ class DeterministicAlgorithm:
         """Chooses an action based on a hardcoded sequence for the given agent_id."""
         # The 'state' argument is kept for compatibility with existing call signatures in main.py,
         # but it is not used in this hardcoded action logic.
-        action = self.ACTION_NO_OP # Default action
+        action = self.ACTION_NO_OP  # Default action
 
-        if agent_id == f"robot_0":
+        if agent_id == "robot_0":
             if self.robot_action_index < len(self.robot_hardcoded_actions):
                 action = self.robot_hardcoded_actions[self.robot_action_index]
                 self.robot_action_index += 1
-        elif agent_id == f"human_0":
+        elif agent_id == "human_0":
             if self.human_action_index < len(self.human_hardcoded_actions):
                 action = self.human_hardcoded_actions[self.human_action_index]
                 self.human_action_index += 1
         else:
             print(f"Algo: Unknown agent_id '{agent_id}'. Defaulting to NO_OP.")
-        
+
         # Validate action against Actions enum, fallback to NO_OP if invalid
         try:
             Actions(action)

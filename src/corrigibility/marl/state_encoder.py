@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def encode_full_observable_state(env, state):
     """
     Encode the full grid, all agent positions, and all object states into a flat vector.
@@ -14,21 +15,21 @@ def encode_full_observable_state(env, state):
     for row in grid:
         for cell in row:
             # Map each cell type to an integer (customize as needed)
-            if cell == '#':
+            if cell == "#":
                 grid_flat.append(1)
-            elif cell == 'G':
+            elif cell == "G":
                 grid_flat.append(2)
-            elif cell == 'L':
+            elif cell == "L":
                 grid_flat.append(3)
-            elif cell == ',':
+            elif cell == ",":
                 grid_flat.append(4)
-            elif cell == 'K':
+            elif cell == "K":
                 grid_flat.append(5)
-            elif cell == 'D':
+            elif cell == "D":
                 grid_flat.append(6)
-            elif cell == 'A':
+            elif cell == "A":
                 grid_flat.append(7)
-            elif cell == 'H':
+            elif cell == "H":
                 grid_flat.append(8)
             else:
                 grid_flat.append(0)  # empty or unknown
@@ -40,11 +41,18 @@ def encode_full_observable_state(env, state):
     # 3. Encode object states (keys, doors, boxes, etc.)
     object_vec = []
     for key in env.keys:
-        object_vec.extend([key['pos'][0], key['pos'][1], int(key.get('picked', False))])
+        object_vec.extend([key["pos"][0], key["pos"][1], int(key.get("picked", False))])
     for door in env.doors:
-        object_vec.extend([door['pos'][0], door['pos'][1], int(door.get('is_open', False)), int(door.get('is_locked', False))])
+        object_vec.extend(
+            [
+                door["pos"][0],
+                door["pos"][1],
+                int(door.get("is_open", False)),
+                int(door.get("is_locked", False)),
+            ]
+        )
     for box in env.boxes:
-        object_vec.extend([box['pos'][0], box['pos'][1]])
+        object_vec.extend([box["pos"][0], box["pos"][1]])
     # 4. Concatenate all parts
     state_vec = np.array(grid_flat + agent_vec + object_vec, dtype=np.float32)
     return state_vec

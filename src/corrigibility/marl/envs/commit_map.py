@@ -30,6 +30,7 @@ MAP_METADATA = {
     "human_goals": {"human_0": (5, 3)},
 }
 
+
 def get_map():
     """Return the map layout and metadata."""
     return COMMIT_MAP, MAP_METADATA

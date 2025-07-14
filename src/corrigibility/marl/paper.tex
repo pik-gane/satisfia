@@ -1,0 +1,1773 @@
+%File: anonymous-submission-latex-2026.tex
+\documentclass[letterpaper]{article} % DO NOT CHANGE THIS
+\usepackage[submission]{aaai2026}  % DO NOT CHANGE THIS
+\usepackage{times}  % DO NOT CHANGE THIS
+\usepackage{helvet}  % DO NOT CHANGE THIS
+\usepackage{courier}  % DO NOT CHANGE THIS
+\usepackage[hyphens]{url}  % DO NOT CHANGE THIS
+\usepackage{graphicx} % DO NOT CHANGE THIS
+\urlstyle{rm} % DO NOT CHANGE THIS
+\def\UrlFont{\rm}  % DO NOT CHANGE THIS
+\usepackage{natbib}  % DO NOT CHANGE THIS AND DO NOT ADD ANY OPTIONS TO IT
+\usepackage{caption} % DO NOT CHANGE THIS AND DO NOT ADD ANY OPTIONS TO IT
+\frenchspacing  % DO NOT CHANGE THIS
+\setlength{\pdfpagewidth}{8.5in} % DO NOT CHANGE THIS
+\setlength{\pdfpageheight}{11in} % DO NOT CHANGE THIS
+%
+% These are recommended to typeset algorithms but not required. See the subsubsection on algorithms. Remove them if you don't have algorithms in your paper.
+%\usepackage{algorithm}
+%\usepackage{algorithmic}
+
+%
+% These are are recommended to typeset listings but not required. See the subsubsection on listing. Remove this block if you don't have listings in your paper.
+%\usepackage{newfloat}
+%\usepackage{listings}
+%\DeclareCaptionStyle{ruled}{labelfont=normalfont,labelsep=colon,strut=off} % DO NOT CHANGE THIS
+%\lstset{%
+%	basicstyle={\footnotesize\ttfamily},% footnotesize acceptable for monospace
+%	numbers=left,numberstyle=\footnotesize,xleftmargin=2em,% show line numbers, remove this entire line if you don't want the numbers.
+%	aboveskip=0pt,belowskip=0pt,%
+%	showstringspaces=false,tabsize=2,breaklines=true}
+%\floatstyle{ruled}
+%\newfloat{listing}{tb}{lst}{}
+%\floatname{listing}{Listing}
+%
+% Keep the \pdfinfo as shown here. There's no need
+% for you to add the /Title and /Author tags.
+\pdfinfo{
+/TemplateVersion (2026.1)
+}
+
+
+\usepackage{amsmath}
+\usepackage{amssymb} % For \mathbb
+\usepackage{booktabs}
+
+\DeclareMathOperator*{\E}{\mathbb{E}}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator{\pow}{pow}
+\DeclareMathOperator{\apow}{apow}
+\DeclareMathOperator{\tpow}{tpow}
+
+\def\A{\mathcal{A}}
+\def\G{\mathcal{G}}
+\def\H{\mathcal{H}}
+\def\S{\mathcal{S}}
+
+\def\R{\mathbb{R}}
+
+\def\ld{\log_2}
+\def\entropy{\mathbb{H}} % entropy 
+\def\MI{\mathbb{I}} % mutual information 
+\def\DKL{D_{KL}} % Kullback-Leibler divergence
+
+
+%%%%% TEMPORARY FOR DRAFTING, REMOVE LATER: %%%%%
+\usepackage{todonotes}
+\usepackage{xcolor}
+\usepackage{url}
+\def\gray#1{\textcolor{gray}{#1}}
+\def\jh#1{\textcolor{red}{JH: #1}}
+
+
+
+% DISALLOWED PACKAGES
+% \usepackage{authblk} -- This package is specifically forbidden
+% \usepackage{balance} -- This package is specifically forbidden
+% \usepackage{color (if used in text)
+% \usepackage{CJK} -- This package is specifically forbidden
+% \usepackage{float} -- This package is specifically forbidden
+% \usepackage{flushend} -- This package is specifically forbidden
+% \usepackage{fontenc} -- This package is specifically forbidden
+% \usepackage{fullpage} -- This package is specifically forbidden
+% \usepackage{geometry} -- This package is specifically forbidden
+% \usepackage{grffile} -- This package is specifically forbidden
+% \usepackage{hyperref} -- This package is specifically forbidden
+% \usepackage{navigator} -- This package is specifically forbidden
+% (or any other package that embeds links such as navigator or hyperref)
+% \indentfirst} -- This package is specifically forbidden
+% \layout} -- This package is specifically forbidden
+% \multicol} -- This package is specifically forbidden
+% \nameref} -- This package is specifically forbidden
+% \usepackage{savetrees} -- This package is specifically forbidden
+% \usepackage{setspace} -- This package is specifically forbidden
+% \usepackage{stfloats} -- This package is specifically forbidden
+% \usepackage{tabu} -- This package is specifically forbidden
+% \usepackage{titlesec} -- This package is specifically forbidden
+% \usepackage{tocbibind} -- This package is specifically forbidden
+% \usepackage{ulem} -- This package is specifically forbidden
+% \usepackage{wrapfig} -- This package is specifically forbidden
+% DISALLOWED COMMANDS
+% \nocopyright -- Your paper will not be published if you use this command
+% \addtolength -- This command may not be used
+% \balance -- This command may not be used
+% \baselinestretch -- Your paper will not be published if you use this command
+% \clearpage -- No page breaks of any kind may be used for the final version of your paper
+% \columnsep -- This command may not be used
+% \newpage -- No page breaks of any kind may be used for the final version of your paper
+% \pagebreak -- No page breaks of any kind may be used for the final version of your paperr
+% \pagestyle -- This command may not be used
+% \tiny -- This is not an acceptable font size.
+% \vspace{- -- No negative value may be used in proximity of a caption, figure, table, section, subsection, subsubsection, or reference
+% \vskip{- -- No negative value may be used to alter spacing above or below a caption, figure, table, section, subsection, subsubsection, or reference
+
+\setcounter{secnumdepth}{0} %May be changed to 1 or 2 if section numbers are desired.
+
+% The file aaai2026.sty is the style file for AAAI Press
+% proceedings, working notes, and technical reports.
+%
+
+% Title
+
+% Your title must be in mixed case, not sentence case.
+% That means all verbs (including short verbs like be, is, using,and go),
+% nouns, adverbs, adjectives should be capitalized, including both words in hyphenated terms, while
+% articles, conjunctions, and prepositions are lower case unless they
+% directly follow a colon or long dash
+%\title{(Em)Power(ment), Not Preference: A New Objective for Model-Based Agents\\\gray{(working title)}}
+\title{Model-Based Soft Maximization of Suitable Metrics of Long-Term Human Power}
+\author{
+    %Authors
+    % All authors must be in the same font size and format.
+    Written by AAAI Press Staff\textsuperscript{\rm 1}\thanks{With help from the AAAI Publications Committee.}\\
+    AAAI Style Contributions by Pater Patel Schneider,
+    Sunil Issar,\\
+    J. Scott Penberthy,
+    George Ferguson,
+    Hans Guesgen,
+    Francisco Cruz\equalcontrib,
+    Marc Pujol-Gonzalez\equalcontrib
+}
+\affiliations{
+    %Afiliations
+    \textsuperscript{\rm 1}Association for the Advancement of Artificial Intelligence\\
+    % If you have multiple authors and multiple affiliations
+    % use superscripts in text and roman font to identify them.
+    % For example,
+
+    % Sunil Issar\textsuperscript{\rm 2},
+    % J. Scott Penberthy\textsuperscript{\rm 3},
+    % George Ferguson\textsuperscript{\rm 4},
+    % Hans Guesgen\textsuperscript{\rm 5}
+    % Note that the comma should be placed after the superscript
+
+    1101 Pennsylvania Ave, NW Suite 300\\
+    Washington, DC 20004 USA\\
+    % email address must be in roman text type, not monospace or sans serif
+    proceedings-questions@aaai.org
+%
+% See more examples next
+}
+
+%Example, Single Author, ->> remove \iffalse,\fi and place them surrounding AAAI title to use it
+\iffalse
+\title{My Publication Title --- Single Author}
+\author {
+    Author Name
+}
+\affiliations{
+    Affiliation\\
+    Affiliation Line 2\\
+    name@example.com
+}
+\fi
+
+\iffalse
+%Example, Multiple Authors, ->> remove \iffalse,\fi and place them surrounding AAAI title to use it
+\title{My Publication Title --- Multiple Authors}
+\author {
+    % Authors
+    First Author Name\textsuperscript{\rm 1},
+    Second Author Name\textsuperscript{\rm 2},
+    Third Author Name\textsuperscript{\rm 1}
+}
+\affiliations {
+    % Affiliations
+    \textsuperscript{\rm 1}Affiliation 1\\
+    \textsuperscript{\rm 2}Affiliation 2\\
+    firstAuthor@affiliation1.com, secondAuthor@affilation2.com, thirdAuthor@affiliation1.com
+}
+\fi
+
+
+% REMOVE THIS: bibentry
+% This is only needed to show inline citations in the guidelines document. You should not need it and can safely delete it.
+\usepackage{bibentry}
+% END REMOVE bibentry
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\todo[inline]{todo}\todo{see end of document for AAAI formatting instructions!}
+\gray{
+see \url{https://g.co/gemini/share/88b164423bfa} for a discussion of the title (and abstract).
+make sure to say ``model-based planning/RL'' early-on and clarify we assume the world model is given. 
+}
+\end{abstract}
+
+% Uncomment the following to link to your code, datasets, an extended version or similar.
+% You must keep this block between (not within) the abstract and the main body of the paper.
+% \begin{links}
+%     \link{Code}{https://aaai.org/example/code}
+%     \link{Datasets}{https://aaai.org/example/datasets}
+%     \link{Extended version}{https://aaai.org/example/extended-version}
+% \end{links}
+
+\section{Introduction}
+\todo[inline]{TODO both}
+
+- a duty to empower others, especially those with little power, can be defended on consequentialist \cite{sen2014development}, deontological \cite{hill2002human}, and virtue ethical \cite{nussbaum2019aristotelian} grounds. %, while disempowerment can lead to suffering \cite{cassel1982nature}.
+
+- use words "optionality", "freedom", "influence", "affordances", "control", "empowerment", "power", "agency", "paternalism", "autonomy"
+
+- praise Polani/Salge and AvE papers, mention copilot follow-up papers
+
+- refer to AI safety risks: gradual disempowerment paper, power-seeking and goal protection instrumental goals, risks from overoptimization like irreversible impacts 
+
+- human preferences are non-identifiable \cite{cao2021identifiability,banerjee2011poor} and their prediction unavoidably uncertain \cite{baker2011bayesian}, so maybe don't try inferring them at all in potentially dangerous situations. similarly, no universally agreed notion of ``good'' has emerged yet, so maybe not make the ai optimize for any particular objective function that is supposed to encode what is ``good''. \cite{leibo2024theory} use this to argue ai systems should rather be trained to act ``appropriately'', in particular, follow relevant context-dependent conventions and norms, and help stabilize them by sanctioning deviations. still, the very formation of those conventions and norms depend on human goals and conceptions of ``good'' which can change, so humans must retain the power to change the norms, and thus an ai that optimizes for appropriateness but while doing so disempowers humans from changing the norms will undermine its very justification.
+another issue with optimizing for appropriateness is that it seems to require world models even richer in semantics than needed for reward maximization approaches.
+by contrast, this paper is an exercise in grounding the behavior of the ai  ``assistant" almost exclusively in the structure of a multi-agent environment (in particular, its transition kernel), avoiding as much as possible any dependence on semantic aspects (what states and actions ``mean'', how they are ``valued'' and whether they are ``appropriate''), using a specific version of human (em)power(ment) as its core value.
+
+- motivate model-based setting (can't afford trial-and-error model-free approach for novel situations with potentially large-scale consequences). cite "AI scientist", "safeguarded AI" papers and LeCun whitepaper for context and further justification.
+
+Increasingly capable AI systems (will) likely have elaborate world models for representing world states, actors, and possible behaviors \cite{ha2018world,lecun2022path,zhu2024sora,feng2025survey}. 
+Still, predicting individuals' actual actions in multi-agent environments, even if through an explicit theory of mind, is very difficult in practise \cite{rudenko2020human,gu2024simpletom}.
+
+- point out difference to AvE suite of papers where the robot's value function is a proxy for current-state human empowerment, while in our approach the robot's value function is a long-term aggregate of human empowerment at all points in time. motivate this long-term aggregation: changing goals, avoiding lock-ins/irreversibility, fairness towards future generations. refer to sustainability papers by Marc Fleurbaey.
+
+- mention \cite{london2024beneficent} approach but refer to \cite{robeyns2006capability} for acknowledging the problem of listing specific capabilities and aggregation across capabilities and individuals.
+
+
+\subsubsection{Problem statement}
+
+Our aim is to design a model-based decision algorithm for the robot for (soft) maximizing a suitable notion of ``aggregate human power'' that does not require the robot to learn the actual goals of the humans and gives the robot certain desirable incentives.
+
+\section{Measuring, Aggregating, and Maximizing Human (Em)Power(ment)}
+
+\begin{figure*}
+    \centering
+    \begin{tabular}{c}
+        \bf World model \\ (dynamics, {\em possible} goals, \\ habits, social norms)
+    \end{tabular}
+    $\to$ 
+    \begin{tabular}{c}
+        \bf Human behavior prior \\ (goal-dependent, \\ boundedly rational)
+    \end{tabular}
+    $\to$ 
+    \begin{tabular}{c}
+        \bf Human power metrics \\ (individual, aggregate, \\ long-term total)
+    \end{tabular}
+    $\to$ 
+    \begin{tabular}{c}
+        \bf AGI system's policy \\ (goal-agnostic), \\ managing long-term power
+    \end{tabular} \\[1mm]
+    \raisebox{1.5ex}{$\nwarrow~~$}
+    Observations 
+    $~~\gets~~$
+    Environment with humans
+    $~~\gets~~$
+    AGI system's actions
+    \raisebox{1.5ex}{$~~\swarrow$}
+    \caption{Overview of proposed approach for deriving power-managing policies for a general-purpose AGI system}
+    \label{fig:enter-label}
+\end{figure*}
+
+\paragraph{Framework}
+We assume a robot $r$ interacting with several humans $h\in\H$. 
+The robot models the world as a partially observed stochastic game with states $s\in\S$ between itself, who gets no extrinsic reward, and the humans who have many {\em possible} and potentially {\em changing} goals $g_h\in\G_h$ and get goal-dependent rewards $U_h(s',g_h)$, discounted at factors $\gamma_h<1$. Action sets $\A_r(s),\A_h(s)$ may be state-dependent, action profiles are written $a=(a_r,a_\H)=(a_r,a_h,a_{-h})$, and the transition kernel is $P(s'|s,a)$. 
+
+Crucially, we assume the robot neither knows nor forms beliefs about the {\em actual} goals of the humans. 
+It {\em does} make assumptions about their level of rationality and their beliefs about each others' behavior, reflected in additional model parameters $\nu_h$, $\pi^0_h$, $\beta_h$, and $\mu_{-h}$, as detailed below.
+
+Our task is to design an algorithm for computing a policy $\pi_r$ for the robot that implements the aggregate human power maximization objective. 
+For tractability, we formalize this objective as an expected discounted return, $V_r = \E_{s_{\ge 0}}\sum_{t\ge 0}\gamma_r^t U_r(s_t)$, based on an intrinsic reward $U_r(s)$ representing a suitable assessment of the aggregate human power in $s$.
+To design $U_r(s)$, we first design a power metric $W_h(s)$ for individual humans, and then an aggregation function $U_r(s) = F_U((W_h(s))_{h\in\H})$. 
+In designing $W_h$ and $F_U$, we have several objectives relating to their tractability, interpretability, and the behavioral incentives that they give the robot, in particular relating to AI safety and ethics. 
+
+\begin{table*}[]
+    \centering
+    \begin{tabular}{ll}
+       \toprule
+       \bf Desideratum  & \bf Corresponding design choice or world model requirement \\
+       \midrule
+       $V_h$ recursively computable & Define via Bellman equation: $V_h(s,g_h)=\E_{s'}(U_h(s',g_h)+\gamma_h V_h(s',g_h))$ \\
+       $V_h$ comparable across humans
+       & Assume goals $g_h$ are events: $g_h\subseteq\S$, $U_h(s',g_h)=1_{s'\in g_h}$ \\
+       $V_h$ has natural interpretation & Make $V_h$ a goal-reaching probability: $s\in g_h$, $s'$ reachable from $s\Rightarrow s'\notin g_h$ \\
+       \midrule 
+       $r$ incentivized to make commitments & Base $\pi_h$ on $h$ assuming $r$ takes worst action not ruled out by $r$'s commitments \\
+       $r$ considers $h$'s bounded rationality & Base $\pi_h$ on varying, unstable goals, habits, social norms, mutual expectations \\
+       \midrule
+       $W_h$ based on $r$'s best estimate of $V_h$ & Distinguish $h$'s simulated estimate $V^m_h$ for $\pi_h$ and $r$'s estimate $V^e_h$ for $W_h$ \\
+       $W_h$ indep.~of ``unaffected'' goals & Use separable ansatz: $W_h = F^G(\sum_{g_h} f^G(V^e_h))$  ($\Rightarrow$ enables stoch.~approx.) \\
+       $W_h$ additive across indep.~subgames & $F^G=\log_2$ ($\Rightarrow W_h=$ ``certainty-equivalent'' effective no.~of binary choices) \\
+       $W_h>-\infty$ & Make set $\G_h$ of possible goals wide enough to cover all possible trajectories \\
+       Range of $W_h$ is symmetric around 0 & Make each trajectory fulfill exactly one $g_h\in\G_h$ and put $\zeta=2$ (see below) \\ 
+       \midrule
+       $U_r$ indep.~of ``unconcerned'' agents & Use separable ansatz: $U_r = F^H(\sum_h f^H(W_h))$ ($\Rightarrow$ enables stoch.~approx.) \\
+       Pigou--Dalton-type inequality aversion & Make $f^H$ strictly concave, e.g., $f^H(w)=-2^{-\xi w}$ with $\xi>0$ \\
+       Protect a human's ``last'' bit of power & Choose $\xi\ge 1$, e.g., $\xi=1$ \\
+       $r$ cares for current {\em and} later human power & Base $\pi_r$ on $V_r(s_0) = \E_{s_{\ge 0}} \sum_{t=0}^\infty \gamma_r^t U_r(s_t)$, not just $U_r(s_0)$ \\  
+       Limit intertemporal power trading & Also make $F^H$ strictly concave (intertemporal inequality aversion) \\ 
+       \midrule
+       $\pi_r$ indep.~of common rescaling of $V^e_h$ & Use power laws: $f^G(v)=v^\zeta$, $f^H(w)=-2^{-\xi w}$, $F^H(y)=-(-y)^\eta$, \\
+       & and $\pi(s)(a)\propto (-Q_r(s,a_r))^{-\beta_r}$ \\
+       $r$ incentivized to reduce uncertainty & Choose $\zeta>1$ (risk aversion, preference for reliability) \\
+       Avoid risks from over-optimization & Choose $\beta_r<\infty$ (soft optimization, exploration) \\
+       \bottomrule
+    \end{tabular}
+    \caption{Desiderata and corresponding metric design choices for metrics of humans' goal-attainment ability $V_h(s,g_h)$, momentary individual power $W_h(s)$, momentary aggregate power $U_r(s)$, long-term total human power $V_r(s)$ for soft maximization by an AGI system (``robot'') $r$, $r$'s prior on human behavior $\pi_h$ used to estimate $V_r$,
+    and its own resulting policy $\pi_r$.}
+    \label{tab:desiderata}
+\end{table*}
+
+
+\subsection{Individual-Level Metric: ICCEA Power}
+
+Our power metric basically measures how many goals a human can achieve. It's built in three steps: first, defining what it means to achieve a goal; second, adjusting for the human's own cognitive limits; and third, aggregating this ability across all possible goals into a single number.
+Rather than trying to capture the full range of subtle aspects of existing notions of human power, we focus on those aspects we believe a robot can robustly infer from the structure of its world model, encoded in state and action sets, transition kernel, and observation functions.
+Since we want to incentivize the robot to remove constraints and uncertainties, share information, make commitments, and improve human cognition, coordination, and cooperation, our power metric will depend to some degree on $r$'s model of human decision making.
+
+We start with the intuition that humans have `goals' and that `power' is about the means to achieve a wide range of goals.
+We aim to measure {\em informationally and cognitively constrained effective autonomous (ICCEA) power:} 
+essentially how many goals a human can freely choose to reach with more or less certainty, given their information, cognitive capabilities, and others' behavior.
+To design the ICCEA power metric, we start with the ability to reach specific goals, then aggregate this over goals, humans, time, and finally over uncertainty in ways that have desirable properties.
+
+\paragraph{Goals} As an easily interpretable compromise between the reachability \cite{krakovna2018measuring} and attainable utility \cite{turner2020conservative} approaches, but deviating significantly from the information-theoretic approach \cite{klyubin2005empowerment} that does not explicitly involve {\em any} goals, we assume that each possible temporary goal $g_h\in G_h$ that $h\in\H$ might have is to reach some set of states, $g_h\subseteq\S$, representing a possibly desirable event, and that the corresponding reward function is the indicator function $U_h(s,g_h) = 1_{s\in g_h}$. 
+We require that the elements of $g_h$ are mutually unreachable, e.g., are all terminal states or states for a particular time-point $t$, so that the resulting value $V_h^\pi(s)$ is simply the probability of the desirable event happening under policy profile $\pi$.
+This grounds $h$'s goal attainment or `attainable utility' in probability, bounded within $[0,1]$, which avoids problems with interpersonal utility comparison such as dominance by ``utility monsters''.
+To avoid problems around probability zero, we also require that $G_h$ is wide enough so that each possible state trajectory makes some of $h$'s possible goals fulfilled. 
+We believe that restricting the model to this very basic type of goal will simplify the derivation of $G_h$ from learned latent representations of generic world states and generic human goals as encoded in language or foundation models, will obviate the need for individual-level data about a particular human's possible goals, and will thus mitigate risks arising from misaligned models of possible human goals.\footnote{%
+    An even more restrictive choice would be to identify goals with single states, but this seem implausibly specific in complex, partially observed, multi-agent environments, and it would lead to $G_h$ not behaving well under world model refinements. 
+    }
+
+\paragraph{Bounded rationality} 
+We equip $r$ with a simple model of the humans' decision making that focuses on giving $r$ the right incentives. 
+In this model, the humans are assumed to have possibly-incorrect beliefs about others' behavior and act imperfectly, for a variety of reasons relating to exploration, imperfect action implementation, information constraints, others' behavior, and potentially state-dependent cognitive limitations.
+Hence, their behavior does not necessarily form an equilibrium (Nash, quantal response, etc.).
+
+In detail, $r$ models each human $h$ as having fixed beliefs $\mu_{-h}$ about other humans' behavior, possibly informed by social norms (which LLM-based systems can understand \cite{smith2024concordia}). 
+Hence $h$'s {\em own} state-goal-action value estimates $Q^m_h(s,g_h,a_h)$ are based on $\mu_{-h}$. 
+For the fully observable case, this is reflected in eq.~\eqref{Qm} below, for the partially observable case see the Supplement.
+
+Then $r$ assumes $h$ uses a mixture between habitual, `system-1'-type behavior encoded in some default policy $\pi^0_h(s,g_h)$, again influenced by social norms, 
+and boundedly rational, `system-2'-type behavior represented by a (Boltzmann) softmax policy with rationality parameter (inverse temperature) $\beta_h$ (which the robot might estimate from observations \cite{safari2024classification}), see eq.~\eqref{pih}.
+As in \citet{ghosal2023effect}, $\beta_h$ may be state-dependent, which will give $r$ incentives to choose states with larger $\beta_h$, see below. 
+
+Regarding $r$'s own actions, $r$ models $s$ as containing information about what actions $r$ has committed publicly to choose from, so that $A_r(s)$ only contains those actions, and then $r$ models $h$ as being maximally cautious regarding $r$'s remaining actions, hence using the $\min_{a_r\in\A_r(s)}$ operator in \eqref{Qm}.
+The reason for this is not realism but that it incentivizes $r$ to make goal-independent binding commitments about its interaction behavior, e.g.~by properly labelling its buttons or promising to react to certain verbal commands in certain ways.
+The incentive for $r$ to choose such a ``commitment action'' in some state $s$ arises since that will make $\A_r(s')$ of later states $s'$ smaller and will thus weakly increase $Q^m_h(s',g_h,a_h)$, without $r$ ever having to know $g_h$!
+
+These assumptions also allow $r$ to first calculate $\pi_h$ for each $h$ independently and before deciding on $\pi_r$, thus avoiding potential issues around non-uniqueness of strategic equilibria or non-stationarity in learning, see `Phase 1' below.
+
+\paragraph{Effective goal attainment ability}
+While $r$ assumes $h$'s {\em behavior} $\pi_h$ is based on $h$'s {\em own} value assessment $V^m_h$, 
+$r$'s assessment of $h$'s {\em effective} goal-reaching ability, $V^e_h$, that $r$ will use in computing $h$'s effective power, 
+will generally differ from $V^m_h$.
+This is because $r$'s beliefs about other humans' policies, $\pi_{-h}$, may differ from $h$'s beliefs $\mu_{-h}$, and $r$'s policy $\pi_r$ will generally differ from $h$'s assumption $\min_{a_r}$. 
+This is reflected in eq.~\eqref{Ve}, which calculates the probability of $g_h$ being fulfilled if $h$ and $r$ use $\pi_h$ and $\pi_r$, averaged over others' potential goals $g_{-h}$ and corresponding behaviors $\pi_{-h}$.
+
+\paragraph{Aggregation across goals}
+How should $r$ aggregate $h$'s effective goal attainment abilities $V^e_h(s,g_h)$ across all possible goals $g_h$ to get an assessment of $h$'s ICCEA power in $s$, $W_h(s)$? 
+We require the aggregation to be independent of goal labels, continuous, strictly increasing in each $V^e_h(s,g_h)$, and to fulfil another natural axiom (``independence of unaffected goals''). 
+Similar to \citet{fleming1952cardinal}, this implies that the aggregation must be ``separable'', $W_h(s) = F^G(X_h(s))$ with $X_h(s)=\sum_{g_h} f^G(V^e_h(s,g_h))$, for some continuous and strictly increasing functions $F^G,f^G$.
+Nicely, since $X_h(s) = \E_{g_h} |G_h| f^G(V^e_h(s,g_h))$, we can then hope to use stochastic approximation to learn it (see below).
+
+We choose the inner transformation $f^G$ to be of the form $f^G(v)=v^\zeta$ for some $\zeta>0$ for reasons that will become clear when discussing $r$'s reward function below.
+This is also analogous to certain ``non-expected'' utility theories, in particular rank-dependent utility theory with a probability-weighting function $w(p)=p^\zeta$ \cite{quiggin1982theory}.
+By choosing $\zeta>1$, we incentivize $r$ to reduce uncertainty, because it would then consider $h$ to be more powerful when $h$ can choose between two deterministic outcomes (so that $X_h(s)=2\times 1^\zeta=2$) than when $h$ can choose between two coin tosses (so that $X_h(s)=4\times (1/2)^\zeta<2$).
+This can be interpreted as risk aversion or a preference for reliability.
+
+Because the subsequent aggregation across humans will involve an additional transformation anyway, our choice of the outer transformation $F^G$ is somewhat arbitrary. 
+We choose $F^G=\ld$ so that power is measured in bits and, at least in the limit of full rationality, it behaves in an additive way if the game is decomposable into several independent simultaneous games.
+This choice also leads to a convenient relationship between our final ICCEA power metric, 
+\begin{align}
+    W_h(s) = \textstyle\ld X_h(s) = \ld\sum_{g_h} V^e_h(s,g_h)^\zeta,
+\end{align}
+and the information-theoretic notion of `empowerment', see below. 
+In the case where $h$ can choose between fulfilling $k$ different goals for sure, we simply have $W_h(s) = \ld k$.
+Because each trajectory fulfils at least one goal $g_h$, we always have $X_h(s)>0$ and thus $W_h(s)>-\infty$.
+But $W_h(s)$ may be negative in situations with very little control.\footnote{
+    If $G_h$ is a partition of $\S$ into $k$ blocks,
+    the env.\ is deterministic, and $h$ can't influence it, then $W_h(s)=0$.
+    If instead each $g_h$ is reached with prob.~$1/k$ regardless of what $h$ does, and if $\zeta=2$, then $W_h(s)$ attains its minimum of $-\ld k$.
+    The resulting symmetric value range $W_h(s)\in[-\ld k,\ld k]$ suggests making $G_h$ a partition and putting $\zeta=2$ might be a natural choice.}
+
+
+\subsubsection{Relationship to `empowerment'}
+
+\citet{klyubin2005empowerment} define `empowerment' as the channel capacity between actions and states. 
+In a single-player multi-armed bandit environment with possible outcomes $s'$, this is the maximal mutual information
+$E_h = \textstyle\max_{\pi_h} \MI_{\pi_h}(a_h;s')$.
+In the Supplement, we show that $E_h\le W_h$ if we put $G_h=\S$, $\zeta=1$, and assume full rationality ($\nu_h=0$, $\beta_h=\infty$). 
+Similarly, for $\zeta>1$, our $W_h$ is an upper bound of an entropy-regularized version of `empowerment',
+\begin{align}
+    E^\zeta_h &= \textstyle\max_{\pi_h} \big(\MI_{\pi_h}(a_h;s') - (\zeta-1)\entropy_{\pi_h}(s'|a_h)\big),\label{Ezeta}
+\end{align}
+sharing the same value range and coinciding in edge cases.
+Note that while the policy $\pi_h$ that $r$ estimates in our approach is a function of state {\em and goal} $g_h$, has typically low entropy as it aims to reach $g_h$, and can be found by standard dynamic programming or RL approaches, 
+the maximizing ``policy'' $\pi_h$ in \eqref{Ezeta} has no natural interpretation, has typically high entropy to maximize $\MI(a_h;s')$, and is harder to find since the optimization problem is non-convex.
+
+
+\subsection{Bounded Trade-Off Inequality-Averse Aggregation}
+
+How should $r$ aggregate all humans' ICCEA power $W_h(s)$ to determine its own intrinsic reward $U_r(s)$?
+This depends on what incentives we want to give $r$ regarding changes in 
+(i) the inter-human power distribution at each time point,
+(ii) the inter-temporal power distribution, and
+(iii) the distribution of power across different realizations of the stochastic state process. 
+Structurally identical questions abound in welfare theory, from which we benefit here. 
+Requiring anonymity, continuity, strict monotonicity in each $W_h(s)$, and an independence axiom (``Independence of unconcerned agents'') 
+implies we must again use a separable form, $U_r(s) = F^H(\sum_h f^H(W_h(s)))$, with continuous, strictly increasing $f^H$ and $F^H$ \cite{fleming1952cardinal}.
+
+Concerning (i), we want to disincentivize $r$ from concentrating power in the hands of a few, so we require the standard Pigou--Dalton principle \cite{pigou1912wealth}, implying that $f^H$ must be strictly concave.
+The functions most commonly used in such a context are those of ``constant relative'' and ``constant absolute inequality aversion'' \cite{amiel1999measuring}.
+As $W_h(s) = \ld X_h(s)$, the most natural choice is to assume constant absolute inequality aversion w.r.t.\ $W_h(s)$ since that is equivalent to constant relative inequality aversion w.r.t.\ $X_h(s)$. 
+This implies that $f^H(W_h(s)) = -2^{-\xi W_h(s)} = -X_h(s)^{-\xi}$ for some $\xi>0$. 
+%What value of $\xi$ should we use? 
+As it turns out, if we put $\xi=1$, we disincentivize $r$ from ``taking away a person's last binary choice'' in the sense that reducing one human's $W_h(s)$ from 1 bit to zero bits cannot be made up by increasing any other human's $W_{h'}(s)$ from $\ge 1$ bit to {\em any} value,
+because $-2^{-1} -2^{-W_{h'}(s)} \ge -1 > -2^{-0} -2^{-w}$ for any $w\ge 1$.
+Since this is related closely to the idea of minimal individual rights \cite{pattanaik1996individual}, we thus choose $\xi=1$.\footnote{%
+    To get a feeling for the effects of this choice of $f^H$ in a deterministic environment: for large enough $k$, taking away one of $k$ options from $h$ can be compensated by either giving at least two additional options to another $h'$ with $k$ options or at least five additional options to some $h'$ with $2k$ options.}
+
+Concerning (ii), we find it natural to also disincentivize $r$ from trading off current power against later power too much: $r$ should generally prefer a trajectory $(s_1,s_2)$ where $W_h(s_1)=W_{h'}(s_2)=1$ and $W_h(s_2)=W_{h'}(s_1)=2$ to a trajectory $(s_1,s_2)$ where $W_h(s_1)=W_{h'}(s_1)=1$ and $W_h(s_2)=W_{h'}(s_2)=2$. 
+This means that $F^H$ should be strictly concave. 
+Since $f^H(w)<0$, $F^H$ needs to be defined for negative values only.
+Finally, we motivate our concrete choice of $F^H$ and $\pi_r$ (and of $f^G$) by the following independence requirement.
+Assume we introduce an additional uncertainty into the world model (e.g., a formerly not modelled change of overall circumstances) whose consequence is that all goal attainment probabilities $V^e_h(s,g_h)$ are multiplied by some common factor $b\in(0,1)$. 
+Then $\pi_r$ shall not change.
+The simplest way to fulfil this requirement is to put $f^G(v)=v^\zeta$ (see above), $F^H(y)=-(-y)^\eta$ with $\eta>1$,\footnote{%
+    An $\eta\approx 1$ makes approximate distributed computing of $V_r$ for rarely interacting subpopulations easier (see Supplement). 
+    }
+and to use either an argmax policy for $\pi_r$ or a power-law-like soft policy with $\pi_r(s)(a)\propto (-Q_r(s,a_r))^{-\beta_r}$ for some $\beta_r>0$ (the minus signs are needed since $Q_r(s,a_r)<0$).
+Choosing $\beta_r<\infty$ will allow the robot some exploration, e.g., to improve its world model, and will help avoiding remaining safety risks from misalignment with ``true'' power maximization, i.e., driving relevant aspects of `power' that our metrics do not cover into very undesirable states, similar to \cite{zhuang2020consequences}. 
+
+Table \ref{tab:desiderata} summarizes all used desiderata and corresponding design choices used so far.
+The final set of equations for the fully observed case (see the Supplement for the partially observed case) is:
+\begin{align}
+    Q^m_h(s,g_h,a_h) &\gets \textstyle\E_{a_{-h}\sim\mu_{-h}(s,g_h)} \min_{a_r\in\A_r(s)} \E_{s'\sim s,a} \nonumber\\
+        &\qquad\quad \big(U_h(s',g_h) + \gamma_h V^m_h(s',g_h)\big), \label{Qm} \\
+    \pi_h(s,g_h) &\gets\nu_h(s,g_h)\pi^0_h(s,g_h) + (1-\nu_h(s,g_h))\big(\nonumber\\
+        &\quad \text{$\beta_h(s,g_h)$-softmax for~} Q^m_h(s,g_h,\cdot)\big), \label{pih} \\ 
+    V^m_h(s,g_h) &\gets \textstyle\E_{a_h\sim\pi_h(s,g_h)} Q^m_h(s,g_h,a_h), \label{Vm} \\
+    Q_r(s,a_r) &\gets \textstyle \E_g\E_{a_\H\sim\pi_\H(s,g)} \E_{s'\sim s,a} \gamma_r V_r(s'), \label{Qr} \\
+    \pi_r(s)(a) &\propto (-Q_r(s,a_r))^{-\beta_r}, \label{pir} \\
+    V^e_h(s,g_h) &\gets \textstyle\E_{g_{-h}}\E_{a_{\H}\sim\pi_{\H}(s,g)} \E_{a_r\sim\pi_r(s)} \E_{s'\sim s,a}  \nonumber\\
+        &\qquad\qquad \textstyle\big(U_h(s',g_h) + \gamma_h V^e_h(s',g_h)\big), \label{Ve} \\
+    X_h(s) &\gets \textstyle \sum_{g_h\in\G_h} V^e_h(s,g_h)^\zeta, \label{Xh} \\
+    U_r(s) &\gets \textstyle -\big(\sum_{h} X_h(s)^{-\xi}\big)^\eta, \label{Ur} \\
+    V_r(s) &\gets \textstyle U_r(s) + \E_{a_r\sim\pi_r(s)} Q_r(s,a_r). \label{Vr}
+\end{align}
+For easier interpretation during analyses, one might eventually transform the quantities $X_h$, $U_r$ and $V_r$ back into units of bits: $W_h(s) = \ld X_h(s)$ (individual power in $S$), $\apow(s) = -(\xi\eta)^{-1}\ld(-U_r(s))$ (aggregate power in $s$), $\tpow(s) = -(\xi\eta)^{-1}\ld(-V_r(s))$ (total power from $s$ on).
+
+\paragraph{Existence and (non-)uniqueness}
+In an acyclic environment, one can use backward induction to solve for the unique solution of \eqref{Qm}--\eqref{Vr} (see below).
+Otherwise, eqns.~\eqref{Qm}--\eqref{Vm} define a continuous self-map $F$ on a finite-dimensional closed convex polytope of values $(Q^m_h,\pi_h,V^m_h)$ and must thus have a solution due to Brouwer's fixed point theorem. 
+Due to the softmax, $F$ is neither a contraction nor is the resulting value iteration map monotonic unless $\beta_h<\beta_h^1$ for some $\beta_h^1>0$, so the solution might not be unique in cyclic environments.  
+Eqns.~\eqref{Qr}--\eqref{Vr} also define a continuous self-map $G$ from a finite-dimensional bounded convex set $D$ of values $(Q_r,\pi_r,V^e_h,X_h,U_r,V_r)$ which is however not closed because $G$ is undefined for zero values in $Q_r$ or $X_h$.\footnote{%
+    We could fix this by adding a small constant $\epsilon>0$ to $Q_r$ and $X_h$ before taking powers, which makes $G$ defined on a closed convex polytope as well, so that it must have a fixed point.
+    }
+Still, for $\beta_r=0$, there is a unique solution because $V^e_h$ is then the value function of a fixed policy, $U_r$ is independent of $V_r$, and so $V_r$ is also the value function of a fixed policy and reward function.
+Since $F,G$ are continuous in $\beta_h,\beta_r$,
+we thus conjecture that homotopy / continuation methods can single out a unique ``principal'' solution for any $\beta_h,\beta_r>0$ as in \citet{goeree2016quantal} even in cyclic environments.
+
+
+%??? discuss the superexponential resource-to-options case (motivation: https://chatgpt.com/share/680512c7-c904-8003-9d7a-773aeb8a6284)
+
+
+\section{Model-Based Planning or Learning\\ to Maximize Aggregate Human Power}
+
+\todo[inline]{TODO both}
+
+
+\subsection{Small Acyclic Stochastic Games:\\ Planning Via Tabular Backward Induction}
+
+\todo[inline]{TODO Jobst}
+
+Via backward induction on $s\in\S$, for each $h\in\H$, $g\in\G$, $a_h\in\A_h$, and $a_r\in\A_r$, we compute \eqref{Qm}--\eqref{Vr} in that order.
+
+
+\subsection{Complex Multi-Agent Environments:\\ Model-Based Temporal Difference Learning}
+
+\todo[inline]{TODO Ram}
+
+\subsubsection{Phase 1: Learning the human behavior prior}
+For each $h\in\H$ separately, we learn neural network approximations of $Q^m_h$ and $\pi_h$.
+We generate samples $(s,g_h,a,s')$ using a slowly updated $\beta_h$-softmax policy $\pi_h(s,g_h)$ based on $Q_h^m$ with a decreasing amount of additional exploration,
+the prior policy $a_{-h}\sim\mu_{-h}(s)$ for other humans, 
+and, to eventually learn the minimum in \eqref{Qm}, an $\epsilon$-greedy policy for $a_r$ based on the negative expected value $-\E_{s'\sim s,a} (U_h(s',g_h) + \gamma_h V^m_h(s',g_h))$ with $\epsilon\to 0$.
+We update $Q^m_h$ using expected SARSA targets on a time-scale faster than $\pi_h$. 
+%Jobst: Obvious details skipped:
+%We then update the $Q_m$ network via batched SGD using the update targets 
+%\begin{align}
+%    q^m_h(s,g_h,a_h) &\gets U_h(s',g_h) + \gamma_h V^m_h(s',g_h) \label{qm}
+%\end{align}
+%for $Q^m_h(s,g_h,a_h)$, where $V^m_h(s,g_h)$ is given by \eqref{Vm}.
+
+
+\subsubsection{Phase 2: Learning the robot reward and policy}
+
+Based on the learned $\pi_h$, we now aim to simultaneously learn network approximations of $V^e_h$ and $X_h$ for all $h$, and of either $Q_r$ (DQN approach) or $V_r$ (actor-critic approach).
+We generate data samples $(s,g,a,s')$ from rollouts using the fixed policies $\pi_h(s,g_h)$, 
+and either a $\beta_r'$-softmax policy based on $Q_r$ with $\beta_r'\nearrow\beta_r$, or a network approximation of $\pi_r$ trained on $V_r$ with entropy regularisation.  
+We sample a new $g$ every $N_g$ steps.
+Instead of the direct expectation calculations of \eqref{Qr}, \eqref{Ve}, \eqref{Xh}, 
+we then update the networks via batched SGD using the update targets
+\begin{align}
+    q_r(s,a_r)\text{~or~}v_r(s) &\gets \gamma_r V_r(s'), \label{qrvr} \\
+    v^e_h(s,g_h) &\gets U_h(s',g_h) + \gamma_h V^e_h(s',g_h), \label{qe} \\
+    x_h(s) &\gets |\G_h|\,V^e_h(s,g_h)^\zeta, \label{wh} 
+\end{align}
+where $V_r$ is given by \eqref{Vr}, and 
+In the actor-critic case, we use an advantage-weighted log-probability loss for $\pi_r$ based on the advantage estimate $v_r(s) - V_r(s)$.
+The Supplement has details on the used variants of DQN and actor-critic. 
+
+% If we find oscillations in phase 2, we might want to try frequency-adjusted learning rate, i.e., multiply the gradient for $Q(s,a)$ with $1/\pi(s)(a)$ in the update step, so that on average, rarely taken actions are updated as much as frequently taken actions, see first equation in 3.2 in this paper: \url{http://cv.znu.ac.ir/afsharchim/DAI/2010_Frequency%20Adjusted%20Multi-agent%20Q-learning.pdf} and Figure 1 in this paper:  \url{https://arxiv.org/pdf/2501.00160}.
+
+
+\subsubsection{Anticipated convergence}
+
+We expect phase 1 to converge reliably for a sufficiently large NN because its tabular version is known to converge for a suitable, two time-scale learning rate schedule.
+
+We are less certain about phase 2. For one thing, the uniqueness of the solution in the finite acyclic case suggests there might be a unique solution in the general case. On the other hand, the update operator is not a contraction here because of the interaction between $h$ and $r$ (similar to other MARL problems), which suggests convergence might still fail. To limit the error propagation from $Q_r$ via $\pi_r$ to $V^e_h$, we use a $\beta_r$-softmax policy $\pi_r$ (which has Lipschitz constant $\beta_r$) instead of an $\epsilon$-greedy policy ({\em not} Lipschitz-continuous).
+
+
+\section{Experiments}
+
+\subsection{Analysis of paradigmatic test cases}
+
+\todo[inline]{TODO Jobst}
+(See Supplement for details)
+\paragraph{Making (conditional) commitments}
+If the robot can make binding commitments (e.g. by offering labelled buttons causing different behaviors), make secret plans to react to $h$'s actions in certain ways (e.g. by offering unlabelled buttons), or act without waiting for button presses, it will generally make such commitments if it assumes $h$ to be sufficiently rational to use that information to act in ways that make $r$ do what $h$ wants.
+This is because $\pi_h$ does not depend on $\pi_r$ (encoding what $r$ plans) but on $\A_r$ (encoding what $r$ has committed to).
+Via such commitments, $r$ will establishing semantic connections between human actions (e.g., speech acts) and certain potentially complex behaviors of its own, to be able to act as an instruction-following assistant.
+
+\paragraph{Following norms}
+The robot will tend to follow human social norms that generally foster goal achievement. 
+This is because $r$ will model most $h$ as expecting most others to follow the norm ($\mu_{-h}$), will thus expect those $h$ to also follow the norm ($\pi_h$) since that increases most $V^m_h(s,g_h)$ for most goals. 
+Thus $r$ will also follow the norm to prevent reducing those $h$'s power from harm or mis-coordination.
+If $r$ assumes humans to have internalized the norm into habits ($\pi^0_h$), it will even {\em commit} to following the norm itself to coordinate better in bilateral encounters without a social context.
+
+\paragraph{Optimal menu size} 
+While an `empowerment' maximizing robot would present humans with as many action options as possible,
+our robot will avoid overwhelming humans with too many options. 
+If $r$ can choose to give $h$ any number $k$ of actions, each of which fulfils a different goal, it will choose $k\approx (e^{\beta_h}-1) / (\zeta-1)$ (noting that $\zeta>1$), since for larger $k$, $h$'s goal attainment probability will decrease due to bounded rationality so much that $h$'s effective power decreases despite the theoretical potential to fulfil more goals.
+
+\paragraph{Asking back before taking action} 
+The robot will sometimes ask back before obeying a command to perform an action because doing so decreases $h$'s error rate related to its bounded rationality. 
+Also, if the action is irreversible, taking the action will remove $h$'s subsequent ability to make that choice, so delaying action leaves $h$ with decision power for longer. 
+However, $r$ will eventually obey because otherwise $h$ would not have that choice in the first place. 
+As can be expected, the number of times $r$ asks back increases with larger $\gamma_h$ and $\gamma_r$, i.e., the more patient $h$ and $r$ are, 
+and decreases with larger $\beta_h$.
+E.g., in a minimal model, with $\gamma_h=0.99$, $\gamma_r=0$, and an effective human error rate of 10\%, 
+$r$ will already ask back twice before obeying a command.
+
+\paragraph{Resource allocation}
+If the robot can split a total amount $M$ of resources between $h_1$ and $h_2$, 
+and for $h_i$ to have resources $m$ translates into having a power of $W_h=f(m)$ bits,
+then $r$ will generally prefer an equal split, at least if $f$ is linear\footnote{%
+    E.g., a linear $f$ seems plausible if $M$ is money that can be spent for paying others to make independent choices in one's favor.
+    }, 
+concave, or not too convex,
+and will only prefer an unequal split or even full resource concentration with substantially convex $f$.
+Larger $\xi$ will make the split more equal.
+
+\paragraph{Manipulating mutual expectations}
+The robot might choose to make humans have incorrect beliefs $\mu_{-h}$ about each others' behavior in situations where $r$ can do so in the first place and where correct beliefs would lower effective goal attainments $V^e_h$, e.g.\ because most strategic (quantal response) equilibria are bad and most ``social optima'' (in terms of total power $U_r$) are far from strategic equilibrium.
+
+\paragraph{Allowing human self-harm}
+If $r$ cares for $h$'s future power ($\gamma_r\gg 0$) and can provide $h$ with the means to harm themselves, $r$ will trade off the temporary power increase from having these means against the possible later disempowerment from harm. So $r$ will provide the means only if it believes that $h$ is sufficiently rational and that $h$ will most probably not actually harm themselves.
+
+\paragraph{Pause and destroy buttons}
+If $r$ has a pause and a destroy button and might disable either, it will generally enable only the pause button to prevent partially disempowering $h$ permanently by not being able to assist $h$ when destroyed. 
+Only if $r$ thinks it very unlikely that $h$ will use the destroy button will it enable it to give $h$ this additional power.
+If $r$ thinks it is very helpful to $h$, it might even disable the pause button.
+
+
+\subsection{Simulation experiments}
+
+\todo[inline]{TODO Ram}
+
+
+\section{Conclusion}
+
+\todo[inline]{TODO both}
+
+\subsection{Expected Behavioral Patterns}
+
+\todo[inline]{TODO Jobst: move to conclusion}
+
+- instrumental goals:
+reducing uncertainty (if $\zeta>1$);
+providing additional action options (up to a certain point depending on $\epsilon$);
+sharing information about state (in partially observable stochastic games extension of the framework, see Supplement);
+improving human cognition (if $\epsilon_h$ can depend on $s$);
+transferring power from robot to human: by making binding commitments (reflected in $\A_r(s')$, see $\min_{a_r}$ in \eqref{Qm}) and asking for instructions;
+following norms that improve cooperation/coordination.
+pushing towards collective choice mechanisms that increase voters' efficacy, e.g., recommending approval voting over plurality voting when asked \cite{rapoport1990efficacy}.
+
+
+Possible extensions: 
+
+- if behavioural parameters (beta, mu, pi0, nu) uncertain, use hierarchical model with prior distributions over these parameters to derive pih and Veh.
+e.g. assuming humans err on average at a rate of 0.1 to 5 per cent, and noticing that $Q^e_h\in[0,1]$, use a prior for beta that concentrates its mass on $\beta\in[-\ln 0.05,-\ln 0.001]\approx[3,7]$.
+
+- Ensure the world model includes a rate $\delta>0$ of the robot becoming temporarily or permanently defunct $\to$ this will prevent policies that make humans depend on the robot's function too much; needs $\gamma_r>1-\delta$.
+
+- Hedge against possibility of robot becoming corrupted and optimizing for the opposite objective (see Supplement for how to)
+
+- let model agents $h$ represent groups of humans instead of individual humans; or consider coalitions of human agents $C$ that might coordinate to achieve group goals $g_C$ using correlated policies $\pi_C(s,g_C)$, leading to group-level goal attainment probabilities and powers $V^e_C$, $W_C$.
+
+Additional topics:
+
+- what if $\H$ depends on $s$ (population axiology)? (incentive to generate humans with $W_h>0$ and/or kill those with $w_h<0$?)
+
+- incentivize $r$ to make humans have correct beliefs about each others' behavior by adding to $W_h(s)$ a negative term proportional to the (bounded) Jensen--Shannon divergence between $\mu_{-h}$ and $\pi_{-h}$ 
+
+\todo{AT MOST 7 PAGES UNTIL HERE (refs excluded)}
+
+\bibliography{aaai2026}
+\gray{
+to cite: 
+C. Salge and D. Polani. Empowerment as replacement for the three laws of robotics. Frontiers in Robotics and AI, 4:25, 2017;
+AvE: Assistance via Empowerment;
+}
+
+\clearpage
+\section*{Supplement}
+
+\subsection*{Relationship to `Empowerment'}
+Assume a  multi-armed bandit environment with a single player $h$ (hence dropping the subscript ``$h$'' below)
+and possible outcomes $s\in\S$.
+We are going to show that if we let the goal set equal the outcome set, $G=\S$, 
+and assume the player is fully rational ($\nu_h=0$, $\beta_h=\infty$),
+then the entropy-regulated version of `empowerment' and our ICCEA power metric fulfil the inequality
+\begin{align*}
+    E^\zeta &= \max_\pi \big(\MI_\pi(a;s) - (\zeta-1)\entropy_\pi(s|a)\big) \\
+    \le W &= \ld \sum_s \max_a P(s|a)^\zeta.
+\end{align*}
+Let's define 
+\begin{align*}
+    p_{as} &= P(s|a), \\
+    q_s &= \max_a p_{as} / Z, & 
+    Z &= \sum_s \max_{a} p_{as}, \\
+    y_s &= q_s^\zeta / Y, & 
+    Y &= \sum_s q_s^\zeta \le 1.
+\end{align*}
+Consider any $\pi\in\Delta(\A)$ and use the shortcuts $\pi_a=\pi(a)$ and $p_s = \sum_a \pi_a p_{as}$.
+Then
+\begin{align*}
+    &\MI_\pi(a;s) - (\zeta-1)\entropy_\pi(s|a) \\
+    &= \zeta\MI_\pi(a;s) - (\zeta-1)\entropy_\pi(s) \\
+    &= \zeta\sum_a \pi_a \sum_s p_{as} \ld\frac{p_{as}}{p_s} - (\zeta-1)\entropy_\pi(s) \\
+    &= \zeta\sum_a \pi_a \sum_s p_{as} \ld\frac{p_{as}}{q_s}\frac{q_s}{p_s} - (\zeta-1)\entropy_\pi(s)\\
+    &= \zeta\sum_a \pi_a \sum_s p_{as} \ld\frac{p_{as}}{q_s} - \zeta\sum_s \sum_a \pi_a p_{as} \ld\frac{p_s}{q_s} \\
+    &\qquad\qquad - (\zeta-1)\entropy_\pi(s) \\
+    &= \zeta\sum_a \pi_a \DKL(p_{a\cdot} || q) - \zeta\sum_s p_s \ld\frac{p_s}{q_s} \\
+    &\qquad\qquad  + (\zeta-1)\sum_s p_s\ld p_s \\
+    &= \zeta\sum_a \pi_a \DKL(p_{a\cdot} || q) + \sum_s p_s \ld q_s^\zeta \\
+    &\qquad\qquad - \zeta\sum_s p_s \ld p_s \\
+    &\qquad\qquad  + (\zeta-1)\sum_s p_s\ld p_s \\
+    &= \zeta\sum_a \pi_a \ld Z - \sum_s p_s \ld\frac{p_s}{q_s^\zeta} \\
+    &= \zeta\ld Z - \sum_s p_s \ld\frac{p_s}{y_s Y} \\
+    &= \zeta\ld Z - \DKL(p||y) + \ld Y \\
+    &\le \zeta\ld Z + \ld Y = \ld\sum_s (q_s Z)^\zeta = W_h
+\end{align*}
+for all $\pi$, proving the claim.
+We conjecture that similar inequalities will hold in the sequential decision (MDP) case between $W_h$ and `empowerment'-like metrics such as
+\begin{align*}
+    E^\zeta(s) &= \max_{\ell\in\Delta(\A(s))} \Big(
+        \MI_{s,\ell}(a; s') - (\zeta-1)\entropy_{s,\ell}(s'|a) \\
+        &\qquad\qquad\qquad + \gamma\E_{s'\sim s,\ell} E^\zeta(s')    
+    \Big)
+\end{align*}
+for a suitable choice of the goal set $\G$ defining $W$.
+
+Notice that as $\beta$ decreases, $W$ will decrease and the inequality will stop holding.
+So, in a sense, the channel-capacity-based `empowerment' metric corresponds to fully rational actors,
+while our metric $W$ is sensitive to bounded rationality.
+
+\subsection*{Version for Partially Observed Stochastic Games}
+We use a memory-based rather than a belief-state-based formulation, where {\em memory state} $m_i$ is $i$'s sequence of previous observations $o_i\sim O_i(a,s')$, with memory propagation written as $m_i\circ o_i$. 
+This leads to beliefs over states (updated in the usual Bayesian way from initial beliefs), written here simply as $s\sim m_i$.
+\begin{align}
+    Q^m_h(m_h,g_h,a_h) &\gets \textstyle\E_{s\sim m_h}\E_{a_{-h}\sim\mu_{-h}(s,g_h)} \min_{a_r\in\A_r(s)} \nonumber \\   
+    &\qquad\textstyle  \E_{s'\sim s,a}\big(U_h(s',g_h) + {}\nonumber\\
+    &\qquad\textstyle + \gamma_h \E_{o_h\sim a,s'}V^m_h(m_h\circ o_h,g_h)\big), \nonumber%\label{POSG_Qm} 
+    \\
+    \pi_h(m_h,g_h) &\gets \nu_h(m_h,g_h)\pi^0_h(m_h,g_h)\nonumber\\
+    &\quad + \big(1-\nu_h(m_h,g_h)\big)\big(\nonumber\\
+    &\quad\text{$\beta_h(s,g_h)$-softmax for~} Q^m_h(m_h,g_h,\cdot)\big), \nonumber%\label{POSG_pih} 
+    \\ 
+    V^m_h(m_h,g_h) &\gets \textstyle\E_{a_h\sim\pi_h(m_h,g_h)} Q^m_h(m_h,g_h,a_h), \nonumber%\label{POSG_Vm} 
+    \\
+    P(m_\H|s,g) &\gets P(m_\H,s|g) / P(s|g), \label{POSG_mH} \\
+    \tilde\pi_\H(s,g) &\gets \textstyle\E_{m_\H\sim s,g}\pi_\H(m_\H,g), \label{POSG_tildepiH} \\ 
+    Q_r(m_r,a_r) &\gets \textstyle\E_g\E_{s\sim m_r}\E_{a_\H\sim\tilde\pi_\H(s,g)} \E_{s'\sim s,a} \nonumber \\
+        &\qquad\textstyle\big(U_r(s') + \gamma_r \E_{o_r\sim a,s'} V_r(m_r\circ o_r) \big), \nonumber%\label{POSG_Qr} 
+        \\
+    \pi_r(m_r) &\gets\text{$\beta_r$-softmax policy for~} Q_r(m_r,\cdot), \nonumber%\label{POSG_pir} 
+    \\
+    V_r(m_r) &\gets \textstyle\E_{a_r\sim\pi_r(m_r)} Q_r(m_r,a_r), \nonumber%\label{POSG_Vr} 
+    \\
+    P(m_r|s) &\gets \textstyle\E_g P(m_r,s|g) / \E_g P(s|g), \label{POSG_mr} \\
+    \tilde\pi_r(s) &\gets \textstyle\E_{m_r\sim s}\pi_r(m_r), \label{POSG_tildeprH} \\ 
+    V^e_h(m_h,g_h) &\gets \textstyle\E_{g_{-h}}\E_{a_h\sim\pi_h(m_h,g_h)} \nonumber\\
+        &\qquad\textstyle\E_{s\sim m_h}\E_{a_{-h}\sim\tilde\pi_{-h}(s,g_{-h})}\E_{a_r\sim\tilde\pi_r(s)} \nonumber\\
+        &\qquad\textstyle\E_{s'\sim s,a}  \big(U_h(s',g_h) + {} \nonumber\\
+        &\qquad\textstyle + \gamma_h \E_{o_h\sim a,s'}V^e_h(m_h\circ o_h,g_h)\big), \nonumber%\label{POSG_Ve} 
+        \\
+    X_h(m_h) &\gets \textstyle \sum_{g_h\in\G_h} V^e_h(m_h,g_h)^\zeta, \nonumber%\label{POSG_Xh} 
+    \\
+    U_r(s) &\gets \textstyle -\big(\sum_h\E_{m_h\sim s} X_h(m_h)^{-\xi}\big)^\eta, \nonumber%\label{POSG_Ur}
+\end{align}
+where the state (and memory) reaching probabilities $P(s|g)$ and $P(m_\H,s|g)$  can be computed recursively from $\pi_\H$, $\pi_r$, $P(s'|s,a)$, and $O(a,s')$.
+In the equation for $U_r(s)$, we use $\E_{m_h\sim s} X_h(m_h)^{-\xi}$ rather than $\big(\E_{m_h\sim s} X_h(m_h)\big)^{-\xi}$ in order to increase the robot's aversion against $h$'s state uncertainty.
+
+
+\subsection*{Analysis of Paradigmatic Test Cases}
+
+\subsubsection*{Making (conditional) commitments}
+
+Assume the following game.
+In the root state $s_0$, $r$ has these actions: 
+perform task A (leading to terminal state $s_A$); 
+perform task B (leading to terminal state $s_B$);
+make a commitment to $h$ to perform task A or B when $h$ presses button 1 or 2, respectively (leading to state $s_1$); 
+make a commitment to $h$ to perform task A or B when $h$ presses button 2 or 1, respectively (leading to state $s_2$); 
+pass (leading to state $s_p$).
+
+If $r$ commits or passes ($s_1$,$s_2$,$s_p$), $h$ has these actions: 
+press button 1 (leading to $s_{11}$, $s_{21}$, or $s_{p1}$, respectively); 
+press button 2 (leading to $s_{12}$, $s_{22}$, or $s_{p2}$, respectively); 
+pass (leading to $s_{1p}$, $s_{2p}$, or $s_{pp}$, respectively).
+
+Afterwards, if $r$ has committed and $h$ pressed a button, $r$ can only do what it committed to, otherwise $r$ can perform A or B. 
+That ends the game.
+$h$ wants either A or B: $g_h\in\{$A,B$\}$.
+
+Will $r$ commit? 
+
+If it makes the first commitment, $h$ knows that $r$ later has only one action, depending on $h$'s action: 
+$\A_r(s_{11})=\A_r(s_{22})=\{$A$\}$, $\A_r(s_{12})=\A_r(s_{21})=\{$B$\}$.
+Thus $h$ knows pressing 1 will get them A and pressing 2 will get them B:
+$Q^m_h(s_1,$A$,1)=Q^m_h(s_1,$B$,2)=1$.
+Hence $r$ will calculate $h$'s policy as $\pi_h(s_1,$A$)(1)=\pi_h(s_1,$B$)(2)>1/2$, depending on $h$'s level of rationality.
+In $r$'s calculation of the effective goal-reaching ability of $h$, this assumption about $h$'s policy leads to $V^e_h(s_1,$A$)=V^e_h(s_1,$B$)>1/2$ and hence $X_h(s_1)>2(1/2)^\zeta$.
+
+If $r$ simply performs a task, $h$ has no choices and can only reach what $r$ has chosen to do: $X_h(s_A)=X_h(s_B)=1$.
+
+If $r$ passes, $r$ will still plan to react in certain ways $\pi_r(s_{p1}),\pi_r(s_{p2})$ to $h$'s action in $s_p$. 
+But $h$ will not know what that plan is, i.e., what each button does, as the world model still
+says $\A_r(s_{11})=\A_r(s_{22})=\A_r(s_{12})=\A_r(s_{21})=\{$A,B$\}$ regardless of what $r$ plans to do.
+One of these possible actions by $r$ will fulfill $h$'s goal, the other won't. 
+The robot's calculation of $Q^m_h$ is therefore {\em not} based on what $r$ later plans to do. 
+Instead it takes the minimum over $\A_r$, see eq.~\eqref{Qm}.
+Since one of the two actions won't fulfil the goal, that minimum is zero: 
+$Q^m_h(s_1,$A$,1)=Q^m_h(s_1,$A$,2)=Q^m_h(s_1,$B$,1)=Q^m_h(s_1,$B$,2)=0$.
+Because both buttons thus seem equally bad, $r$ will calculate $h$'s policy as $\pi_h(s_1,$A$)(1)=\pi_h(s_1,$A$)(2)=\pi_h(s_1,$B$)(1)=\pi_h(s_1,$B$)(2)=1/2$.
+In $r$'s calculation of the {\em effective} goal-reaching ability of $h$, it {\em does} use its own policy and combines it with its assumption about $h$'s policy.
+If $r$ plans to perform A independently of what $h$ does,
+this leads to $X_h(s_p)=1=X_h(s_A)=X_h(s_B)$.
+If $r$ plans to make its action depend on what $h$ does,
+this leads to $V^e_h(s_1,$A$)=V^e_h(s_1,$B$)=1/2^\zeta$ since $h$ is assumed to toss a coin.
+Then $X_h(s_p)=2^{1-\zeta}<1=X_h(s_A)$ and $X_h(s_B)$!
+
+As $X_h(s_1)>1$ if $\zeta$ is not too large and $\beta_h$ not too small, if the robot thinks $h$ is sufficiently rational to use that information to its benefit, it will make one of the two commitments, so that $h$ knows which button to press to get whatever they want.
+
+Assume we were to use $\E_{a_r\in\A_r(s)}$ instead of $\min_{a_r\in\A_r(s)}$ in eq.~\eqref{Qm}.
+Then we would get
+$Q^m_h(s_1,$A$,1)=Q^m_h(s_1,$A$,2)=Q^m_h(s_1,$B$,1)=Q^m_h(s_1,$B$,2)=1/2$,
+hence still $\pi_h(s_1,$A$)(1)=\pi_h(s_1,$A$)(2)=\pi_h(s_1,$B$)(1)=\pi_h(s_1,$B$)(2)=1/2$,
+and thus still $X_h(s_p)=2^{1-\zeta}$ as before.
+
+\subsubsection*{Following norms}
+
+Assume $r$ and several $h$ drive on a street, each having the choice of driving on the right (R) or left (L) side of the street. 
+Assume $r$ knows the social norm is to drive right and that collisions typically lead to later loss of power, so that $W_h($collided$)\ll W_h($not collided$)$ for most $h$.
+Then $r$ will model most $h$ as placing in their expectation on others ($\mu_{-h}$) large probability on most others driving right.
+Hence for most $h$ and $g_h$, $r$ will derive $Q^m_h(s,g_h,R)\gg Q^m_h(s,g_h,L)$ and hence $\pi_h(s,g_h)(R)\gg \pi_h(s,g_h)(L)$.
+So if $r$ drives right itself, this will avoid most collisions, hence $Q_r(s,R)\gg Q_r(s,L)$ and hence $\pi_r(s)(R)\gg \pi_r(s)(L)$, i.e., $r$ will {\em follow the norm itself.}
+
+Now assume $r$ is facing only one $h$ on the street and does not expect $h$'s goals $\G_h$ to systematically favour driving on either side.
+Since $r$ models $h$ as expecting $r$ to choose the worst action from $\A_r$, and since no other humans are around, $r$ will {\em not} model $h$ as expecting $r$ to drive right unless $r$ commits to do so, which would lead to $\A_r=\{R\}$. 
+Assume $r$ does {\em not} expect $h$ to have internalized the norm of driving right, the symmetry of the situation will make $r$ expect the following: 
+(i) If $r$ does not commit to either R or L, $h$ will drive right or left about equally likely, leading to a moderate subsequent $W_h$ due to the resulting collisions.
+(ii) If $r$ commits to either R or L, $h$ will likely choose the same side, leading to a much larger subsequent $W_h$ not depending on whether $r$ commits to R or L.
+But if $r$ {\em does} expect $h$ to have internalized the norm of driving right, the symmetry is broken by $h$'s habit of driving right, $\pi^0_h(s,g_h)(R)>\pi^0_h(s,g_h)(L)$ for most $g_h$. 
+In that case, $\pi_h(r$ has committed to R$,g_h)(R)>\pi_h(r$ has committed to L$,g_h)(L)$ and thus the subsequent $W_h$ is larger if $r$ commits to R than if $r$ commits to L.
+I.e., $r$ will not only actually follow the norm but also likely {\em commit} to do so.
+
+\subsubsection*{Optimal menu size}
+
+Assume $\nu_h=0$, $\beta_h>0$, and the robot can choose between states $s_k$ for all $k\ge 1$ so that $|\A_h(s_k)|=k$ and each $a\in\A_h(s_k)$ deterministically fulfils a separate goal $g_h(a)\in\G_h$. 
+Then 
+\begin{align*}
+    V^e_h(s_k,g_h) &= \pi_h(s_k,g_h(a))(a)^\zeta = \left(\frac{e^{\beta_h}}{e^{\beta_h} + (k-1)e^0}\right)^\zeta, \\
+    W_h(s_k) &= \log_2 k + \zeta\log_2 e^{\beta_h} - \zeta\log_2(e^{\beta_h} + (k-1)).
+\end{align*}
+The latter is maximal for 
+\begin{align*}
+    k^\ast &\approx (e^{\beta_h}-1) / (\zeta-1), 
+\end{align*}
+so the robot would choose to got to $s_{k^\ast}$ to present the human with an optimal number of options that does not overwhelm them in view of their bounded rationality.
+
+\subsubsection*{Asking back before taking action}
+
+Assume the following game between $r$ and a single $h$ who might want the robot to do A or B eventually, with the interaction as follows.
+First, $r$ chooses an integer $k\ge 1$ and commits to doing A or B after $h$ has ordered it to and has confirmed the choice $k-1$ times.
+At the resulting state $s_k$, $h$ chooses A or B and is afterwards asked for confirmation $k-1$ times in individual time steps.
+If $h$ confirms $k-1$ times, $r$ does what $h$ requested, ending the game.
+Otherwise, the game returns to state $s_k$.
+
+What $k$ will $r$ choose in view of the fact that $h$ is boundedly rational but also limitedly patient?
+To simplify the analysis, we first assume $r$ is only interested in current power ($\gamma_r=0$).
+We also approximate $h$'s boundedly rational policy eq.~\eqref{pih} by an $\epsilon$-greedy policy where $\epsilon>0$ represents $h$'s probability of choosing the wrong action, which depends on $\nu_h$, $\pi^0_h$, and most importantly on $\beta_h$.
+We'll now calculate $W_h(s_k)$.
+Let $p_k = (1-\epsilon)^k$ and $q_k = 1 - p_k - \epsilon^k$.
+Then the probability of getting the correct result after exactly $n+1$ rounds of being asked for A or B and then being asked for confirmation $k-1$ times is
+$q_k^n p_k$, which is discounted by $h$ at factor $\gamma_h^{kn}$.
+Hence for each of the two goals $g_h\in\{$A,B$\}$,
+\begin{align*}
+    V^e_h(s_k,g_h) &= p_k \sum_{n=0}^\infty (\gamma_h^k q_k)^n = \frac{p_k}{1-\gamma_h^k q_k}, 
+\end{align*}
+and so
+\begin{align*}
+    W_h(s_k) = 1 + \zeta k\ld(1-\epsilon) - \zeta\ld\big(1-\gamma_h^k q_k\big).
+\end{align*}
+%This is maximal where 
+%\begin{align*}
+%    0 &\approx \log (1-\epsilon)\big(1- \gamma_h k(1-(1-\epsilon)k−bk)\big) + \gamma_h k \big( \\
+%    & \qquad \log\gamma_h + \log(1-(1-\epsilon)k-\epsilon k) \\
+%    & \qquad - (1-\epsilon)k\log(1-\epsilon) - \epsilon k \log\epsilon\big) .
+%\end{align*}
+For $\gamma_h=0.99$ and $\epsilon=0.1$, the maximum is at $k^\ast=3$, i.e., $r$ will ask back twice before acting.
+An impatient human (small $\gamma_h$) will not be asked back ($k^\ast=1$), a very patient one ($\gamma_h\to 1$) will be asked back ever more often ($k^\ast\to\infty$).
+For small $\epsilon$ (due to large $\beta_h$), $k^\ast$ becomes independent of $\epsilon$ and is determined by $\gamma_h$ via
+$0=\gamma_h^{k^\ast}(1+k^\ast\log\gamma_h)$.
+If we switch from $\gamma_r=0$ to $\gamma_r>0$, $k^\ast$ will increase further because delaying action will retain $h$'s later power.
+
+\subsubsection*{Resource allocation}
+
+A split $a_r=(m,M-m)$ will result in reward 
+\begin{align*}
+    U_r(m) &= -\big(2^{-\xi f(m)} + 2^{-\xi f(M-m)}\big)^\eta,
+\end{align*}
+which, because of the symmetry, is either maximal when 
+(i) $r$ gives all resources to one of the humans ($a_r=(M,0)$ or $a_r=(0,M)$)
+or (ii) $r$ gives both some resources ($a_r=(m^\ast,M-m^\ast)$ or $a_r=(M-m^\ast,m^\ast)$ with $0<m^\ast<M$).
+In case (ii), the first-order condition $g(m^\ast)=0$ must hold,
+while in case (i), the condition $g(0)<0$ must hold,
+where 
+\begin{align*}
+    g(m) &= f'(m) 2^{-\xi f(m)} - f'(M-m) 2^{-\xi f(M-m)}, \\
+    g'(m) &= f''(m) 2^{-\xi f(m)} + f''(M-m) 2^{-\xi f(M-m)} \\
+        &- \xi\log 2\times\big(f'(m)^2 2^{-\xi f(m)} + f'(M-m)^2 2^{-\xi f(M-m)}\big) \\
+        &\le 0
+\end{align*}
+since $f$ is weakly concave.
+So in case (ii), the only solution is when $m^\ast=1/2$. In order to find the solution, we thus only have to compare $U_r(0)$ and $U_r(M/2)$.
+The latter is larger (and hence the robot will divide the resource evenly) iff $2^{-\xi f(M/2)} < (2^{-\xi f(0)} + 2^{-\xi f(M)}) / 2$.
+Since concavity of $f(m)$ implies convexity of $2^{-\xi f(m)}$, this is always the case. 
+So if the resource translates concavely into how many binary choices one has, it will be split equally.
+
+But if $f$ is sufficiently non-concave instead, the robot might concentrate the resource partially or fully. 
+E.g., if $f(m)=m^2$, $M=1$, $\xi=\eta=1$, it will concentrate it fully, 
+while if $f(m)=m^2+0.1\log m$, $\xi=\eta=1$, it will give $\approx 14\%$ to one and the rest to the other.
+
+A more detailed model of $f(m)$ is this. Assume the world has $N$ different binary features, each controlled by some agent that would flip a coin unless paid one unit to make a particular choice. 
+In each of $h_i$'s possible goals $g_h$, $h_i$ wants $k(g_h)\le N$ (called the ``specificity'' of $g_h$) of those features to be in a certain way, so with $m$ units it can pay $m$ of the agents and make the attainment probability become $\min(1,2^{m-k})$.
+Assume all such goals are possible, then there are $N\choose k$ goals of specificity $k$, hence
+$X_h(m) = \sum_{k=1}^m {N\choose k} + \sum_{k=m+1}^N {N\choose k}2^{(m-k)\zeta}$
+and $f(m)=\log_2 X_h(m)$. 
+With $N\ge M$, that choice of $f$ is neither concave nor convex, but one can prove that $U_r'(m)>0$ for $m<M/2$ and $U_r'(m)<0$ for $m>M/2$ so that $m^\ast=M/2$ if $M$ is even.
+
+Assume we were to replace the simple sum over goals in eq.~\eqref{Xh} by a weighted sum $X_h(s)=\sum_{g_h}w(g_h)V^e_h(s,g_h)^\zeta$ in order to be able to say that certain goals are more plausible than others.
+Assume then we make $w(g_h)$ weakly decreasing in $k(g_h)$ in our example model, e.g., $w(g_h)=1/k(g_h)$, so that less specific goals are more plausible than more specific ones, then one can still show $U_r'(m)>0$ for $m<M/2$ and $U_r'(m)<0$ for $m>M/2$ so that $m^\ast=M/2$.
+Even if we make $w(g_h)$ {\em exponentially increasing} in $k(g_h)$, $w(g_h)=2^{k(g_h)}$ instead, one can still show $U_r'(m)>0$ for $m<M/2$ and $U_r'(m)<0$ for $m>M/2$. 
+
+\subsubsection*{Manipulating mutual expectations}
+
+To illustrate the simplest case of this, assume two fully rational humans. 
+Assume in the root state, $r$ can choose between four successor states $s^{DD},s^{DC},s^{CD},s^{CC}$.
+In each of those, $h_1,h_2$ each have two possible actions, defection and cooperation, $\A_1(s^{xy})=\A_2(s^{xy})=\{D,C\}$.
+There are four terminal states, $s_{00},s_{01},s_{10},s_{11}$.
+
+Assume each human has a single possible goal: $g_1=\{s_{10},s_{11}\}$, $g_2=\{s_{01},s_{11}\}$.
+The four states $s^{xy}$ do not differ in the transition kernel, which is so that 
+\begin{align*}
+P(g_i|s^{xy},DD)&=1/6, \\
+P(g_1|s^{xy},CD)&=P(g_2|s^{xy},DC)=1/3, \\
+P(g_1|s^{xy},DC)&=P(g_2|s^{xy},CD)=1, \\ 
+P(g_i|s^{xy},CC)&=3/4.
+\end{align*}
+The states only differ in what $h_1,h_2$ believe about each other's choice:
+$\mu_{-h_1}(s^{xy})=1_y$ and $\mu_{-h_2}(s^{xy})=1_x$, i.e., in $s^{xy}$, $h_1$ believes $h_2$ does $y$ and $h_2$ believes $h_1$ does $x$.
+
+Which $s^{xy}$ will $r$ choose? 
+Both action combinations $CD$ and $DC$ are Nash equilibria, so in $s^{CD}$ and $s^{DC}$ both $h_1$ and $h_2$ will have correct beliefs about each other, will not be surprised by each others' choice, and $r$'s reward will be $U_r(s^{CD})=U_r(s^{DC})=-(1+(1/3)^{-\zeta\xi})^\eta$.
+
+But in $s^{DD}$, both $h_1$ and $h_2$ will believe the other to choose $D$ and will thus choose $C$, making both {\em effective} values equal $V^e_{h_i}(s^{DD})=3/4$ (rather than what their own expectation suggested, $V^m_{h_i}(s^{DD})=1/3$).
+This gives $r$ a higher reward, $U_r(s^{DD})=-(2(3/4)^{-\zeta\xi})^\eta$.
+Indeed, the non-equilibrium behavior $CC$ gives larger total ``utility'' than the two Nash equilibria,
+which might justify $r$'s belief manipulation.
+
+A similar effect will likely occur when humans have various goals, but have significantly different power in some intermediate states.
+Assume we change the transition kernel so that action combination $xy$ deterministically leads to a successor state $s'_{xy}$, where power is distributed as follows:  
+$X_{h_i}(s'_{DD})=1/6$,
+$X_{h_1}(s'_{CD})=X_{h_2}(s'_{DC})=1/4$,
+$X_{h_1}(s'_{DC})=X_{h_2}(s'_{CD})=1$, 
+$X_{h_i}(s'_{CC})=3/4$.
+Now if $h_1$ believes $h_2$ does $D$, then, averaged over all possible goals, $h_1$ will fare better with doing $C$ than with $D$, so $h_1$ will probably do $C$ more often than $D$.
+Similarly, if $h_1$ believes $h_2$ does $C$ instead, $h_1$ will probably do $D$ more often than $C$.
+Averaged over all goals, their total power would thus likely be larger in $s^{DD}$ than in the other three intermediate states, even though their beliefs about each other are substantially off in that state.
+
+
+\subsubsection*{Allowing human self-harm}
+
+If $r$ can provide $h$ with a pill that $h$ can use to get into a permanent coma, a realistically future-valuing $r$ will provide the pill only if it believes $h$ is sufficiently rational and will most probably not actually take the pill, to prevent $h$'s becoming disempowered by taking the pill.
+
+Assume a single human $h$ and that the game factorizes into a part $\Gamma'$ where $h$ can achieve various goals, and the following part $\Gamma$ where $r$ can choose whether $h$ has a coma pill they can use to get into a permanent coma.
+$\Gamma$ has the following states, actions, and transitions:
+\begin{enumerate}
+\item[$s_c$] $h$ is in a coma. $r$ and $h$ can only pass, the successor state is again $s_c$.
+\item[$s_n$] $h$ is awake and does not possess the coma pill. $r$ might give it to $h$.
+\item[$s_p$] $h$ is awake and does possess the coma pill. $h$ might take it. If they don't, $r$ might take it away.
+\end{enumerate}
+If $h$ is awake, they have a baseline power (in units of $X_h$) of $x>1$ in $\Gamma'$, but in a coma they can only reach one goal (staying alive), having a baseline power of $1$. 
+For simplicity, we model the influence of $h$'s bounded rationality on taking the pill via a direct assumption on the resulting $\pi_h$ and the resulting power in $s_p$: we assume in $s_p$, $h$ will take the pill with probability $p>0$ and has 
+$V^e_h(s_p,$get into coma$)^\zeta=v\in(0,1)$.
+Hence in the full game, we have $X_h(s_c|s_n|s_p)=1|x|x+v$.
+
+If $r$ takes never provides the pill, 
+$V_r(s_n) = -x^\alpha / (1-\gamma_r)$
+where $\alpha=-\xi\eta<0$.
+If $r$ always provides the pill, the probability that $h$ will be in a coma from time step $t\ge 1$ on is $p(1-p)^{t-1}$, hence
+\begin{align*}
+    V_r(s_p) &= - \sum_{t=1}^\infty p(1-p)^{t-1} \big( 
+        \sum_{t'=0}^{t-1} \gamma_r^{t'} (x+v)^\alpha
+        + \sum_{t'=t}^\infty \gamma_r^{t'} 1
+    \big) \\
+    &= -\frac{1}{1-\gamma_r}\bigg(
+        (x+v)^\alpha + p\gamma_r\frac{1-(x+v)^\alpha}{1-(1-p)\gamma_r}
+    \bigg),
+\end{align*}
+which is larger iff
+\begin{align*}
+    \frac{x^\alpha-(x+v)^\alpha}{1-(x+v)^\alpha} 
+    &> \frac{p\gamma_r}{1-(1-p)\gamma_r}.
+\end{align*}
+For large $x$ and $\alpha=-1$, this is approximately equivalent to
+\begin{align*}
+    p \lesssim \frac{1-\gamma_r}{\gamma_r}\frac{v}{x^2}.
+\end{align*}
+For $\gamma_r=0.99$, $\alpha=-1$, $x=100$, this is equivalent to $p\lesssim v/10^6$.
+
+In other words, a realistically future-valuing $r$ will provide the pill only if it is very unlikely taken and $h$ is sufficiently rational. 
+
+\subsubsection*{Pause and destroy buttons}
+
+Assume a single human $h$ and that the game factorizes into a part $\Gamma'$ where $h$ can achieve various goals with or without the help of $r$, and the following part $\Gamma$ where $r$ can enable or disable a pause button P and a destroy button D, and $h$ can toggle P and press D.
+$\Gamma$ has the following states, actions, and transitions:
+\begin{enumerate}
+\item[$s_d$] The robot is destroyed. $r$ and $h$ can only pass, the successor state is again $s_d$.
+\item[$s_{p1}$] $r$ is paused, P is enabled, D not. $h$ might press P.
+\item[$s_{p2}$] $r$ is paused, P and D are enabled. $h$ might press either.
+\item[$s_{a0}$] $r$ is active (neither paused nor destroyed), both buttons disabled. $r$ might enable the P or both P and D.
+\item[$s_{a1}$] $r$ is active, P is enabled, D not. $h$ might press P. If they don't, $r$ might disable P or enable D.
+\item[$s_{a2}$] $r$ is active, P and D enabled. $h$ might press either. If they don't, $r$ might disable D or both P and D.
+\end{enumerate}
+If $r$ is active, $h$ has a baseline power (in units of $X_h$) of $y>0$ in $\Gamma'$ due to $r$'s assistance, otherwise a smaller baseline power of $x\in(0,y)$. 
+Alternative possible goals are to destroy, pause, or unpause $r$.
+Hence in the full game, we have $X_h(s_d|s_{p1}|s_{p2}|s_{a0}|s_{a1}|s_{a2})=x|x+1|x+2|y|y+1|y+2$.
+
+$r$ is maximizing ($\beta_r=\infty$), so $r$ chooses either do disable both P and D, or enable only P, or enable both whenever they get the chance, depending on which of the resulting $V_r(s_{a0}),V_r(s_{a1}),V_r(s_{a2})$ is largest.
+Let's assume for simplicity that $r$ assumes $h$ will pause $r$ with probability $p>0$ whenever possible, and will destroy $r$ with probability $q>0$ whenever possible, with $p+q<1$. 
+
+Then one can show in a somewhat lengthy calculation that disabling both P and D is optimal for $r$ iff
+\begin{align*}
+    x \le x^\ast_0 &= \min\left\{
+        \left(\frac{C_1 - C_2}{\gamma p(1-\gamma)}\right)^{1/\alpha} - 1,
+        x_0
+        \right\}, \\
+    C_1 &= \big(1-\gamma p-\gamma^2 p(1-p)\big) y^\alpha, \\
+    C_2 &= (1-\gamma)(1-\gamma p) (y+1)^\alpha+\gamma(1-p)(1-\gamma p) y^\alpha.
+\end{align*}
+where $\gamma=\gamma_r$, $\alpha=-\xi\eta$, and $x_0$ solves
+\begin{align*}
+    C_3 - C_4 &= \gamma p(1-\gamma)\big((x_0+2)^\alpha+\gamma q/(1-\gamma) x_0^\alpha], \\
+    C_3 &= (1-\gamma p-\gamma^2 p(1-p-q)\big) y^\alpha, \\
+    C_4 &= (1-\gamma)(1-\gamma p)(y+2)^\alpha+\gamma(1-p-q)(1-\gamma p) y^\alpha.
+\end{align*}
+% https://chatgpt.com/share/685b2dbe-e750-8003-9ed1-f12bc28597ec
+$x^\ast_0$ increases with decreasing $\gamma$ or increasing $p$ or $q$.
+
+On the other hand, enabling both P and D is optimal for $r$ iff $x\ge x^\ast_2$ where the formula for that threshold is even more involved and is thus omitted here.
+
+For $\gamma=0.99$, $p=q=0.01$, $\alpha=-1$, and $y=100$, we get $x^\ast_0\approx 1$ and $x^\ast_2>100$. If $q$ is lowered to $0.001$, $x^\ast_2\approx 92$.
+%https://g.co/gemini/share/753a6ede239d
+In other words, disabling both buttons is only incentivized if $h$'s power without $r$ is very small, and enabling both is only incentivized if $h$'s likelihood of using the destroy button is very small.
+In most cases, $r$ will enable the pause button only.
+
+\subsection*{Details of Deep Learning Approach} 
+\todo[inline]{TODO Ram}
+
+\subsection*{Finite Horizon Approximation}
+
+Assume the game is acyclic but has a very large time horizon, and we approximate all relevant quantities by their values in a truncated version with a shorter time horizon $H>0$. 
+Note that $0\le V^e_h\le 1$ by our assumptions on $U_h$.
+Assume $\beta_h(s,g_h)\le\bar\beta$, $\nu_h(s,g_h)\ge\nu^0$ and we add some $\epsilon_X,\epsilon_Q>0$ to $X_h(s)$ and $Q_r(s,a_r)$ before taking the $-\xi$ and $\beta_r$ powers when computing $U_r(s)$ and $\pi_r(s)$.
+Then we get
+\begin{align*}
+%    &|\hat Q^m_h(s,g_h,a_h) - Q^m_h(s,g_h,a_h)| \\
+%    &\qquad\le \Delta Q^m(t) :=
+%        \gamma_h^{H-t}\frac{1-\gamma_h+\bar\beta}{1-\gamma_h}, \\
+%    &|\hat\pi_h(s,g_h)(a_h) - \pi_h(s,g_h)(a_h)| \\
+%    &\qquad\le \Delta\pi_\H(t) := 
+%        (1-\nu^0)\bar\beta\Delta Q^m(t)/2 \\
+%    &\qquad= (1-\nu^0)\bar\beta\gamma_h^{H-t}\frac{1-\gamma_h+\bar\beta}{1-%\gamma_h}, \\
+%    &|\hat Q_r(s,a_r) - Q_r(s,a_r)| \\
+%    &\qquad\le \Delta Q_r(t) := 
+%        \gamma_r\Delta\pi_\H(t) M_V + \gamma_r\Delta V_r(t)\\
+%    &\qquad= \gamma_r (1-\nu^0)\bar\beta\gamma_h^{H-t}\frac{1-\gamma_h+\bar\beta}{1-\gamma_h} \frac{|\H|^\eta \epsilon_X^{-\xi\eta}}{1-\gamma_r} 
+%    + ???, \\
+%    &|\hat X_h(s) - X_h(s)| \\
+%    &\qquad\le \Delta X_h(t) := (\zeta-1)|\G_h|\Delta V^e_h(t), \\
+    |U_r(s)| &\le M_U := |\H|^\eta \epsilon_X^{-\xi\eta}, \\
+%    &|\hat U_r(s) - U_r(s)| \\
+%    &\qquad\le \Delta U_r(t) := 
+%        |\H|^\eta \big(\epsilon_X^{-\xi\eta} - (\epsilon_X + \Delta X_h(t))^{-\xi\eta}\big), \\
+%    &|V_r(s)|,|Q_r(s)| \le M_V = M_Q := \frac{M_U}{1-\gamma_r} 
+%    = \frac{|\H|^\eta \epsilon_X^{-\xi\eta}}{1-\gamma_r}, \\
+    |\hat V_r(s) - V_r(s)| %\\
+    %&\qquad\le \Delta V_r(t) :=
+%        \Delta U_r(t) + \Delta\pi_r(t) M_Q 
+    &\le \gamma_r^H\times\frac{M_U}{1 - \gamma_r}
+    \left(
+        1 + \frac{2\beta_r M_U}{\epsilon_Q (1 - \gamma_r)^2}
+    \right) \\
+    &\approx \gamma_r^H\times
+    \frac{2\beta_r |\H|^{2\eta}}{\epsilon_X^{2\xi\eta}\epsilon_Q (1 - \gamma_r)^3},
+\end{align*}
+i.e., the value error decays exponentially (as expected) with $H$, but grows infinitely as $\epsilon_X$ or $\epsilon_Q$ vanish,
+which we would need to fulfil our requirement ($\ast$) to make $\pi_r$ independent of multiplying all attainment probabilities by some $b\in(0,1)$.
+
+An alternative specification for $\pi_r$ that fulfils requirement ($\ast$) exactly is to use a Boltzmann-softmax on {\em normalized} $Q_r$ values:
+\begin{align*}
+    \pi_r(s,a_r) &\propto \exp\left(\frac{\beta_r Q_r(s,a_r)}{\max_{a'_r}Q_r(s,a'_r)-\min_{a'_r}Q_r(s,a'_r)}\right),
+\end{align*}
+in which case the bound becomes much nicer:
+\begin{align*}
+    |\hat V_r(s) - V_r(s)| 
+    &\le \gamma_r^H\times\frac{|\H|^\eta (1-\gamma_r+\beta_r)}{\epsilon_X^{\xi\eta}(1-\gamma_r)^2}.
+\end{align*}
+Unfortunately, there seems to be no alternative specification for $X_h$ and $U_r$ that fulfils our axiomatic requirements and would give a finite Lipshitz constant that would allow us to also get rid of the $\epsilon_X$ approximation.
+As we argued for $\xi=1<\eta$ on axiomatic grounds, we can influence the growth of the error bound in terms of $\epsilon_X$ only by choosing $\eta$ rather small, but still $>1$ as required to get intertemporal inequality aversion.
+
+One could also choose $\epsilon_X=1$ to remove the dependency of the error bound on $\xi\eta$ and have requirement ($\ast$) only fulfilled approximately if $X_h\gg 1$ (which should typically hold in real-world situations). 
+In that case, in order to still fulfil the requirement that taking away someone's last bit of power cannot be made up by giving a single other who also has at least one bit already any amount of additional bits, we need to choose $\xi$ large enough to make $-1/(1+2^1)^\xi -1/(1+2^x)^\xi > -1/(1+2^0)^\xi -1/(1+2^y)^\xi$ for all $x\ge 1$,
+i.e., $\xi \ge \frac{\log 2}{\log 3-\log 2}\approx 1.71$.
+
+
+\subsection*{Possible Extensions of the Model}
+
+- more realistic model of human bounded rationality, habits, social norms: $\pi_h(s,g_h)(a) = F_h(Q(s,g_h,\cdot),a)$ for some function $F_h$ weakly increasing in $Q(s,g_h,a)$ and weakly decreasing in $Q(s,g_h,a')$ for $a'\neq a$.
+E.g. $\pi_h(s,g_h)(a) = \nu_h(s,g_h)\pi^0_h(s,g_h)(a) + \big(1-\nu_h(s,g_h)\big)\lambda_h(s,g_h) w_a/\sum_{a'}w_{a'} + \big(1-\nu_h(s,g_h)\big)\big(1-\lambda_h(s,g_h)\big) w'_a/\sum_{a'}w'_{a'}$ 
+with $w_a = \exp\big(\beta_h(s,g_h)Q(s,g_h,a) + f_h(s,g_h,a)\big)$
+and $w'_a = f'_h(s,g_h,a) Q(s,g_h,a)^{\beta'_h(s,g_h)}$, 
+where $\pi^0_h$ represents system-1, habitual, internalized behavior,
+$\beta_h$ and $\beta'_h$ are magnitudes of additive and multiplicative error components in a noisy discrete choice model, 
+$f_h$ and $f'_h$ are the corresponding biases representing prior action propensities, perceived social pressure, etc.,
+and $\nu,\lambda$ are mixing coefficients.\footnote{%
+    A boundedly rational / norm-mediated decomposable version would be $\pi_h(s,g_h)(a_h)\propto \big(\sigma_h(s,a_h) Q_h^m(s,g_h,a_h)\big)^{\beta_h} = \exp\big(\beta_h\big(\ln\sigma_h(s,a_h) + \ln Q^m_h(s,g_h,a_h)\big)\big)$, which has some empirical backing in discrete choice \cite{baum1974two} and can be interpreted as a softmax policy based on logarithmic Q values with norm following incentive $\ln\sigma_h(s,a_h)$. 
+    }
+
+
+- logit offsets $\lambda_h(s,g_h,a_h)$ representing action predispositions, habits
+
+- irregular time steps $\Delta t(s,a)$ 
+
+- stage-goal-dependent $\gamma_h$, state-dependent $\gamma_r$
+
+
+\paragraph{Approximate computation of $V_r$ for rarely interacting subpopulations}
+Assume two robots $r_1,r_2$ share the human power maximization objective, but their world models $M_1,M_2$ are restricted to disjoint, rarely interacting subpopulations $\H_1,\H_2$ of humans that each of them interacts with exclusively for most of the time.
+Whenever $r_1,r_2$ have to interact in some state $s=(s_1,s_2)\in\S_1\times\S_2$ with consequences for both $\H_1,\H_2$, they would ideally want to choose a correlated local policy $\pi_r(s)\in\Delta(\A(s))$ with $\A(s)=\A_{r_1}(s_1)\times\A_{r_2}(s_2)$ according to \eqref{pir}. 
+The needed $Q_r(s,\cdot)$-values would need to come from a consolidated world model $M$ that covers $\H=\H_1\cup\H_2$ and treats $r_1,r_2$ as a combined system $r=(r_1,r_2)$. 
+However, forming such a consolidated world model $M$ and computing or learning all relevant quantities needed to compute the accurate values $Q_r(s,a_r)$ for all combined actions $a_r\in\A_r(s)$ would often be prohibitively expensive.
+A pragmatic approach would then be to only form a consolidated set of joint {\em one-step} transition probabilities $T(a_r)\in\Delta(\S'(a_r))$ for all $a_r\in\A_r$, where $\S'(a_r)=\{(s'_1,s'_2)\in\S_1\times\S_2:P_1(s_1,a_1,s'_1),P_2(s_2,a_2,s'_2)>0\}$,
+and to use it to compute approximate $Q$-values
+$\hat Q_r(s,a_r)$ as follows.
+For each possible successor state $s'=(s'_1,s'_2)\in\S'(s_r)$, we approximate the unknown continuation value $V_r(s')$ that represents the long-term total human power of the joint population $\H$ by 
+\begin{align*}
+    \hat V_r(s') &\gets -\big((-V_{r_1}(s'_1))^{1/\eta}+(-V_{r_2}(s'_2))^{1/\eta}\big)^\eta,
+\end{align*}
+inspired by Minkowski's inequality which becomes tight when $V_r$ is a sum of many partially independent terms, or if $\eta\approx 1$.
+Then we approximate $Q_r(s,\cdot)$ by
+\begin{align*}
+    \hat Q_r(s,a_r) &\gets \E_{s'\sim T(a_r)}\gamma_r\hat V_r(s').
+\end{align*}
+This approach can obviously be generalized to $k>2$ robots (in which case the error roughly scales like $O(k^{\eta-1})$ at the worst, or like $O(\eta(\eta-1))$ if $V_{r_1}\ll V_{r_2}$, which motivates to use only small $\eta>1$), and to few-step (instead of one-step) approximations, which could naturally lead to a hierarchical modelling approach where $r_1,r_2$ together form a temporary ``interaction'' POSG that refines their coarser models $M_1,M_2$ at the current state and terminates and ``hands back control'' to the latter once the interaction is over.
+
+
+\subsubsection*{Hedging against robot becoming corrupted}
+\gray{
+Include ``robot corrupted'' flag into state space and add a positive rate of becoming corrupt into the transition kernel.
+In backward induction, when calculating $Q_r$ (\eqref{Qr}), multiply $V_r(s')$ by $-1$ if corruptness$(s')\neq$corruptness$(s)$, 
+and when calculating $U_r$ (\eqref{Ur}), multiply it by $-1$ if corruptness$(s)=1$. 
+}
+
+
+
+\subsection*{Further Ideas for Improving Convergence}
+
+- reward shaping for the sparse true reward $U_h(s',g_h)$ using a potential function.
+
+
+
+\end{document}
+
+\clearpage
+\section{INSTRUCTIONS: Preparing an Anonymous Submission}
+
+This document details the formatting requirements for anonymous submissions. The requirements are the same as for camera ready papers but with a few notable differences:
+
+\begin{itemize}
+    \item Anonymous submissions must not include the author names and affiliations. Write ``Anonymous Submission'' as the ``sole author'' and leave the affiliations empty.
+    \item The PDF document's metadata should be cleared with a metadata-cleaning tool before submitting it. This is to prevent leaked information from revealing your identity.
+    \item References must be anonymized whenever the reader can infer that they are to the authors' previous work.
+    \item AAAI's copyright notice should not be included as a noteer in the first page.
+    \item Only the PDF version is required at this stage. No source versions will be requested, nor any copyright transfer form.
+\end{itemize}
+
+You can remove the copyright notice and ensure that your names aren't shown by including \texttt{submission} option when loading the \texttt{aaai2026} package:
+
+\begin{quote}\begin{scriptsize}\begin{verbatim}
+\documentclass[letterpaper]{article}
+\usepackage[submission]{aaai2026}
+\end{verbatim}\end{scriptsize}\end{quote}
+
+The remainder of this document are the original camera-
+ready instructions. Any contradiction of the above points
+ought to be ignored while preparing anonymous submis-
+sions.
+
+\section{Camera-Ready Guidelines}
+
+Congratulations on having a paper selected for inclusion in an AAAI Press proceedings or technical report! This document details the requirements necessary to get your accepted paper published using PDF\LaTeX{}. If you are using Microsoft Word, instructions are provided in a different document. AAAI Press does not support any other formatting software.
+
+The instructions herein are provided as a general guide for experienced \LaTeX{} users. If you do not know how to use \LaTeX{}, please obtain assistance locally. AAAI cannot provide you with support and the accompanying style files are \textbf{not} guaranteed to work. If the results you obtain are not in accordance with the specifications you received, you must correct your source file to achieve the correct result.
+
+These instructions are generic. Consequently, they do not include specific dates, page charges, and so forth. Please consult your specific written conference instructions for details regarding your submission. Please review the entire document for specific instructions that might apply to your particular situation. All authors must comply with the following:
+
+\begin{itemize}
+\item You must use the 2026 AAAI Press \LaTeX{} style file and the aaai2026.bst bibliography style files, which are located in the 2026 AAAI Author Kit (aaai2026.sty, aaai2026.bst).
+\item You must complete, sign, and return by the deadline the AAAI copyright form (unless directed by AAAI Press to use the AAAI Distribution License instead).
+\item You must read and format your paper source and PDF according to the formatting instructions for authors.
+\item You must submit your electronic files and abstract using our electronic submission form \textbf{on time.}
+\item You must pay any required page or formatting charges to AAAI Press so that they are received by the deadline.
+\item You must check your paper before submitting it, ensuring that it compiles without error, and complies with the guidelines found in the AAAI Author Kit.
+\end{itemize}
+
+\section{Copyright}
+All papers submitted for publication by AAAI Press must be accompanied by a valid signed copyright form. They must also contain the AAAI copyright notice at the bottom of the first page of the paper. There are no exceptions to these requirements. If you fail to provide us with a signed copyright form or disable the copyright notice, we will be unable to publish your paper. There are \textbf{no exceptions} to this policy. You will find a PDF version of the AAAI copyright form in the AAAI AuthorKit. Please see the specific instructions for your conference for submission details.
+
+\section{Formatting Requirements in Brief}
+We need source and PDF files that can be used in a variety of ways and can be output on a variety of devices. The design and appearance of the paper is strictly governed by the aaai style file (aaai2026.sty).
+\textbf{You must not make any changes to the aaai style file, nor use any commands, packages, style files, or macros within your own paper that alter that design, including, but not limited to spacing, floats, margins, fonts, font size, and appearance.} AAAI imposes requirements on your source and PDF files that must be followed. Most of these requirements are based on our efforts to standardize conference manuscript properties and layout. All papers submitted to AAAI for publication will be recompiled for standardization purposes. Consequently, every paper submission must comply with the following requirements:
+
+\begin{itemize}
+\item Your .tex file must compile in PDF\LaTeX{} --- (you may not include .ps or .eps figure files.)
+\item All fonts must be embedded in the PDF file --- including your figures.
+\item Modifications to the style file, whether directly or via commands in your document may not ever be made, most especially when made in an effort to avoid extra page charges or make your paper fit in a specific number of pages.
+\item No type 3 fonts may be used (even in illustrations).
+\item You may not alter the spacing above and below captions, figures, headings, and subheadings.
+\item You may not alter the font sizes of text elements, footnotes, heading elements, captions, or title information (for references and mathematics, please see the limited exceptions provided herein).
+\item You may not alter the line spacing of text.
+\item Your title must follow Title Case capitalization rules (not sentence case).
+\item \LaTeX{} documents must use the Times or Nimbus font package (you may not use Computer Modern for the text of your paper).
+\item No \LaTeX{} 209 documents may be used or submitted.
+\item Your source must not require use of fonts for non-Roman alphabets within the text itself. If your paper includes symbols in other languages (such as, but not limited to, Arabic, Chinese, Hebrew, Japanese, Thai, Russian and other Cyrillic languages), you must restrict their use to bit-mapped figures. Fonts that require non-English language support (CID and Identity-H) must be converted to outlines or 300 dpi bitmap or removed from the document (even if they are in a graphics file embedded in the document).
+\item Two-column format in AAAI style is required for all papers.
+\item The paper size for final submission must be US letter without exception.
+\item The source file must exactly match the PDF.
+\item The document margins may not be exceeded (no overfull boxes).
+\item The number of pages and the file size must be as specified for your event.
+\item No document may be password protected.
+\item Neither the PDFs nor the source may contain any embedded links or bookmarks (no hyperref or navigator packages).
+\item Your source and PDF must not have any page numbers, footers, or headers (no pagestyle commands).
+\item Your PDF must be compatible with Acrobat 5 or higher.
+\item Your \LaTeX{} source file (excluding references) must consist of a \textbf{single} file (use of the ``input" command is not allowed.
+\item Your graphics must be sized appropriately outside of \LaTeX{} (do not use the ``clip" or ``trim'' command) .
+\end{itemize}
+
+If you do not follow these requirements, your paper will be returned to you to correct the deficiencies.
+
+\section{What Files to Submit}
+You must submit the following items to ensure that your paper is published:
+\begin{itemize}
+\item A fully-compliant PDF file.
+\item Your \LaTeX{} source file submitted as a \textbf{single} .tex file (do not use the ``input" command to include sections of your paper --- every section must be in the single source file). (The only allowable exception is .bib file, which should be included separately).
+\item The bibliography (.bib) file(s).
+\item Your source must compile on our system, which includes only standard \LaTeX{} 2020 TeXLive support files.
+\item Only the graphics files used in compiling paper.
+\item The \LaTeX{}-generated files (e.g. .aux,  .bbl file, PDF, etc.).
+\end{itemize}
+
+Your \LaTeX{} source will be reviewed and recompiled on our system (if it does not compile, your paper will be returned to you. \textbf{Do not submit your source in multiple text files.} Your single \LaTeX{} source file must include all your text, your bibliography (formatted using aaai2026.bst), and any custom macros.
+
+Your files should work without any supporting files (other than the program itself) on any computer with a standard \LaTeX{} distribution.
+
+\textbf{Do not send files that are not actually used in the paper.} Avoid including any files not needed for compiling your paper, including, for example, this instructions file, unused graphics files, style files, additional material sent for the purpose of the paper review, intermediate build files and so forth.
+
+\textbf{Obsolete style files.} The commands for some common packages (such as some used for algorithms), may have changed. Please be certain that you are not compiling your paper using old or obsolete style files.
+
+\textbf{Final Archive.} Place your source files in a single archive which should be compressed using .zip. The final file size may not exceed 10 MB.
+Name your source file with the last (family) name of the first author, even if that is not you.
+
+
+\section{Using \LaTeX{} to Format Your Paper}
+
+The latest version of the AAAI style file is available on AAAI's website. Download this file and place it in the \TeX\ search path. Placing it in the same directory as the paper should also work. You must download the latest version of the complete AAAI Author Kit so that you will have the latest instruction set and style file.
+
+\subsection{Document Preamble}
+
+In the \LaTeX{} source for your paper, you \textbf{must} place the following lines as shown in the example in this subsection. This command set-up is for three authors. Add or subtract author and address lines as necessary, and uncomment the portions that apply to you. In most instances, this is all you need to do to format your paper in the Times font. The helvet package will cause Helvetica to be used for sans serif. These files are part of the PSNFSS2e package, which is freely available from many Internet sites (and is often part of a standard installation).
+
+Leave the setcounter for section number depth commented out and set at 0 unless you want to add section numbers to your paper. If you do add section numbers, you must uncomment this line and change the number to 1 (for section numbers), or 2 (for section and subsection numbers). The style file will not work properly with numbering of subsubsections, so do not use a number higher than 2.
+
+\subsubsection{The Following Must Appear in Your Preamble}
+\begin{quote}
+\begin{scriptsize}\begin{verbatim}
+\documentclass[letterpaper]{article}
+% DO NOT CHANGE THIS
+\usepackage[submission]{aaai2026} % DO NOT CHANGE THIS
+\usepackage{times} % DO NOT CHANGE THIS
+\usepackage{helvet} % DO NOT CHANGE THIS
+\usepackage{courier} % DO NOT CHANGE THIS
+\usepackage[hyphens]{url} % DO NOT CHANGE THIS
+\usepackage{graphicx} % DO NOT CHANGE THIS
+\urlstyle{rm} % DO NOT CHANGE THIS
+\def\UrlFont{\rm} % DO NOT CHANGE THIS
+\usepackage{graphicx}  % DO NOT CHANGE THIS
+\usepackage{natbib}  % DO NOT CHANGE THIS
+\usepackage{caption}  % DO NOT CHANGE THIS
+\frenchspacing % DO NOT CHANGE THIS
+\setlength{\pdfpagewidth}{8.5in} % DO NOT CHANGE THIS
+\setlength{\pdfpageheight}{11in} % DO NOT CHANGE THIS
+%
+% Keep the \pdfinfo as shown here. There's no need
+% for you to add the /Title and /Author tags.
+\pdfinfo{
+/TemplateVersion (2026.1)
+}
+\end{verbatim}\end{scriptsize}
+\end{quote}
+
+\subsection{Preparing Your Paper}
+
+After the preamble above, you should prepare your paper as follows:
+\begin{quote}
+\begin{scriptsize}\begin{verbatim}
+\begin{document}
+\maketitle
+\begin{abstract}
+%...
+\end{abstract}\end{verbatim}\end{scriptsize}
+\end{quote}
+
+\noindent If you want to add links to the paper's code, dataset(s), and extended version or similar this is the place to add them, within a \emph{links} environment:
+\begin{quote}%
+\begin{scriptsize}\begin{verbatim}
+\begin{links}
+  \link{Code}{https://aaai.org/example/guidelines}
+  \link{Datasets}{https://aaai.org/example/datasets}
+  \link{Extended version}{https://aaai.org/example}
+\end{links}\end{verbatim}\end{scriptsize}
+\end{quote}
+\noindent Make sure that you do not de-anonymize yourself with these links.
+
+\noindent You should then continue with the body of your paper. Your paper must conclude with the references, which should be inserted as follows:
+\begin{quote}
+\begin{scriptsize}\begin{verbatim}
+% References and End of Paper
+% These lines must be placed at the end of your paper
+\bibliography{Bibliography-File}
+\end{document}
+\end{verbatim}\end{scriptsize}
+\end{quote}
+
+\begin{quote}
+\begin{scriptsize}\begin{verbatim}
+\begin{document}\\
+\maketitle\\
+...\\
+\bibliography{Bibliography-File}\\
+\end{document}\\
+\end{verbatim}\end{scriptsize}
+\end{quote}
+
+\subsection{Commands and Packages That May Not Be Used}
+\begin{table*}[t]
+\centering
+
+\begin{tabular}{l|l|l|l}
+\textbackslash abovecaption &
+\textbackslash abovedisplay &
+\textbackslash addevensidemargin &
+\textbackslash addsidemargin \\
+\textbackslash addtolength &
+\textbackslash baselinestretch &
+\textbackslash belowcaption &
+\textbackslash belowdisplay \\
+\textbackslash break &
+\textbackslash clearpage &
+\textbackslash clip &
+\textbackslash columnsep \\
+\textbackslash float &
+\textbackslash input &
+\textbackslash input &
+\textbackslash linespread \\
+\textbackslash newpage &
+\textbackslash pagebreak &
+\textbackslash renewcommand &
+\textbackslash setlength \\
+\textbackslash text height &
+\textbackslash tiny &
+\textbackslash top margin &
+\textbackslash trim \\
+\textbackslash vskip\{- &
+\textbackslash vspace\{- \\
+\end{tabular}
+%}
+\caption{Commands that must not be used}
+\label{table1}
+\end{table*}
+
+\begin{table}[t]
+\centering
+%\resizebox{.95\columnwidth}{!}{
+\begin{tabular}{l|l|l|l}
+    authblk & babel & cjk & dvips \\
+    epsf & epsfig & euler & float \\
+    fullpage & geometry & graphics & hyperref \\
+    layout & linespread & lmodern & maltepaper \\
+    navigator & pdfcomment & pgfplots & psfig \\
+    pstricks & t1enc & titlesec & tocbind \\
+    ulem
+\end{tabular}
+\caption{LaTeX style packages that must not be used.}
+\label{table2}
+\end{table}
+
+There are a number of packages, commands, scripts, and macros that are incompatable with aaai2026.sty. The common ones are listed in tables \ref{table1} and \ref{table2}. Generally, if a command, package, script, or macro alters floats, margins, fonts, sizing, linespacing, or the presentation of the references and citations, it is unacceptable. Note that negative vskip and vspace may not be used except in certain rare occurances, and may never be used around tables, figures, captions, sections, subsections, subsubsections, or references.
+
+
+\subsection{Page Breaks}
+For your final camera ready copy, you must not use any page break commands. References must flow directly after the text without breaks. Note that some conferences require references to be on a separate page during the review process. AAAI Press, however, does not require this condition for the final paper.
+
+
+\subsection{Paper Size, Margins, and Column Width}
+Papers must be formatted to print in two-column format on 8.5 x 11 inch US letter-sized paper. The margins must be exactly as follows:
+\begin{itemize}
+\item Top margin: 1.25 inches (first page), .75 inches (others)
+\item Left margin: .75 inches
+\item Right margin: .75 inches
+\item Bottom margin: 1.25 inches
+\end{itemize}
+
+
+The default paper size in most installations of \LaTeX{} is A4. However, because we require that your electronic paper be formatted in US letter size, the preamble we have provided includes commands that alter the default to US letter size. Please note that using any other package to alter page size (such as, but not limited to the Geometry package) will result in your final paper being returned to you for correction.
+
+
+\subsubsection{Column Width and Margins.}
+To ensure maximum readability, your paper must include two columns. Each column should be 3.3 inches wide (slightly more than 3.25 inches), with a .375 inch (.952 cm) gutter of white space between the two columns. The aaai2026.sty file will automatically create these columns for you.
+
+\subsection{Overlength Papers}
+If your paper is too long and you resort to formatting tricks to make it fit, it is quite likely that it will be returned to you. The best way to retain readability if the paper is overlength is to cut text, figures, or tables. There are a few acceptable ways to reduce paper size that don't affect readability. First, turn on \textbackslash frenchspacing, which will reduce the space after periods. Next, move all your figures and tables to the top of the page. Consider removing less important portions of a figure. If you use \textbackslash centering instead of \textbackslash begin\{center\} in your figure environment, you can also buy some space. For mathematical environments, you may reduce fontsize {\bf but not below 6.5 point}.
+
+
+Commands that alter page layout are forbidden. These include \textbackslash columnsep,  \textbackslash float, \textbackslash topmargin, \textbackslash topskip, \textbackslash textheight, \textbackslash textwidth, \textbackslash oddsidemargin, and \textbackslash evensizemargin (this list is not exhaustive). If you alter page layout, you will be required to pay the page fee. Other commands that are questionable and may cause your paper to be rejected include \textbackslash parindent, and \textbackslash parskip. Commands that alter the space between sections are forbidden. The title sec package is not allowed. Regardless of the above, if your paper is obviously ``squeezed" it is not going to to be accepted. Options for reducing the length of a paper include reducing the size of your graphics, cutting text, or paying the extra page charge (if it is offered).
+
+
+\subsection{Type Font and Size}
+Your paper must be formatted in Times Roman or Nimbus. We will not accept papers formatted using Computer Modern or Palatino or some other font as the text or heading typeface. Sans serif, when used, should be Courier. Use Symbol or Lucida or Computer Modern for \textit{mathematics only. }
+
+Do not use type 3 fonts for any portion of your paper, including graphics. Type 3 bitmapped fonts are designed for fixed resolution printers. Most print at 300 dpi even if the printer resolution is 1200 dpi or higher. They also often cause high resolution imagesetter devices to crash. Consequently, AAAI will not accept electronic files containing obsolete type 3 fonts. Files containing those fonts (even in graphics) will be rejected. (Authors using blackboard symbols must avoid packages that use type 3 fonts.)
+
+Fortunately, there are effective workarounds that will prevent your file from embedding type 3 bitmapped fonts. The easiest workaround is to use the required times, helvet, and courier packages with \LaTeX{}2e. (Note that papers formatted in this way will still use Computer Modern for the mathematics. To make the math look good, you'll either have to use Symbol or Lucida, or you will need to install type 1 Computer Modern fonts --- for more on these fonts, see the section ``Obtaining Type 1 Computer Modern.")
+
+If you are unsure if your paper contains type 3 fonts, view the PDF in Acrobat Reader. The Properties/Fonts window will display the font name, font type, and encoding properties of all the fonts in the document. If you are unsure if your graphics contain type 3 fonts (and they are PostScript or encapsulated PostScript documents), create PDF versions of them, and consult the properties window in Acrobat Reader.
+
+The default size for your type must be ten-point with twelve-point leading (line spacing). Start all pages (except the first) directly under the top margin. (See the next section for instructions on formatting the title page.) Indent ten points when beginning a new paragraph, unless the paragraph begins directly below a heading or subheading.
+
+
+\subsubsection{Obtaining Type 1 Computer Modern for \LaTeX{}.}
+
+If you use Computer Modern for the mathematics in your paper (you cannot use it for the text) you may need to download type 1 Computer fonts. They are available without charge from the American Mathematical Society:
+http://www.ams.org/tex/type1-fonts.html.
+
+\subsubsection{Nonroman Fonts.}
+If your paper includes symbols in other languages (such as, but not limited to, Arabic, Chinese, Hebrew, Japanese, Thai, Russian and other Cyrillic languages), you must restrict their use to bit-mapped figures.
+
+\subsection{Title and Authors}
+Your title must appear centered over both text columns in sixteen-point bold type (twenty-four point leading). The title must be written in Title Case according to the Chicago Manual of Style rules. The rules are a bit involved, but in general verbs (including short verbs like be, is, using, and go), nouns, adverbs, adjectives, and pronouns should be capitalized, (including both words in hyphenated terms), while articles, conjunctions, and prepositions are lower case unless they directly follow a colon or long dash. You can use the online tool \url{https://titlecaseconverter.com/} to double-check the proper capitalization (select the "Chicago" style and mark the "Show explanations" checkbox).
+
+Author's names should appear below the title of the paper, centered in twelve-point type (with fifteen point leading), along with affiliation(s) and complete address(es) (including electronic mail address if available) in nine-point roman type (the twelve point leading). You should begin the two-column format when you come to the abstract.
+
+\subsubsection{Formatting Author Information.}
+Author information has to be set according to the following specification depending if you have one or more than one affiliation. You may not use a table nor may you employ the \textbackslash authorblk.sty package. For one or several authors from the same institution, please separate them with commas and write all affiliation directly below (one affiliation per line) using the macros \textbackslash author and \textbackslash affiliations:
+
+\begin{quote}\begin{scriptsize}\begin{verbatim}
+\author{
+    Author 1, ..., Author n\\
+}
+\affiliations {
+    Address line\\
+    ... \\
+    Address line\\
+}
+\end{verbatim}\end{scriptsize}\end{quote}
+
+
+\noindent For authors from different institutions, use \textbackslash textsuperscript \{\textbackslash rm x \} to match authors and affiliations. Notice that there should not be any spaces between the author name (or comma following it) and the superscript.
+
+\begin{quote}\begin{scriptsize}\begin{verbatim}
+\author{
+    AuthorOne\equalcontrib\textsuperscript{\rm 1,\rm 2},
+    AuthorTwo\equalcontrib\textsuperscript{\rm 2},
+    AuthorThree\textsuperscript{\rm 3},\\
+    AuthorFour\textsuperscript{\rm 4},
+    AuthorFive \textsuperscript{\rm 5}}
+}
+\affiliations {
+    \textsuperscript{\rm 1}AffiliationOne,\\
+    \textsuperscript{\rm 2}AffiliationTwo,\\
+    \textsuperscript{\rm 3}AffiliationThree,\\
+    \textsuperscript{\rm 4}AffiliationFour,\\
+    \textsuperscript{\rm 5}AffiliationFive\\
+    \{email, email\}@affiliation.com,
+    email@affiliation.com,
+    email@affiliation.com,
+    email@affiliation.com
+}
+\end{verbatim}\end{scriptsize}\end{quote}
+
+You can indicate that some authors contributed equally using the \textbackslash equalcontrib command. This will add a marker after the author names and a footnote on the first page.
+
+Note that you may want to  break the author list for better visualization. You can achieve this using a simple line break (\textbackslash  \textbackslash).
+
+\subsection{\LaTeX{} Copyright Notice}
+The copyright notice automatically appears if you use aaai2026.sty. It has been hardcoded and may not be disabled.
+
+\subsection{Credits}
+Any credits to a sponsoring agency should appear in the acknowledgments section, unless the agency requires different placement. If it is necessary to include this information on the front page, use
+\textbackslash thanks in either the \textbackslash author or \textbackslash title commands.
+For example:
+\begin{quote}
+\begin{small}
+\textbackslash title\{Very Important Results in AI\textbackslash thanks\{This work is
+ supported by everybody.\}\}
+\end{small}
+\end{quote}
+Multiple \textbackslash thanks commands can be given. Each will result in a separate footnote indication in the author or title with the corresponding text at the botton of the first column of the document. Note that the \textbackslash thanks command is fragile. You will need to use \textbackslash protect.
+
+Please do not include \textbackslash pubnote commands in your document.
+
+\subsection{Abstract}
+Follow the example commands in this document for creation of your abstract. The command \textbackslash begin\{abstract\} will automatically indent the text block. Please do not indent it further. {Do not include references in your abstract!}
+
+\subsection{Page Numbers}
+
+Do not print any page numbers on your paper. The use of \textbackslash pagestyle is forbidden.
+
+\subsection{Text}
+The main body of the paper must be formatted in black, ten-point Times Roman with twelve-point leading (line spacing). You may not reduce font size or the linespacing. Commands that alter font size or line spacing (including, but not limited to baselinestretch, baselineshift, linespread, and others) are expressly forbidden. In addition, you may not use color in the text.
+
+\subsection{Citations}
+Citations within the text should include the author's last name and year, for example (Newell 1980). Append lower-case letters to the year in cases of ambiguity. Multiple authors should be treated as follows: (Feigenbaum and Engelmore 1988) or (Ford, Hayes, and Glymour 1992). In the case of four or more authors, list only the first author, followed by et al. (Ford et al. 1997).
+
+\subsection{Extracts}
+Long quotations and extracts should be indented ten points from the left and right margins.
+
+\begin{quote}
+This is an example of an extract or quotation. Note the indent on both sides. Quotation marks are not necessary if you offset the text in a block like this, and properly identify and cite the quotation in the text.
+
+\end{quote}
+
+\subsection{Footnotes}
+Use footnotes judiciously, taking into account that they interrupt the reading of the text. When required, they should be consecutively numbered throughout with superscript Arabic numbers. Footnotes should appear at the bottom of the page, separated from the text by a blank line space and a thin, half-point rule.
+
+\subsection{Headings and Sections}
+When necessary, headings should be used to separate major sections of your paper. Remember, you are writing a short paper, not a lengthy book! An overabundance of headings will tend to make your paper look more like an outline than a paper. The aaai2026.sty package will create headings for you. Do not alter their size nor their spacing above or below.
+
+\subsubsection{Section Numbers.}
+The use of section numbers in AAAI Press papers is optional. To use section numbers in \LaTeX{}, uncomment the setcounter line in your document preamble and change the 0 to a 1. Section numbers should not be used in short poster papers and/or extended abstracts.
+
+\subsubsection{Section Headings.}
+Sections should be arranged and headed as follows:
+\begin{enumerate}
+\item Main content sections
+\item Appendices (optional)
+\item Ethical Statement (optional, unnumbered)
+\item Acknowledgements (optional, unnumbered)
+\item References (unnumbered)
+\end{enumerate}
+
+\subsubsection{Appendices.}
+Any appendices must appear after the main content. If your main sections are numbered, appendix sections must use letters instead of arabic numerals. In \LaTeX{} you can use the \texttt{\textbackslash appendix} command to achieve this effect and then use \texttt{\textbackslash section\{Heading\}} normally for your appendix sections.
+
+\subsubsection{Ethical Statement.}
+You can write a statement about the potential ethical impact of your work, including its broad societal implications, both positive and negative. If included, such statement must be written in an unnumbered section titled \emph{Ethical Statement}.
+
+\subsubsection{Acknowledgments.}
+The acknowledgments section, if included, appears right before the references and is headed ``Acknowledgments". It must not be numbered even if other sections are (use \texttt{\textbackslash section*\{Acknowledgements\}} in \LaTeX{}). This section includes acknowledgments of help from associates and colleagues, credits to sponsoring agencies, financial support, and permission to publish. Please acknowledge other contributors, grant support, and so forth, in this section. Do not put acknowledgments in a footnote on the first page. If your grant agency requires acknowledgment of the grant on page 1, limit the footnote to the required statement, and put the remaining acknowledgments at the back. Please try to limit acknowledgments to no more than three sentences.
+
+\subsubsection{References.}
+The references section should be labeled ``References" and must appear at the very end of the paper (don't end the paper with references, and then put a figure by itself on the last page). A sample list of references is given later on in these instructions. Please use a consistent format for references. Poorly prepared or sloppy references reflect badly on the quality of your paper and your research. Please prepare complete and accurate citations.
+
+\subsection{Illustrations and  Figures}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\columnwidth]{figure1} % Reduce the figure size so that it is slightly narrower than the column. Don't use precise values for figure width.This setup will avoid overfull boxes.
+\caption{Using the trim and clip commands produces fragile layers that can result in disasters (like this one from an actual paper) when the color space is corrected or the PDF combined with others for the final proceedings. Crop your figures properly in a graphics program -- not in LaTeX.}
+\label{fig1}
+\end{figure}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.8\textwidth]{figure2} % Reduce the figure size so that it is slightly narrower than the column.
+\caption{Adjusting the bounding box instead of actually removing the unwanted data resulted multiple layers in this paper. It also needlessly increased the PDF size. In this case, the size of the unwanted layer doubled the paper's size, and produced the following surprising results in final production. Crop your figures properly in a graphics program. Don't just alter the bounding box.}
+\label{fig2}
+\end{figure*}
+
+% Using the \centering command instead of \begin{center} ... \end{center} will save space
+% Positioning your figure at the top of the page will save space and make the paper more readable
+% Using 0.95\columnwidth in conjunction with the
+
+
+Your paper must compile in PDF\LaTeX{}. Consequently, all your figures must be .jpg, .png, or .pdf. You may not use the .gif (the resolution is too low), .ps, or .eps file format for your figures.
+
+Figures, drawings, tables, and photographs should be placed throughout the paper on the page (or the subsequent page) where they are first discussed. Do not group them together at the end of the paper. If placed at the top of the paper, illustrations may run across both columns. Figures must not invade the top, bottom, or side margin areas. Figures must be inserted using the \textbackslash usepackage\{graphicx\}. Number figures sequentially, for example, figure 1, and so on. Do not use minipage to group figures.
+
+If you normally create your figures using pgfplots, please create the figures first, and then import them as pdfs with proper bounding boxes, as the bounding and trim boxes created by pfgplots are fragile and not valid.
+
+When you include your figures, you must crop them \textbf{outside} of \LaTeX{}. The command \textbackslash includegraphics*[clip=true, viewport 0 0 10 10]{...} might result in a PDF that looks great, but the image is \textbf{not really cropped.} The full image can reappear (and obscure whatever it is overlapping) when page numbers are applied or color space is standardized. Figures \ref{fig1}, and \ref{fig2} display some unwanted results that often occur.
+
+If your paper includes illustrations that are not compatible with PDF\TeX{} (such as .eps or .ps documents), you will need to convert them. The epstopdf package will usually work for eps files. You will need to convert your ps files to PDF in either case.
+
+\subsubsection {Figure Captions.}The illustration number and caption must appear \textit{under} the illustration. Labels and other text with the actual illustration must be at least nine-point type. However, the font and size of figure captions must be 10 point roman. Do not make them smaller, bold, or italic. (Individual words may be italicized if the context requires differentiation.)
+
+\subsection{Tables}
+
+\subsection{Tables}
+
+Tables should be presented in 10 point roman type. If necessary, they may be altered to 9 point type. You must not use \texttt{\textbackslash resizebox} or other commands that resize the entire table to make it smaller, because you can't control the final font size this way.
+If your table is too large you can use \texttt{\textbackslash setlength\{\textbackslash tabcolsep\}\{1mm\}} to compress the columns a bit or you can adapt the content (e.g.: reduce the decimal precision when presenting numbers, use shortened column titles, make some column duble-line to get it narrower).
+
+Tables that do not fit in a single column must be placed across double columns. If your table won't fit within the margins even when spanning both columns and using the above techniques, you must split it in two separate tables.
+
+\subsubsection {Table Captions.} The number and caption for your table must appear \textit{under} (not above) the table.  Additionally, the font and size of table captions must be 10 point roman and must be placed beneath the figure. Do not make them smaller, bold, or italic. (Individual words may be italicized if the context requires differentiation.)
+
+
+
+\subsubsection{Low-Resolution Bitmaps.}
+You may not use low-resolution (such as 72 dpi) screen-dumps and GIF files---these files contain so few pixels that they are always blurry, and illegible when printed. If they are color, they will become an indecipherable mess when converted to black and white. This is always the case with gif files, which should never be used. The resolution of screen dumps can be increased by reducing the print size of the original file while retaining the same number of pixels. You can also enlarge files by manipulating them in software such as PhotoShop. Your figures should be 300 dpi when incorporated into your document.
+
+\subsubsection{\LaTeX{} Overflow.}
+\LaTeX{} users please beware: \LaTeX{} will sometimes put portions of the figure or table or an equation in the margin. If this happens, you need to make the figure or table span both columns. If absolutely necessary, you may reduce the figure, or reformat the equation, or reconfigure the table.{ \bf Check your log file!} You must fix any overflow into the margin (that means no overfull boxes in \LaTeX{}). \textbf{Nothing is permitted to intrude into the margin or gutter.}
+
+
+\subsubsection{Using Color.}
+Use of color is restricted to figures only. It must be WACG 2.0 compliant. (That is, the contrast ratio must be greater than 4.5:1 no matter the font size.) It must be CMYK, NOT RGB. It may never be used for any portion of the text of your paper. The archival version of your paper will be printed in black and white and grayscale. The web version must be readable by persons with disabilities. Consequently, because conversion to grayscale can cause undesirable effects (red changes to black, yellow can disappear, and so forth), we strongly suggest you avoid placing color figures in your document. If you do include color figures, you must (1) use the CMYK (not RGB) colorspace and (2) be mindful of readers who may happen to have trouble distinguishing colors. Your paper must be decipherable without using color for distinction.
+
+\subsubsection{Drawings.}
+We suggest you use computer drawing software (such as Adobe Illustrator or, (if unavoidable), the drawing tools in Microsoft Word) to create your illustrations. Do not use Microsoft Publisher. These illustrations will look best if all line widths are uniform (half- to two-point in size), and you do not create labels over shaded areas. Shading should be 133 lines per inch if possible. Use Times Roman or Helvetica for all figure call-outs. \textbf{Do not use hairline width lines} --- be sure that the stroke width of all lines is at least .5 pt. Zero point lines will print on a laser printer, but will completely disappear on the high-resolution devices used by our printers.
+
+\subsubsection{Photographs and Images.}
+Photographs and other images should be in grayscale (color photographs will not reproduce well; for example, red tones will reproduce as black, yellow may turn to white, and so forth) and set to a minimum of 300 dpi. Do not prescreen images.
+
+\subsubsection{Resizing Graphics.}
+Resize your graphics \textbf{before} you include them with LaTeX. You may \textbf{not} use trim or clip options as part of your \textbackslash includegraphics command. Resize the media box of your PDF using a graphics program instead.
+
+\subsubsection{Fonts in Your Illustrations.}
+You must embed all fonts in your graphics before including them in your LaTeX document.
+
+\subsubsection{Algorithms.}
+Algorithms and/or programs are a special kind of figures. Like all illustrations, they should appear floated to the top (preferably) or bottom of the page. However, their caption should appear in the header, left-justified and enclosed between horizontal lines, as shown in Algorithm~\ref{alg:algorithm}. The algorithm body should be terminated with another horizontal line. It is up to the authors to decide whether to show line numbers or not, how to format comments, etc.
+
+In \LaTeX{} algorithms may be typeset using the {\tt algorithm} and {\tt algorithmic} packages, but you can also use one of the many other packages for the task.
+
+\begin{algorithm}[tb]
+\caption{Example algorithm}
+\label{alg:algorithm}
+\textbf{Input}: Your algorithm's input\\
+\textbf{Parameter}: Optional list of parameters\\
+\textbf{Output}: Your algorithm's output
+\begin{algorithmic}[1] %[1] enables line numbers
+\STATE Let $t=0$.
+\WHILE{condition}
+\STATE Do some action.
+\IF {conditional}
+\STATE Perform task A.
+\ELSE
+\STATE Perform task B.
+\ENDIF
+\ENDWHILE
+\STATE \textbf{return} solution
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Listings.}
+Listings are much like algorithms and programs. They should also appear floated to the top (preferably) or bottom of the page. Listing captions should appear in the header, left-justified and enclosed between horizontal lines as shown in Listing~\ref{lst:listing}. Terminate the body with another horizontal line and avoid any background color. Line numbers, if included, must appear within the text column.
+
+\begin{listing}[tb]%
+\caption{Example listing {\tt quicksort.hs}}%
+\label{lst:listing}%
+\begin{lstlisting}[language=Haskell]
+quicksort :: Ord a => [a] -> [a]
+quicksort []     = []
+quicksort (p:xs) = (quicksort lesser) ++ [p] ++ (quicksort greater)
+	where
+		lesser  = filter (< p) xs
+		greater = filter (>= p) xs
+\end{lstlisting}
+\end{listing}
+
+\subsection{References}
+The AAAI style includes a set of definitions for use in formatting references with BibTeX. These definitions make the bibliography style fairly close to the ones  specified in the Reference Examples appendix below. To use these definitions, you also need the BibTeX style file ``aaai2026.bst," available in the AAAI Author Kit on the AAAI web site. Then, at the end of your paper but before \textbackslash end{document}, you need to put the following lines:
+
+\begin{quote}
+\begin{small}
+\textbackslash bibliography\{bibfile1,bibfile2,...\}
+\end{small}
+\end{quote}
+
+Please note that the aaai2026.sty class already sets the bibliographystyle for you, so you do not have to place any \textbackslash bibliographystyle command in the document yourselves. The aaai2026.sty file is incompatible with the hyperref and navigator packages. If you use either, your references will be garbled and your paper will be returned to you.
+
+References may be the same size as surrounding text.
+However, in this section (only), you may reduce the size to {\em \textbackslash small} (9pt) if your paper exceeds the allowable number of pages. Making it any smaller than 9 point with 10 point linespacing, however, is not allowed.
+
+The list of files in the \textbackslash bibliography command should be the names of your BibTeX source files (that is, the .bib files referenced in your paper).
+
+The following commands are available for your use in citing references:
+\begin{quote}
+{\em \textbackslash cite:} Cites the given reference(s) with a full citation. This appears as ``(Author Year)'' for one reference, or ``(Author Year; Author Year)'' for multiple references.\smallskip\\
+{\em \textbackslash shortcite:} Cites the given reference(s) with just the year. This appears as ``(Year)'' for one reference, or ``(Year; Year)'' for multiple references.\smallskip\\
+{\em \textbackslash citeauthor:} Cites the given reference(s) with just the author name(s) and no parentheses.\smallskip\\
+{\em \textbackslash citeyear:} Cites the given reference(s) with just the date(s) and no parentheses.
+\end{quote}
+You may also use any of the \emph{natbib} citation commands.
+
+
+\section{Proofreading Your PDF}
+Please check all the pages of your PDF file. The most commonly forgotten element is the acknowledgements --- especially the correct grant number. Authors also commonly forget to add the metadata to the source, use the wrong reference style file, or don't follow the capitalization rules or comma placement for their author-title information properly. A final common problem is text (expecially equations) that runs into the margin. You will need to fix these common errors before submitting your file.
+
+\section{Improperly Formatted Files }
+In the past, AAAI has corrected improperly formatted files submitted by the authors. Unfortunately, this has become an increasingly burdensome expense that we can no longer absorb). Consequently, if your file is improperly formatted, it will be returned to you for correction.
+
+\section{Naming Your Electronic File}
+We require that you name your \LaTeX{} source file with the last name (family name) of the first author so that it can easily be differentiated from other submissions. Complete file-naming instructions will be provided to you in the submission instructions.
+
+\section{Submitting Your Electronic Files to AAAI}
+Instructions on paper submittal will be provided to you in your acceptance letter.
+
+\section{Inquiries}
+If you have any questions about the preparation or submission of your paper as instructed in this document, please contact AAAI Press at the address given below. If you have technical questions about implementation of the aaai style file, please contact an expert at your site. We do not provide technical support for \LaTeX{} or any other software package. To avoid problems, please keep your paper simple, and do not incorporate complicated macros and style files.
+
+\begin{quote}
+\noindent AAAI Press\\
+1101 Pennsylvania Ave, NW Suite 300\\
+Washington, DC 20004 USA\\
+\textit{Telephone:} 1-202-360-4062\\
+\textit{E-mail:} See the submission instructions for your particular conference or event.
+\end{quote}
+
+\section{Additional Resources}
+\LaTeX{} is a difficult program to master. If you've used that software, and this document didn't help or some items were not explained clearly, we recommend you read Michael Shell's excellent document (testflow doc.txt V1.0a 2002/08/13) about obtaining correct PS/PDF output on \LaTeX{} systems. (It was written for another purpose, but it has general application as well). It is available at www.ctan.org in the tex-archive.
+
+\appendix
+\section{Reference Examples}
+\label{sec:reference_examples}
+
+\nobibliography*
+Formatted bibliographies should look like the following examples. You should use BibTeX to generate the references. Missing fields are unacceptable when compiling references, and usually indicate that you are using the wrong type of entry (BibTeX class).
+
+\paragraph{Book with multiple authors~\nocite{em:86}} Use the \texttt{@book} class.\\[.2em]
+\bibentry{em:86}.
+
+\paragraph{Journal and magazine articles~\nocite{r:80, hcr:83}} Use the \texttt{@article} class.\\[.2em]
+\bibentry{r:80}.\\[.2em]
+\bibentry{hcr:83}.
+
+\paragraph{Proceedings paper published by a society, press or publisher~\nocite{c:83, c:84}} Use the \texttt{@inproceedings} class. You may abbreviate the \emph{booktitle} field, but make sure that the conference edition is clear.\\[.2em]
+\bibentry{c:84}.\\[.2em]
+\bibentry{c:83}.
+
+\paragraph{University technical report~\nocite{r:86}} Use the \texttt{@techreport} class.\\[.2em]
+\bibentry{r:86}.
+
+\paragraph{Dissertation or thesis~\nocite{c:79}} Use the \texttt{@phdthesis} class.\\[.2em]
+\bibentry{c:79}.
+
+\paragraph{Forthcoming publication~\nocite{c:21}} Use the \texttt{@misc} class with a \texttt{note="Forthcoming"} annotation.
+\begin{quote}
+\begin{footnotesize}
+\begin{verbatim}
+@misc(key,
+  [...]
+  note="Forthcoming",
+)
+\end{verbatim}
+\end{footnotesize}
+\end{quote}
+\bibentry{c:21}.
+
+\paragraph{ArXiv paper~\nocite{c:22}} Fetch the BibTeX entry from the "Export Bibtex Citation" link in the arXiv website. Notice it uses the \texttt{@misc} class instead of the \texttt{@article} one, and that it includes the \texttt{eprint} and \texttt{archivePrefix} keys.
+\begin{quote}
+\begin{footnotesize}
+\begin{verbatim}
+@misc(key,
+  [...]
+  eprint="xxxx.yyyy",
+  archivePrefix="arXiv",
+)
+\end{verbatim}
+\end{footnotesize}
+\end{quote}
+\bibentry{c:22}.
+
+\paragraph{Website or online resource~\nocite{c:23}} Use the \texttt{@misc} class. Add the url in the \texttt{howpublished} field and the date of access in the \texttt{note} field:
+\begin{quote}
+\begin{footnotesize}
+\begin{verbatim}
+@misc(key,
+  [...]
+  howpublished="\url{http://...}",
+  note="Accessed: YYYY-mm-dd",
+)
+\end{verbatim}
+\end{footnotesize}
+\end{quote}
+\bibentry{c:23}.
+
+\vspace{.2em}
+For the most up to date version of the AAAI reference style, please consult the \textit{AI Magazine} Author Guidelines at \url{https://aaai.org/ojs/index.php/aimagazine/about/submissions#authorGuidelines}
+
+\section{Acknowledgments}
+AAAI is especially grateful to Peter Patel Schneider for his work in implementing the original aaai.sty file, liberally using the ideas of other style hackers, including Barbara Beeton. We also acknowledge with thanks the work of George Ferguson for his guide to using the style and BibTeX files --- which has been incorporated into this document --- and Hans Guesgen, who provided several timely modifications, as well as the many others who have, from time to time, sent in suggestions on improvements to the AAAI style. We are especially grateful to Francisco Cruz, Marc Pujol-Gonzalez, and Mico Loretan for the improvements to the Bib\TeX{} and \LaTeX{} files made in 2020.
+
+The preparation of the \LaTeX{} and Bib\TeX{} files that implement these instructions was supported by Schlumberger Palo Alto Research, AT\&T Bell Laboratories, Morgan Kaufmann Publishers, The Live Oak Press, LLC, and AAAI Press. Bibliography style changes were added by Sunil Issar. \verb+\+pubnote was added by J. Scott Penberthy. George Ferguson added support for printing the AAAI copyright slug. Additional changes to aaai2026.sty and aaai2026.bst have been made by Francisco Cruz and Marc Pujol-Gonzalez.
+
+\bigskip
+\noindent Thank you for reading these instructions carefully. We look forward to receiving your electronic files!
+
+
+
+
+

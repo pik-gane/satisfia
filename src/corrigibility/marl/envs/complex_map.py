@@ -29,7 +29,7 @@ COMPLEX_MAP = [
     "#             #",
     "###  #####  ###",
     "#  H         G#",
-    "###############"
+    "###############",
 ]
 
 # Metadata for this map
@@ -39,6 +39,7 @@ MAP_METADATA = {
     "size": (17, 15),  # (rows, cols)
     "max_steps": 300,  # More steps for a more complex map
 }
+
 
 def get_map():
     """Return the map layout and metadata."""

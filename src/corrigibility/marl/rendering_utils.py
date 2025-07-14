@@ -55,12 +55,11 @@ def point_in_line(x0, y0, x1, y1, r):
     p1 = np.array([x1, y1], dtype=np.float32)
     dir = p1 - p0
     dist = np.linalg.norm(dir)
-    if dist == 0: # Avoid division by zero if p0 and p1 are the same
-        dist = 1.0 
-        dir = np.array([0.0,0.0], dtype=np.float32)
+    if dist == 0:  # Avoid division by zero if p0 and p1 are the same
+        dist = 1.0
+        dir = np.array([0.0, 0.0], dtype=np.float32)
     else:
         dir = dir / dist
-
 
     xmin = min(x0, x1) - r
     xmax = max(x0, x1) + r
@@ -119,8 +118,8 @@ def point_in_triangle(a, b, c):
 
         # Compute barycentric coordinates
         inv_denom = dot00 * dot11 - dot01 * dot01
-        if inv_denom == 0: # Avoid division by zero if vectors are collinear
-            return False 
+        if inv_denom == 0:  # Avoid division by zero if vectors are collinear
+            return False
         inv_denom = 1 / inv_denom
         u = (dot11 * dot02 - dot01 * dot12) * inv_denom
         v = (dot00 * dot12 - dot01 * dot02) * inv_denom

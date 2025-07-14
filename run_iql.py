@@ -12,10 +12,10 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src'))
 
 # Now we can import from the marl package
-from corrigibility.marl.env import GridEnvironment, Actions
+from corrigibility.marl.env import CustomEnvironment as GridEnvironment, Actions
 from corrigibility.marl.iql_timescale_algorithm import TwoPhaseTimescaleIQL
 from corrigibility.marl.deterministic_algorithm import DeterministicAlgorithm
-from corrigibility.marl.trained_agent import TrainedAgent
+
 from corrigibility.marl.envs.map_loader import list_available_maps, DEFAULT_MAP
 
 import numpy as np
@@ -27,8 +27,8 @@ def main():
     parser = argparse.ArgumentParser(description='IQL Timescale Algorithm with Network Support')
     parser.add_argument('--mode', type=str, choices=['train', 'visualize', 'test'], default='train',
                         help='Mode: train (train the model), visualize (run trained model), test (run deterministic test)')
-    parser.add_argument('--algorithm', type=str, choices=['timescale', 'standard'], default='timescale',
-                        help='Algorithm to use: timescale (two-phase timescale IQL), standard (original IQL)')
+    # parser.add_argument('--algorithm', type=str, choices=['timescale', 'standard'], default='timescale',
+    #                     help='Algorithm to use: timescale (two-phase timescale IQL), standard (original IQL)')
     parser.add_argument('--save', type=str, default='q_values.pkl',
                         help='Path to save trained Q-values (default: q_values.pkl)')
     parser.add_argument('--load', type=str, default='q_values.pkl',
@@ -66,7 +66,7 @@ def main():
     # Create environment with specified map
     env_debug_mode = args.debug_prints and args.debug_level in ['standard', 'verbose']
     env = GridEnvironment(map_name=args.map, grid_size=args.grid_size, debug_mode=env_debug_mode, debug_level=args.debug_level)
-    
+
     # Enable minimal debug for goal notifications if any debug level is active
     if args.debug_prints:
         env.set_minimal_debug(True)
@@ -95,31 +95,83 @@ def main():
         print("Deterministic test completed.")
         return
 
-    elif args.mode == 'visualize':
+    # Create action space dictionary
+    action_space_dict = {}
+    for agent_id in env.possible_agents:
+        action_space_dict[agent_id] = list(range(env.action_space(agent_id).n))
+    
+    # Get human goals and create goal distribution
+    human_goals_dict = env.get_all_possible_human_goals()
+    env.reset()  # Ensure goals are set
+    human_goals_dict = env.get_all_possible_human_goals()
+    
+    # Extract goal positions as a list
+    human_goals_list = []
+    for human_id in env.human_agent_ids:
+        if human_id in human_goals_dict:
+            human_goals_list.append(human_goals_dict[human_id])
+    
+    # If no goals found, use a default goal
+    if not human_goals_list:
+        human_goals_list = [(3, 2)]  # Default goal position
+    
+    # Create uniform distribution over goals
+    mu_g = np.ones(len(human_goals_list)) / len(human_goals_list)
+    
+    # Initialize the IQL algorithm
+    iql_params = {
+        'alpha_m': 0.1, 'alpha_e': 0.1, 'alpha_r': 0.01, 'alpha_p': 0.1,
+        'gamma_h': 0.99, 'gamma_r': 0.99,
+        'action_space_dict': action_space_dict,
+        'robot_agent_ids': env.robot_agent_ids,
+        'human_agent_ids': env.human_agent_ids,
+        'network': args.network,
+        'G': human_goals_list,
+        'mu_g': mu_g
+    }
+    # Network mode now uses modern Q-learning backend
+    if args.network:
+        iql_params['env'] = env
+    
+    iql = TwoPhaseTimescaleIQL(**iql_params)
+
+
+    if args.mode == 'visualize':
         # Visualize trained agent
         print(f"Loading trained agent from {args.load}")
-        trained_agent = TrainedAgent(args.load)
-        
-        # Check if we need network mode for loading
-        if args.network:
-            print("Note: Visualization in network mode uses the saved model directly")
-        
+        iql.load_models(args.load)
+
         obs = env.reset()
         env.render()
-        
+
         done = False
         step_count = 0
+        current_goals = {}
+        for hid in env.human_agent_ids:
+            goal_idx = np.random.choice(len(iql.G), p=iql.mu_g)
+            current_goals[hid] = iql.state_to_tuple(iql.G[goal_idx])
+
         while not done and step_count < 1000:  # Prevent infinite loops
-            actions = trained_agent.choose_actions(obs)
+            actions = {}
+            # Get actions from the trained IQL agent
+            for agent_id, agent_obs in obs.items():
+                if agent_id in iql.robot_agent_ids:
+                    state_r = iql.get_full_state(env, agent_id)
+                    actions[agent_id] = iql.sample_robot_action_phase2(agent_id, state_r)
+                elif agent_id in iql.human_agent_ids:
+                    goal = current_goals[agent_id]
+                    state_h = iql.get_human_state(env, agent_id, goal)
+                    actions[agent_id] = iql.sample_human_action_phase1(agent_id, state_h)
+
             obs, rewards, terminations, truncations, infos = env.step(actions)
-            
+
             done = any(terminations.values()) or any(truncations.values())
             step_count += 1
-            
+
             if not done:
                 env.render()
                 pygame.time.delay(args.delay)
-                
+
         print(f"Visualization completed after {step_count} steps.")
         return
 
@@ -128,65 +180,12 @@ def main():
         mode_desc = "Neural Network" if args.network else "Tabular"
         print(f"Starting Two-Phase Timescale IQL training ({mode_desc} mode)")
         print(f"Map: {args.map}, Phase 1: {args.phase1_episodes} episodes, Phase 2: {args.phase2_episodes} episodes")
-        
-        # Set up algorithm parameters
-        alpha_m = 0.1
-        alpha_e = 0.1  
-        alpha_r = 0.1
-        beta_r_0 = 5.0
-        eta = 0.1
-        epsilon_h_0 = 0.1
-        epsilon_r = 1
-        gamma_h = 0.99
-        gamma_r = 0.99
-
-        # Goals and probabilities
-        G = [(0, 0), (2, 2)]  # Simple goals - can be customized per map
-        mu_g = np.array([0.5, 0.5])
-        p_g = 0.1
-
-        # Agent IDs
-        robot_id_iql = "robot_0"
-        human_agent_ids_iql = ["human_0"]
-
-        # Action spaces
-        robot_action_space = list(Actions)
-        human_action_space = list(Actions)
-        
-        action_space_dict = {
-            robot_id_iql: robot_action_space,
-            "human_0": human_action_space
-        }
-
-        # Create IQL agent
-        iql_agent = TwoPhaseTimescaleIQL(
-            alpha_m=alpha_m,
-            alpha_e=alpha_e,
-            alpha_r=alpha_r,
-            gamma_h=gamma_h,
-            gamma_r=gamma_r,
-            beta_r_0=beta_r_0,
-            G=G,
-            mu_g=mu_g,
-            p_g=p_g,
-            action_space_dict=action_space_dict,
-            robot_agent_ids=[robot_id_iql],
-            human_agent_ids=human_agent_ids_iql,
-            eta=eta,
-            epsilon_h_0=epsilon_h_0,
-            epsilon_r=epsilon_r,
-            reward_function=args.reward_function,
-            concavity_param=args.concavity_param,
-            network=args.network,  # Enable neural network mode if specified
-            state_dim=args.state_dim,  # State dimension for networks
-            debug=args.debug_level == 'verbose'
-        )
 
         # Train the agent
         if args.render:
             print("Training with rendering enabled...")
         
-        iql_agent.train(environment=env, 
+        iql.train(environment=env, 
                        phase1_episodes=args.phase1_episodes, 
                        phase2_episodes=args.phase2_episodes, 
                        render=args.render, 
@@ -196,7 +195,7 @@ def main():
         
         # Save the trained Q-values
         print(f"Saving trained Q-values to {args.save}")
-        iql_agent.save_models(filepath=args.save)
+        iql.save_models(file_prefix=args.save)
         
         print("Training and saving completed successfully!")
 
