@@ -17,7 +17,7 @@ COLORS = {
     "orange": np.array([255, 165, 0]) # For Lava
 }
 
-TILE_PIXELS = 48 # Default tile size, increased from 32 (or previous value)
+TILE_PIXELS = 64  # Default tile size, increased for better visibility
 
 class WorldObj:
     """

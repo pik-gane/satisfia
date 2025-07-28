@@ -1,6 +1,8 @@
 ### Command
 
-python main.py --mode train --phase1-episodes 1000 --phase2-episodes 1000 --save saved/q_values.pkl --map simple_map2
+python main.py --mode visualize --load saved/simple_map4.pkl --map simple_map4
+
+python main.py --mode train --phase1-episodes 10000 --phase2-episodes 10000 --save saved/simple_map4.pkl --map simple_map4
 
 python main.py --mode train --phase1-episodes 1000 --phase2-episodes 1000 --save saved/q_values.pkl --map team_map
 
