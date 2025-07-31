@@ -388,3 +388,8 @@ class WorldModel(Generic[ObsType, Action, State], Env[ObsType, Action]):
         and possibly adding new states.
         All formerly non-terminal states, their action spaces, and the corresponding transitons must remain unchanged."""
         raise NotImplementedError()
+
+    # temporary method added because RestrictToPossibleActionsWrapper needs to access _state,
+    # which is private
+    def get_state(self):
+        return self._state

@@ -5,6 +5,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# saved python or pytorch objects
+*.pickle
+*.pt
+
 # C extensions
 *.so
 
